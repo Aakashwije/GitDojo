@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/gitdojo-banner.png" alt="GitDojo" width="640" />
+
 # GitDojo
 
 **Learn Git by doing.**

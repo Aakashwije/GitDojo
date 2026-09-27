@@ -1,41 +1,32 @@
 import { cn } from "@gitdojo/ui";
+import Image from "next/image";
+import mark from "@/public/brand/gitdojo-mark.png";
 
-/** Abstract "G" drawn as a commit path: an arc of history ending in two commit nodes. */
+/** The GitDojo icon: a hexagonal "G" with a commit graph and a terminal prompt. */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={cn("size-6", className)} aria-hidden="true" fill="none">
-      <path
-        d="M23.07 8.93A10 10 0 1 0 26 16h-8"
-        stroke="currentColor"
-        strokeWidth={3}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx="23.07"
-        cy="8.93"
-        r="3"
-        fill="var(--accent-primary)"
-        stroke="var(--bg-app)"
-        strokeWidth={1.5}
-      />
-      <circle
-        cx="17"
-        cy="16"
-        r="3"
-        fill="var(--accent-primary)"
-        stroke="var(--bg-app)"
-        strokeWidth={1.5}
-      />
-    </svg>
+    <Image
+      src={mark}
+      alt=""
+      aria-hidden="true"
+      priority
+      sizes="32px"
+      className={cn("size-7 shrink-0", className)}
+    />
   );
 }
 
+/**
+ * Icon plus wordmark. The name is live text rather than part of the image so it stays crisp and
+ * legible at navbar sizes; colors follow the logo artwork ("Git" light, "Dojo" blue).
+ */
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 text-fg", className)}>
+    <span className={cn("inline-flex items-center gap-2", className)}>
       <LogoMark />
-      <span className="text-[17px] font-semibold tracking-tight">GitDojo</span>
+      <span className="text-[18px] font-bold tracking-tight text-fg">
+        Git<span className="text-accent">Dojo</span>
+      </span>
     </span>
   );
 }

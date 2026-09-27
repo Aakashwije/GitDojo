@@ -1,0 +1,1 @@
+GitDojo logo: Learn Git by doing.
