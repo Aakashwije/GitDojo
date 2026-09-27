@@ -1,0 +1,32 @@
+{
+  "name": "@gitdojo/lesson-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lesson schema, loader and setup engine for GitDojo.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gitdojo/git-engine": "workspace:*",
+    "@gitdojo/repository-state": "workspace:*",
+    "@gitdojo/shared-types": "workspace:*",
+    "@gitdojo/validator": "workspace:*",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@gitdojo/config": "workspace:*",
+    "@types/node": "24.19.0",
+    "eslint": "9.39.5",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

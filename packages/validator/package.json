@@ -1,0 +1,26 @@
+{
+  "name": "@gitdojo/validator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "State-based objective validators for GitDojo lessons.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gitdojo/shared-types": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@gitdojo/config": "workspace:*",
+    "@types/node": "24.19.0",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

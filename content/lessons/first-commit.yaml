@@ -1,0 +1,69 @@
+# Lesson: Your First Commit
+# Schema and authoring guide: docs/lesson-authoring.md
+id: first-commit
+slug: first-commit
+title: Your First Commit
+
+goal: Turn a plain folder into a Git repository and record its first snapshot.
+
+description: |
+  Git only tracks a folder once you tell it to. After that, saving work is a two-step
+  process: you **stage** the changes you want with `git add`, then **commit** them to
+  record a permanent snapshot in the repository's history.
+
+  Run `git status` at any time to see what Git thinks is going on.
+
+difficulty: beginner
+
+concepts:
+  - git-init
+  - staging
+  - commits
+
+commands:
+  - git init
+  - git status
+  - git add
+  - git commit
+
+setup:
+  initializeGit: false
+  files:
+    README.md: |
+      # GitDojo
+
+      Welcome to your first repository.
+
+objectives:
+  - id: initialize
+    description: Initialize the repository.
+    validator:
+      type: repository_initialized
+
+  - id: stage-readme
+    description: Stage README.md.
+    validator:
+      type: file_staged
+      file: README.md
+
+  - id: first-commit
+    description: Create your first commit.
+    validator:
+      type: commit_exists
+
+hints:
+  initialize:
+    - Git does not know this folder is a repository yet.
+    - Look for the command that initializes a Git repository.
+    - Try `git init`.
+  stage-readme:
+    - Git only commits changes you have placed in the staging area.
+    - Run `git status` to see which files are untracked.
+    - Try `git add README.md`.
+  first-commit:
+    - A commit records everything in the staging area as a snapshot.
+    - Every commit needs a short message describing the change.
+    - Try `git commit -m "Initial commit"`.
+
+completion:
+  xp: 100

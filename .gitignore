@@ -1,0 +1,17 @@
+node_modules
+.pnpm-store
+.turbo
+.next
+out
+dist
+coverage
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.DS_Store
+
+# Playwright
+apps/web/test-results
+apps/web/playwright-report
+apps/web/blob-report
+apps/web/playwright/.cache

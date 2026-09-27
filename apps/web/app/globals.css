@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "@gitdojo/ui/theme.css";
+
+/* Tailwind must also scan the design-system package for class names. */
+@source "../../../packages/ui/src";
+
+@layer components {
+  /* Inline code inside prose (lesson text, hints). */
+  .gd-code {
+    @apply rounded-sm border border-border-subtle bg-elevated px-1 py-px font-mono text-[0.9em] text-fg;
+  }
+}

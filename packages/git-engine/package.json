@@ -1,0 +1,29 @@
+{
+  "name": "@gitdojo/git-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Safe, browser-only Git engine and virtual filesystem for GitDojo.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gitdojo/shared-types": "workspace:*",
+    "@isomorphic-git/lightning-fs": "4.10.3",
+    "buffer": "6.0.3",
+    "isomorphic-git": "1.42.3"
+  },
+  "devDependencies": {
+    "@gitdojo/config": "workspace:*",
+    "@types/node": "24.19.0",
+    "eslint": "9.39.5",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
