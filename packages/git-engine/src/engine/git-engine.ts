@@ -1,4 +1,9 @@
-import { type GitAuthor, type GitCommandResult, type StagedChange } from "@gitdojo/shared-types";
+import {
+  type BranchState,
+  type GitAuthor,
+  type GitCommandResult,
+  type StagedChange,
+} from "@gitdojo/shared-types";
 
 export const DEFAULT_BRANCH = "main";
 
@@ -71,11 +76,32 @@ export interface GitLogOptions {
 export interface GitCommitInput {
   message: string;
   author?: GitAuthor;
+  /** Seconds since the Unix epoch. Defaults to now; lesson setup back-dates its commits. */
+  timestamp?: number;
 }
 
 export interface GitBranchInfo {
   name: string;
   oid: string | null;
+}
+
+export interface GitBranchListData {
+  /** Sorted by name, like `git branch`. Includes the current branch even before its first commit. */
+  branches: BranchState[];
+}
+
+export interface GitBranchCreateData {
+  name: string;
+  oid: string;
+}
+
+export interface GitSwitchData {
+  branch: string;
+  /** False when the learner was already on the branch. */
+  switched: boolean;
+  created: boolean;
+  /** Working-tree paths written or removed to match the target branch. */
+  updatedPaths: string[];
 }
 
 /** Read-only view of everything the repository-state package needs, in engine-neutral shapes. */
@@ -86,6 +112,8 @@ export interface GitRepositorySnapshot {
   branches: GitBranchInfo[];
   /** Commits reachable from HEAD, newest first. */
   commits: GitCommitInfo[];
+  /** Commits reachable from HEAD or any branch, children before parents. */
+  allCommits: GitCommitInfo[];
   entries: GitStatusEntry[];
 }
 
@@ -94,6 +122,9 @@ export type GitStatusResult = GitCommandResult<GitStatusData>;
 export type GitAddResult = GitCommandResult<GitAddData>;
 export type GitCommitResult = GitCommandResult<GitCommitData>;
 export type GitLogResult = GitCommandResult<GitLogData>;
+export type GitBranchListResult = GitCommandResult<GitBranchListData>;
+export type GitBranchCreateResult = GitCommandResult<GitBranchCreateData>;
+export type GitSwitchResult = GitCommandResult<GitSwitchData>;
 
 /**
  * The only entry point to Git for the rest of GitDojo. Implementations are bound to one workspace.
@@ -106,6 +137,16 @@ export interface GitEngine {
   add(paths: string[]): Promise<GitAddResult>;
   commit(input: GitCommitInput): Promise<GitCommitResult>;
   log(options?: GitLogOptions): Promise<GitLogResult>;
+  /** `git branch`: prints the branch list, marking the current branch with `*`. */
+  showBranches(): Promise<GitBranchListResult>;
+  /** `git branch <name>`: creates a branch at HEAD without switching to it. */
+  createBranch(name: string): Promise<GitBranchCreateResult>;
+  /** `git switch <name>`: moves HEAD to an existing branch and updates the working tree. */
+  switchBranch(name: string): Promise<GitSwitchResult>;
+  /** `git switch -c <name>`: creates a branch at HEAD and switches to it. */
+  createAndSwitchBranch(name: string): Promise<GitSwitchResult>;
+  /** Branches as data (no output). Empty outside a repository. Rejects only on internal failures. */
+  listBranches(): Promise<BranchState[]>;
   /** Reads repository state without mutating it. Rejects only on unexpected internal failures. */
   snapshot(): Promise<GitRepositorySnapshot>;
 }

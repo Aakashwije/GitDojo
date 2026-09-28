@@ -1,0 +1,89 @@
+# Challenge: First Repository
+# Schema and authoring guide: docs/lesson-authoring.md
+# Challenges describe the end state and never prescribe commands, including in hints.
+id: first-repository-challenge
+slug: first-repository-challenge
+title: First Repository Challenge
+type: challenge
+
+goal: Put a brand-new project under version control with a single, complete first commit.
+
+description: |
+  A teammate hands you a small project, `README.md` and `index.js`, that has never been
+  tracked. Turn it into a repository whose history starts with **one commit containing both
+  files**, and leave nothing uncommitted.
+
+  There are no step-by-step instructions this time. Use what you learned in this course, and
+  check your progress with `git status` and `git log` whenever you like.
+
+difficulty: beginner
+
+concepts:
+  - git-init
+  - staging
+  - commits
+
+commands:
+  - git init
+  - git status
+  - git add
+  - git commit
+  - git log
+
+setup:
+  initializeGit: false
+  files:
+    README.md: |
+      # Tip Calculator
+
+      Splits a restaurant bill between friends.
+    index.js: |
+      export function splitBill(total, people, tipPercent = 15) {
+        const withTip = total * (1 + tipPercent / 100);
+        return Math.round((withTip / people) * 100) / 100;
+      }
+
+objectives:
+  - id: initialize
+    description: The project folder is a Git repository.
+    validator:
+      type: repository_initialized
+
+  - id: stage-readme
+    description: "`README.md` is staged."
+    validator:
+      type: file_staged
+      file: README.md
+
+  - id: stage-index
+    description: "`index.js` is staged."
+    validator:
+      type: file_staged
+      file: index.js
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+  - id: one-commit
+    description: The history contains exactly one commit.
+    validator:
+      type: commit_count
+      count: 1
+
+hints:
+  initialize:
+    - Git cannot track anything until the folder is a repository.
+  stage-readme:
+    - A commit only includes what is in the staging area.
+  stage-index:
+    - Both files belong in the same commit, so both need to be staged before you commit.
+  clean:
+    - "`git status` tells you whether anything is left to commit."
+  one-commit:
+    - Your history should have a single commit with both files. If you made more than one, reset
+      the challenge and try again.
+
+completion:
+  xp: 150

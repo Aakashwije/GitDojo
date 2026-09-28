@@ -1,0 +1,104 @@
+# Lesson: Understanding Commit History
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-log
+slug: git-log
+title: Understanding Commit History
+type: interactive
+
+goal: Read a repository's history with `git log`, then add to it.
+
+description: |
+  This project already has a few commits. Explore them with `git log`, then add a changelog
+  and find your new commit at the top of the history.
+
+difficulty: beginner
+
+concepts:
+  - history
+  - git-log
+
+commands:
+  - git log
+  - git log --oneline
+  - git add
+  - git commit
+
+content:
+  - type: example
+    title: The full log
+    command: git log
+    output: |
+      commit 9c1e5b2d7a3f4e8b6c0d1a2b3c4d5e6f7a8b9c0d (HEAD -> main)
+      Author: GitDojo Learner <learner@gitdojo.local>
+      Date:   Mon Sep 28 10:02:00 2026 +0000
+
+          Add styles
+
+      commit 4b7d2e1f0a9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c
+      Author: GitDojo Learner <learner@gitdojo.local>
+      Date:   Mon Sep 28 10:01:00 2026 +0000
+
+          Add homepage
+    explanation: >-
+      Newest first. Each entry shows the commit's full hash, who made it, when, and its message.
+      `HEAD -> main` marks where you are right now.
+
+  - type: example
+    title: One line per commit
+    command: git log --oneline
+    output: |
+      9c1e5b2 (HEAD -> main) Add styles
+      4b7d2e1 Add homepage
+      a3f0c47 Initial commit
+    explanation: >-
+      `--oneline` shows the short hash and the first line of each message. It is the quickest way
+      to get an overview.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+    - message: Add styles
+      files:
+        style.css: |
+          h1 { color: steelblue; }
+  files:
+    CHANGELOG.md: |
+      # Changelog
+
+      ## 0.1.0
+
+      - First release of the Weather App.
+
+objectives:
+  - id: stage-changelog
+    description: Stage the new `CHANGELOG.md`.
+    validator:
+      type: file_staged
+      file: CHANGELOG.md
+
+  - id: commit-changelog
+    description: >-
+      Commit it, so the history has four commits. Then run `git log --oneline` to find yours at
+      the top.
+    validator:
+      type: commit_count
+      count: 4
+
+hints:
+  stage-changelog:
+    - Run `git log` first to see the three existing commits.
+    - Run `git add CHANGELOG.md`.
+  commit-changelog:
+    - Commit the staged file with a message describing it.
+    - Run `git commit -m "Add changelog"`, then `git log --oneline`.
+
+completion:
+  xp: 50

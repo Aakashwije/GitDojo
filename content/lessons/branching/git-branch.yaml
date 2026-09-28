@@ -1,0 +1,92 @@
+# Lesson: Create Your First Branch
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-branch
+slug: git-branch
+title: Create Your First Branch
+type: interactive
+
+goal: Create branches with `git branch` and list them.
+
+description: |
+  This repository has two commits on `main`. Create branches for upcoming work, and watch new
+  labels appear in the **Repository Graph** without anything else changing.
+
+difficulty: beginner
+
+concepts:
+  - branches
+  - git-branch
+
+commands:
+  - git branch
+  - git log --oneline
+
+content:
+  - type: example
+    title: Create a branch
+    command: git branch feature/login
+    explanation: >-
+      Silent on success. The new branch points at the commit you are on, and you stay on your
+      current branch.
+
+  - type: example
+    title: List branches
+    command: git branch
+    output: |
+      * main
+        feature/login
+    explanation: The `*` marks the branch HEAD points to, the one you are on.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+
+objectives:
+  - id: create-feature
+    description: Create a branch named `feature/login`.
+    validator:
+      type: branch_exists
+      branch: feature/login
+
+  - id: same-commit
+    description: "`feature/login` points at the same commit as `main`. Find both labels in the graph."
+    validator:
+      type: branch_points_to_commit
+      branch: feature/login
+      sameAs: main
+
+  - id: create-bugfix
+    description: Create a second branch named `bugfix/header`.
+    validator:
+      type: branch_exists
+      branch: bugfix/header
+
+  - id: stay-on-main
+    description: Stay on `main`. Creating a branch does not switch to it.
+    validator:
+      type: current_branch
+      branch: main
+
+hints:
+  create-feature:
+    - "`git branch` followed by a name creates a branch with that name."
+    - Run `git branch feature/login`.
+  same-commit:
+    - A new branch starts at the commit you are on. Run `git log --oneline` to see both names.
+  create-bugfix:
+    - Same command, different name.
+    - Run `git branch bugfix/header`, then `git branch` to list all three.
+  stay-on-main:
+    - Run `git branch`. The `*` shows which branch you are on.
+    - If you switched to another branch, run `git switch main`.
+
+completion:
+  xp: 75

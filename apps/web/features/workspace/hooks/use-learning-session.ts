@@ -55,7 +55,7 @@ export function useLearningSession(
     }
     const session = sessionRef.current;
     useRepositoryStore.getState().setWorkspace(session.workspaceId);
-    useLessonStore.getState().resetAttempt();
+    useLessonStore.getState().startLesson();
 
     session.start().then(
       (snapshot) => {

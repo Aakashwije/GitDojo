@@ -4,6 +4,10 @@ export type GitErrorCode =
   | "NO_COMMITS"
   | "FILE_NOT_FOUND"
   | "INVALID_ARGUMENT"
+  | "INVALID_BRANCH_NAME"
+  | "BRANCH_EXISTS"
+  | "BRANCH_NOT_FOUND"
+  | "CHECKOUT_CONFLICT"
   | "UNKNOWN";
 
 /**

@@ -15,6 +15,27 @@ all satisfy "README.md is staged".
 | `commit_count`           | `count`    | HEAD's history has exactly `count` commits.                                    |
 | `clean_worktree`         | –          | Initialized, nothing staged, and every file is committed and unmodified.       |
 
+### Branch validators
+
+| Type                      | Fields                          | Passes when                                                                                 |
+| ------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `branch_exists`           | `branch`                        | The branch exists. An unborn branch (no commits yet) does not count, as in Git.             |
+| `branch_not_exists`       | `branch`                        | No branch with that name exists.                                                            |
+| `current_branch`          | `branch`                        | HEAD is attached to the branch.                                                             |
+| `branch_points_to_commit` | `branch`, `message` or `sameAs` | The branch's tip commit has exactly `message`, or it points at the same commit as `sameAs`. |
+| `commit_on_branch`        | `branch`, `message?`, `notOn?`  | A commit reachable from `branch` (with `message`, if given) is not reachable from `notOn`.  |
+
+`branch_points_to_commit` needs exactly one of `message` and `sameAs`. `commit_on_branch` with
+`notOn: main` is how a lesson says "a commit made on the feature branch, not on main"; without
+`notOn` it also counts commits the branch inherited.
+
+```yaml
+validator:
+  type: commit_on_branch
+  branch: feature/login
+  notOn: main
+```
+
 File paths may be written as `README.md` or `./README.md`.
 
 ```yaml
@@ -54,6 +75,8 @@ that into sticky learner progress (see [architecture.md](./architecture.md#lesso
 5. Add tests to `packages/validator/src/validate.test.ts`.
 6. Document it in the table above.
 
-Validators must be pure functions of `RepositoryState`. If a validator needs information the state
+Validators must be pure functions of `RepositoryState`. Branch validators use `branches` (name →
+commit) and `allCommits` (every commit on every branch, with parents) to work out reachability;
+`commits` only holds HEAD's history. If a validator needs information the state
 does not have yet, extend `RepositoryState` (and the snapshot mapping in
 `@gitdojo/repository-state`) rather than reaching into Git from the validator.

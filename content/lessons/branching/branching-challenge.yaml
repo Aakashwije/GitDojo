@@ -1,0 +1,95 @@
+# Challenge: Branching
+# Schema and authoring guide: docs/lesson-authoring.md
+# Challenges describe the end state and never prescribe commands, including in hints.
+id: branching-challenge
+slug: branching-challenge
+title: Branching Challenge
+type: challenge
+
+goal: Ship a feature on its own branch while `main` stays exactly as it is.
+
+description: |
+  `main` is what your users run, so nothing unfinished may land on it. You have just written
+  `search.js` for a new search feature.
+
+  Get it committed on a branch called `feature/search`, keep `main` where it is, and finish back
+  on `main` with a clean working tree. How you get there is up to you.
+
+difficulty: beginner
+
+concepts:
+  - branches
+  - head
+  - commits
+
+commands:
+  - git branch
+  - git switch
+  - git add
+  - git commit
+  - git log
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+  files:
+    search.js: |
+      export function searchCities(cities, query) {
+        const needle = query.trim().toLowerCase();
+        return cities.filter((city) => city.name.toLowerCase().includes(needle));
+      }
+
+objectives:
+  - id: branch
+    description: A branch named `feature/search` exists.
+    validator:
+      type: branch_exists
+      branch: feature/search
+
+  - id: commit
+    description: "`feature/search` has a commit that is not on `main`."
+    validator:
+      type: commit_on_branch
+      branch: feature/search
+      notOn: main
+
+  - id: main-untouched
+    description: "`main` still points at **Add homepage**."
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      message: Add homepage
+
+  - id: on-main
+    description: You are back on `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  branch:
+    - New work gets its own branch before anything is committed.
+  commit:
+    - A commit lands on whichever branch HEAD points to. Check where you are before committing.
+  main-untouched:
+    - If a commit ended up on `main`, reset the challenge and try again.
+  on-main:
+    - Where does HEAD point right now? The graph and `git status` both tell you.
+  clean:
+    - "`git status` shows whether anything is left over."
+
+completion:
+  xp: 150

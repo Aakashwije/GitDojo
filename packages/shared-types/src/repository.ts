@@ -43,8 +43,13 @@ export interface RepositoryState {
   currentBranch: string | null;
   head: string | null;
   branches: BranchState[];
-  /** Commits reachable from HEAD, newest first. */
+  /** Commits reachable from HEAD, newest first. This is what `git log` shows. */
   commits: CommitState[];
+  /**
+   * Commits reachable from HEAD or any branch, children before parents (newest first). The graph
+   * needs these: after switching away from a branch its commits are no longer in `commits`.
+   */
+  allCommits: CommitState[];
   /** Working tree view: one entry per path present in (or deleted from) the working directory. */
   files: FileState[];
   /** Index view: one entry per path whose staged content differs from HEAD. */
@@ -58,6 +63,7 @@ export const EMPTY_REPOSITORY_STATE: RepositoryState = {
   head: null,
   branches: [],
   commits: [],
+  allCommits: [],
   files: [],
   stagedFiles: [],
   conflicts: [],

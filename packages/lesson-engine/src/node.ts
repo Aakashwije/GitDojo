@@ -26,3 +26,6 @@ export function createDirectoryLessonSource(directory: string): LessonSource {
     },
   };
 }
+
+/** Reads `<slug>.yaml` course files from a directory. Same format rules as lessons. */
+export const createDirectoryCourseSource = createDirectoryLessonSource;

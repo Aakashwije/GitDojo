@@ -5,7 +5,7 @@ import { GitHubIcon } from "./github-icon";
 import { Logo } from "./logo";
 
 const NAV_ITEMS = [
-  { label: "Learn", href: "/learn/demo", external: false },
+  { label: "Learn", href: "/learn", external: false },
   { label: "Docs", href: SITE.docsUrl, external: true },
 ] as const;
 

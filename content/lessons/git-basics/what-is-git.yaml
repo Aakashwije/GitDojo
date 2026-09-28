@@ -1,0 +1,87 @@
+# Lesson: What is Git?
+# Schema and authoring guide: docs/lesson-authoring.md
+id: what-is-git
+slug: what-is-git
+title: What is Git?
+type: concept
+
+goal: Understand what Git is, and why almost every software project uses it.
+
+difficulty: beginner
+
+concepts:
+  - version-control
+  - commits
+
+content:
+  - type: text
+    title: A history for your project
+    body: |
+      Git is a **version control system**. It records snapshots of a project over time, so you can
+      see what changed, when it changed and why, and go back when something breaks.
+
+      Every save point in Git is called a **commit**. A commit is a snapshot of every tracked file,
+      plus a short message, an author and a timestamp.
+
+  - type: comparison
+    title: Before and after Git
+    columns:
+      - title: Without Git
+        items:
+          - "`report-final.docx`, `report-final-v2.docx`, `report-REALLY-final.docx`"
+          - No record of what changed between copies, or why
+          - Sharing work means emailing files and merging edits by hand
+          - A bad change can overwrite the only good copy
+      - title: With Git
+        items:
+          - One folder, with a complete history inside it
+          - Every commit explains what changed and why
+          - Teammates work in parallel and combine their work safely
+          - Any earlier snapshot can be restored
+
+  - type: diagram
+    title: History is a chain of commits
+    graph:
+      commits:
+        - id: A
+          message: Initial commit
+        - id: B
+          parent: A
+          message: Add homepage
+        - id: C
+          parent: B
+          message: Fix typo
+      branches:
+        main: C
+      head: main
+    caption: >-
+      Each dot is a commit. Every commit remembers its parent, the commit before it, so together
+      they form the project's history. `main` points to the newest one.
+
+  - type: text
+    title: Git lives on your computer
+    body: |
+      Git runs locally. The whole history is stored in a hidden `.git` folder inside your project,
+      so you can commit, browse history and experiment without an internet connection or an
+      account anywhere.
+
+      A folder that Git tracks is called a **repository**, or **repo** for short.
+
+  - type: callout
+    tone: tip
+    title: A safe place to practice
+    body: >-
+      Every lesson in GitDojo runs real Git commands against a sandboxed repository inside your
+      browser. Nothing you type can touch your computer, so experiment freely.
+
+  - type: text
+    title: What you will learn in this course
+    body: |
+      - How to turn a folder into a repository with `git init`
+      - How to read `git status`
+      - The three places your changes live: the working tree, the staging area and the repository
+      - How to stage changes with `git add` and record them with `git commit`
+      - How to read your history with `git log`
+
+completion:
+  xp: 25

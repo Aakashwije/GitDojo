@@ -14,10 +14,10 @@ GitDojo is an open-source interactive Git learning environment where developers 
 real commands, manipulating safe browser-based repositories, and visualizing what happens
 internally.
 
-> **Status: early development.** The first vertical slice works end to end: a guided lesson, a
-> browser terminal, a real Git engine, live working tree / staging / history visualization, and
-> state-based objective validation. Accounts, persistence, more commands and more lessons are on
-> the [roadmap](#roadmap).
+> **Status: early development.** Two beginner courses, Git Basics and Branching, run end to end:
+> concept lessons with visual demos, hands-on lessons and challenges in a browser terminal, a real
+> Git engine, live working tree / staging / branch graph visualization, and state-based objective
+> validation. Accounts, more commands and more courses are on the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -30,6 +30,14 @@ Open the demo lesson at `/learn/demo` ("Your First Commit"):
    **Repository Graph** with `main` and `HEAD` labels.
 4. Objectives tick off as the repository reaches the right state. `git add .` works just as well
    as `git add README.md`, because GitDojo checks the result, not the command.
+
+Or pick a course at `/learn`:
+
+- **Git Basics** (10 lessons): what Git is, `git init`, reading `git status`, the working tree and
+  staging area, `git add`, `git commit`, `git log`, and a first-repository challenge.
+- **Branching** (6 lessons): branches and HEAD, `git branch`, `git switch` / `git switch -c`,
+  committing on a feature branch, and a branching challenge. The graph draws each branch in its own
+  lane.
 
 Everything runs locally in the browser: Git is [isomorphic-git](https://isomorphic-git.org), files
 live in IndexedDB via [LightningFS](https://github.com/isomorphic-git/lightning-fs), and there is
@@ -72,7 +80,7 @@ Requirements: Node.js 20.9+ (24 recommended, see `.nvmrc`) and pnpm via Corepack
 ```bash
 corepack enable
 pnpm install
-pnpm dev            # http://localhost:3000, then open /learn/demo
+pnpm dev            # http://localhost:3000, then open /learn
 ```
 
 | Command          | What it does                                   |
@@ -93,7 +101,7 @@ Before the first `pnpm test:e2e`, install a browser:
 ```text
 gitdojo/
 ├── apps/
-│   └── web/                  Next.js app (landing page, /learn/demo workspace)
+│   └── web/                  Next.js app (landing page, courses, lesson workspace)
 ├── packages/
 │   ├── git-engine/           VirtualFileSystem + GitEngine (isomorphic-git, LightningFS)
 │   ├── command-parser/       tokenizer, parser, command router
@@ -104,7 +112,8 @@ gitdojo/
 │   ├── ui/                   design tokens and components (see UI.md)
 │   └── config/               shared TypeScript, ESLint and Prettier config
 ├── content/
-│   ├── lessons/              lesson YAML files
+│   ├── courses/              course definitions (lesson order)
+│   ├── lessons/              lesson YAML files, one directory per course
 │   └── challenges/           (coming later)
 └── docs/                     architecture and contributor guides
 ```
@@ -123,17 +132,19 @@ single YAML file. See:
 ## Roadmap
 
 - [x] Monorepo, CI, design tokens
-- [x] Browser virtual filesystem and Git engine (`init`, `status`, `add`, `commit`, `log`)
+- [x] Browser virtual filesystem and Git engine (`init`, `status`, `add`, `commit`, `log`,
+      `branch`, `switch`)
 - [x] Safe command parser and router
 - [x] Terminal, repository graph, working tree / staging visualization
 - [x] Data-driven lessons with state-based validation, and the first-commit lesson
-- [ ] More commands: `diff`, `restore`, `rm`, `branch`, `switch`, `merge`
+- [x] Courses (`/learn`): Git Basics (10 lessons) and Branching (6 lessons), with saved progress
+- [x] Branch visualization with lanes, branch labels and HEAD
+- [ ] More commands: `diff`, `restore`, `rm`, `merge`
 - [ ] Built-in file editor, so learners can modify files and see `modified` states
-- [ ] Course structure (`/learn`) with more lessons
-- [ ] Branching and merge visualization, conflicts
+- [ ] Merge visualization, conflicts
 - [ ] Real-world challenges ("you committed to the wrong branch...")
 - [ ] Playground mode and command reference
-- [ ] Accounts and progress persistence
+- [ ] Accounts, and progress that syncs across devices (today it is saved in the browser)
 
 ## License
 

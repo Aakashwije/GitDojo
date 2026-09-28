@@ -1,0 +1,95 @@
+# Lesson: Switch Between Branches
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-switch
+slug: git-switch
+title: Switch Between Branches
+type: interactive
+
+goal: Move between branches with `git switch`, and create-and-switch in one step with `-c`.
+
+description: |
+  A `feature/login` branch already exists. Move HEAD onto it, come back to `main`, then create
+  a brand-new branch and switch to it in a single command.
+
+  Watch the blue **HEAD** label in the graph move as you switch.
+
+difficulty: beginner
+
+concepts:
+  - branches
+  - head
+  - git-switch
+
+commands:
+  - git switch
+  - git switch -c
+  - git branch
+
+content:
+  - type: example
+    title: Switch to an existing branch
+    command: git switch feature/login
+    output: Switched to branch 'feature/login'
+
+  - type: example
+    title: Create a branch and switch to it
+    command: git switch -c bugfix/header
+    output: Switched to a new branch 'bugfix/header'
+    explanation: >-
+      `-c` stands for "create". It does the same as `git branch bugfix/header` followed by
+      `git switch bugfix/header`.
+
+  - type: callout
+    tone: note
+    title: What about git checkout?
+    body: >-
+      Older tutorials use `git checkout feature/login` and `git checkout -b bugfix/header`. They
+      still work, and GitDojo accepts them, but `git checkout` also restores files, which makes it
+      easy to confuse. `git switch` only switches branches, so prefer it.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+  branches:
+    - feature/login
+
+objectives:
+  - id: to-feature
+    description: Switch to the `feature/login` branch.
+    validator:
+      type: current_branch
+      branch: feature/login
+
+  - id: back-to-main
+    description: Switch back to `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: create-and-switch
+    description: Create a branch named `bugfix/header` and switch to it with a single command.
+    validator:
+      type: current_branch
+      branch: bugfix/header
+
+hints:
+  to-feature:
+    - "`git switch` moves HEAD to the branch you name."
+    - Run `git switch feature/login`.
+  back-to-main:
+    - Switching back works the same way.
+    - Run `git switch main`.
+  create-and-switch:
+    - "`git switch` has an option that creates the branch first."
+    - Run `git switch -c bugfix/header`.
+
+completion:
+  xp: 75

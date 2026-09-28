@@ -4,7 +4,7 @@ import { type z } from "zod";
 import { InvalidLessonError } from "./errors";
 import { lessonDefinitionSchema } from "./schema";
 
-function formatIssue(issue: z.core.$ZodIssue): string {
+export function formatIssue(issue: z.core.$ZodIssue): string {
   const path = issue.path.map(String).join(".");
   return path === "" ? issue.message : `${path}: ${issue.message}`;
 }

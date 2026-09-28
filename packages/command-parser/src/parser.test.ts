@@ -72,6 +72,33 @@ describe("parseCommand", () => {
     expect(parsed("git log --oneline")).toMatchObject({ command: "log", flags: { oneline: true } });
   });
 
+  it("parses git branch with and without a name", () => {
+    expect(parsed("git branch")).toMatchObject({ command: "branch", args: [], flags: {} });
+    expect(parsed("git branch feature/login")).toMatchObject({
+      command: "branch",
+      args: ["feature/login"],
+    });
+  });
+
+  it("parses git switch and git switch -c", () => {
+    expect(parsed("git switch main")).toMatchObject({ command: "switch", args: ["main"] });
+    expect(parsed("git switch feature/login")).toMatchObject({ args: ["feature/login"] });
+    expect(parsed("git switch -c feature/login")).toMatchObject({
+      command: "switch",
+      args: [],
+      flags: { c: "feature/login" },
+    });
+    expect(parsed("git switch --create feature/login").flags).toEqual({ c: "feature/login" });
+  });
+
+  it("parses git checkout and git checkout -b", () => {
+    expect(parsed("git checkout main")).toMatchObject({ command: "checkout", args: ["main"] });
+    expect(parsed("git checkout -b feature/login")).toMatchObject({
+      args: [],
+      flags: { b: "feature/login" },
+    });
+  });
+
   it("treats everything after -- as arguments", () => {
     expect(parsed("git add -- -weird-name.txt").args).toEqual(["-weird-name.txt"]);
   });
@@ -106,9 +133,24 @@ describe("parseCommand", () => {
     });
 
     it("explains that real but unsupported git commands are coming", () => {
-      expect(errorOf("git branch feature").message).toBe(
-        "git: 'branch' is not available in GitDojo yet.",
+      expect(errorOf("git merge feature").message).toBe(
+        "git: 'merge' is not available in GitDojo yet.",
       );
+    });
+
+    it("limits the number of arguments", () => {
+      expect(errorOf("git branch a b")).toEqual({
+        code: "UNEXPECTED_ARGUMENT",
+        message: "error: unexpected argument 'b'\nusage: git branch [<name>]",
+      });
+      expect(errorOf("git switch a b").code).toBe("UNEXPECTED_ARGUMENT");
+    });
+
+    it("requires a branch name after -c", () => {
+      expect(errorOf("git switch -c")).toEqual({
+        code: "MISSING_FLAG_VALUE",
+        message: "error: switch 'c' requires a value",
+      });
     });
 
     it("requires a commit message", () => {

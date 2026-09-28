@@ -136,7 +136,7 @@ export function OpenSourceSection() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Button asChild variant="primary" size="lg">
-            <Link href="/learn/demo">Start learning</Link>
+            <Link href="/learn">Start learning</Link>
           </Button>
           <Button asChild variant="secondary" size="lg">
             <a href={SITE.githubUrl}>

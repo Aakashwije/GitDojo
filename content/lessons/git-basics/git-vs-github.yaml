@@ -1,0 +1,69 @@
+# Lesson: Git vs GitHub
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-vs-github
+slug: git-vs-github
+title: Git vs GitHub
+type: concept
+
+goal: Tell the difference between Git, the tool, and GitHub, a place to host Git repositories.
+
+difficulty: beginner
+
+concepts:
+  - version-control
+  - remotes
+
+content:
+  - type: text
+    title: Two different things with similar names
+    body: |
+      **Git** is a program that runs on your computer and tracks the history of a folder.
+
+      **GitHub** is a website owned by a company. It stores copies of Git repositories online,
+      and adds tools for working with other people: pull requests, code review, issues and more.
+
+  - type: comparison
+    columns:
+      - title: Git
+        items:
+          - A command-line tool you install
+          - Works offline, on your own machine
+          - Records history in a local `.git` folder
+          - Free and open source, created in 2005
+      - title: GitHub
+        items:
+          - A website and hosting service
+          - Needs an internet connection and an account
+          - Stores a copy of your repository on its servers
+          - One of several hosts, alongside GitLab and Bitbucket
+
+  - type: diagram
+    title: How they fit together
+    ascii: |
+      Your computer                    GitHub                    Teammate's computer
+      ┌──────────────┐    push     ┌──────────────┐    pull     ┌──────────────┐
+      │  repository  │ ──────────▶ │  repository  │ ──────────▶ │  repository  │
+      │   (.git)     │ ◀────────── │   (remote)   │ ◀────────── │   (.git)     │
+      └──────────────┘    pull     └──────────────┘    push     └──────────────┘
+    caption: >-
+      Everyone has a full copy of the repository. GitHub hosts a shared copy that everyone pushes
+      to and pulls from.
+
+  - type: text
+    title: You can use Git without GitHub
+    body: |
+      Git works perfectly well on its own. Many people use it only on their laptop to keep a
+      history of their work. Hosting services come in when you want a backup online or want to
+      collaborate.
+
+      Everything in this course is about Git itself, so it works the same whichever host you pick
+      later.
+
+  - type: callout
+    tone: note
+    body: >-
+      Pushing and pulling to a remote like GitHub is covered in a later course. For now, all of
+      your work stays in your local repository.
+
+completion:
+  xp: 25

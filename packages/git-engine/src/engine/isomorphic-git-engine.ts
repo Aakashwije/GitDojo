@@ -1,16 +1,20 @@
-import { type GitCommandResult } from "@gitdojo/shared-types";
+import { type BranchState, type GitCommandResult } from "@gitdojo/shared-types";
 import { runAdd } from "../commands/add";
+import { readBranches, runCreateBranch, runShowBranches } from "../commands/branch";
 import { runCommit } from "../commands/commit";
 import { runInit } from "../commands/init";
 import { runLog } from "../commands/log";
 import { readSnapshot } from "../commands/snapshot";
 import { runStatus } from "../commands/status";
+import { runSwitch } from "../commands/switch";
 import { type GitDojoFs } from "../filesystem/types";
 import { workspaceRoot } from "../filesystem/paths";
 import { type GitContext } from "./context";
 import { unexpected } from "./errors";
 import {
   type GitAddResult,
+  type GitBranchCreateResult,
+  type GitBranchListResult,
   type GitCommitInput,
   type GitCommitResult,
   type GitEngine,
@@ -19,6 +23,7 @@ import {
   type GitLogResult,
   type GitRepositorySnapshot,
   type GitStatusResult,
+  type GitSwitchResult,
 } from "./git-engine";
 
 export interface GitEngineOptions {
@@ -66,6 +71,26 @@ export class IsomorphicGitEngine implements GitEngine {
 
   log(options?: GitLogOptions): Promise<GitLogResult> {
     return guard(() => runLog(this.ctx, options));
+  }
+
+  showBranches(): Promise<GitBranchListResult> {
+    return guard(() => runShowBranches(this.ctx));
+  }
+
+  createBranch(name: string): Promise<GitBranchCreateResult> {
+    return guard(() => runCreateBranch(this.ctx, name));
+  }
+
+  switchBranch(name: string): Promise<GitSwitchResult> {
+    return guard(() => runSwitch(this.ctx, name, { create: false }));
+  }
+
+  createAndSwitchBranch(name: string): Promise<GitSwitchResult> {
+    return guard(() => runSwitch(this.ctx, name, { create: true }));
+  }
+
+  listBranches(): Promise<BranchState[]> {
+    return readBranches(this.ctx);
   }
 
   snapshot(): Promise<GitRepositorySnapshot> {

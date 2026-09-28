@@ -21,7 +21,10 @@ export async function runCommit(ctx: GitContext, input: GitCommitInput): Promise
     return failure(gitError("NOTHING_TO_COMMIT", "nothing to commit"), formatStatus(status));
   }
 
-  const author = input.author ?? DEFAULT_AUTHOR;
+  const author = {
+    ...(input.author ?? DEFAULT_AUTHOR),
+    ...(input.timestamp === undefined ? {} : { timestamp: input.timestamp }),
+  };
   const oid = await git.commit({ fs: ctx.fs, dir: ctx.dir, message, author });
   const branch = await currentBranch(ctx);
   const changes = status.entries.filter((entry) => entry.staged !== null);

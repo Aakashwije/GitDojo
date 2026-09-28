@@ -60,12 +60,13 @@ export function parseCommand(raw: string): ParseResult {
   if (!parsedOptions.ok) return fail(raw, parsedOptions.error);
 
   const { args, flags } = parsedOptions;
-  if (!spec.acceptsArguments && args.length > 0) {
+  const maxArguments = spec.acceptsArguments ? (spec.maxArguments ?? Infinity) : 0;
+  if (args.length > maxArguments) {
     return fail(
       raw,
       parseError(
         "UNEXPECTED_ARGUMENT",
-        `error: unexpected argument '${args[0] ?? ""}'\nusage: ${spec.usage}`,
+        `error: unexpected argument '${args[maxArguments] ?? ""}'\nusage: ${spec.usage}`,
       ),
     );
   }

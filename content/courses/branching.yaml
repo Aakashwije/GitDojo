@@ -1,0 +1,20 @@
+# Course: Branching
+# Lessons live in content/lessons/branching/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: branching
+slug: branching
+title: Branching
+
+description: >
+  Work on features in isolation: create branches, move between them with
+  git switch, and understand what HEAD points to.
+
+difficulty: beginner
+order: 2
+
+lessons:
+  - what-is-a-branch
+  - understanding-head
+  - git-branch
+  - git-switch
+  - commit-on-branch
+  - branching-challenge

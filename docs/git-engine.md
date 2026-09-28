@@ -40,6 +40,11 @@ await git.status();
 await git.add(["README.md"]); // or ["."]
 await git.commit({ message: "Initial commit" }); // author defaults to GitDojo Learner
 await git.log({ oneline: true });
+await git.showBranches(); // `git branch`
+await git.createBranch("feature/login"); // `git branch feature/login`
+await git.switchBranch("feature/login"); // `git switch feature/login`
+await git.createAndSwitchBranch("bugfix"); // `git switch -c bugfix`
+await git.listBranches(); // BranchState[] as data, no output
 await git.snapshot(); // read-only view used by @gitdojo/repository-state
 ```
 
@@ -59,14 +64,18 @@ kept in `cause` for debugging and is never rendered.
 
 ### Error codes
 
-| Code                | When                                                 | Output                                                                 |
-| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- |
-| `NOT_A_REPOSITORY`  | Any command except `init` before `git init`          | `fatal: not a git repository (or any of the parent directories): .git` |
-| `NOTHING_TO_COMMIT` | `commit` with nothing staged                         | The `git status` report, e.g. `nothing to commit, working tree clean`  |
-| `NO_COMMITS`        | `log` on an unborn branch                            | `fatal: your current branch 'main' does not have any commits yet`      |
-| `FILE_NOT_FOUND`    | `add` with a pathspec that matches nothing           | `fatal: pathspec 'x' did not match any files`                          |
-| `INVALID_ARGUMENT`  | Empty commit message, no pathspec, path outside repo | e.g. `error: commit message is required`                               |
-| `UNKNOWN`           | Unexpected internal failure                          | Generic message                                                        |
+| Code                  | When                                                  | Output                                                                 |
+| --------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| `NOT_A_REPOSITORY`    | Any command except `init` before `git init`           | `fatal: not a git repository (or any of the parent directories): .git` |
+| `NOTHING_TO_COMMIT`   | `commit` with nothing staged                          | The `git status` report, e.g. `nothing to commit, working tree clean`  |
+| `NO_COMMITS`          | `log` on an unborn branch                             | `fatal: your current branch 'main' does not have any commits yet`      |
+| `FILE_NOT_FOUND`      | `add` with a pathspec that matches nothing            | `fatal: pathspec 'x' did not match any files`                          |
+| `INVALID_ARGUMENT`    | Empty commit message, no pathspec, path outside repo  | e.g. `error: commit message is required`                               |
+| `INVALID_BRANCH_NAME` | A name Git's `check-ref-format` rules reject          | `fatal: 'a..b' is not a valid branch name`                             |
+| `BRANCH_EXISTS`       | Creating a branch that exists (or clashes with `x/y`) | `fatal: a branch named 'main' already exists`                          |
+| `BRANCH_NOT_FOUND`    | Switching to a branch that does not exist             | `fatal: invalid reference: x`                                          |
+| `CHECKOUT_CONFLICT`   | Switching would overwrite uncommitted work            | Git's `Your local changes ... would be overwritten by checkout` report |
+| `UNKNOWN`             | Unexpected internal failure                           | Generic message                                                        |
 
 ### Behavior notes
 
@@ -79,6 +88,20 @@ kept in `cause` for debugging and is never rendered.
   `create mode` / `delete mode` lines.
 - `log` shows decorations (`HEAD -> main`) and supports `--oneline`. Dates use the author's
   recorded timezone.
+- `git branch` lists branches sorted by name with `*` on the current one. An unborn branch is not
+  listed (it does not exist until its first commit), but `listBranches()` and the snapshot still
+  report it so the UI can show it. Creating a branch before the first commit fails with
+  `fatal: not a valid object name: 'main'`, like Git.
+- `switch` only touches paths whose committed content differs between the two branch tips;
+  everything else, including uncommitted work, carries over, as in Git. If a path that would change
+  has local modifications, or an untracked file would be overwritten, it refuses with Git's
+  message and changes nothing. Emptied directories are removed.
+- `switch -c` on an unborn branch just repoints HEAD, so the first commit lands on the new name.
+- `git checkout <branch>` and `git checkout -b <name>` are routed to the same methods for
+  comparison with older tutorials; an unknown name is reported as a pathspec, as Git does. Lessons
+  teach `git switch`. Start points (`git switch -c new main`) are not supported yet.
+- The snapshot's `allCommits` holds every commit reachable from any branch or HEAD, children before
+  parents, so the graph can show branches you are not on.
 
 ### Status classification
 

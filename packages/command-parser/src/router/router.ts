@@ -19,7 +19,52 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
     return git.commit({ message: typeof message === "string" ? message : "" });
   },
   log: (parsed, { git }) => git.log({ oneline: parsed.flags.oneline === true }),
+  branch: (parsed, { git }) => {
+    const [name] = parsed.args;
+    return name === undefined ? git.showBranches() : git.createBranch(name);
+  },
+  switch: (parsed, { git }) => {
+    const create = parsed.flags.c;
+    if (typeof create === "string") {
+      return parsed.args.length > 0
+        ? invalidArgument(startPointUnsupported("git switch -c"))
+        : git.createAndSwitchBranch(create);
+    }
+    return git.switchBranch(parsed.args[0] ?? "");
+  },
+  // Kept for comparison with older tutorials. Only the branch-switching forms are supported.
+  checkout: async (parsed, { git }) => {
+    const create = parsed.flags.b;
+    if (typeof create === "string") {
+      return parsed.args.length > 0
+        ? invalidArgument(startPointUnsupported("git checkout -b"))
+        : git.createAndSwitchBranch(create);
+    }
+    const [name] = parsed.args;
+    if (name === undefined) {
+      return invalidArgument(
+        "fatal: GitDojo needs a branch to check out\nusage: git checkout [-b] <branch>",
+      );
+    }
+    const result = await git.switchBranch(name);
+    if (result.error?.code !== "BRANCH_NOT_FOUND") return result;
+    // `git checkout` also restores files, so Git reports an unknown name as a pathspec.
+    const message = `error: pathspec '${name}' did not match any file(s) known to git`;
+    return { ...result, output: message, error: { ...result.error, message } };
+  },
 };
+
+function invalidArgument(message: string): Promise<GitCommandResult> {
+  return Promise.resolve({
+    ok: false,
+    output: message,
+    error: { code: "INVALID_ARGUMENT", message },
+  });
+}
+
+function startPointUnsupported(command: string): string {
+  return `fatal: GitDojo cannot create a branch at another commit yet.\nRun '${command} <name>' to branch from where you are.`;
+}
 
 function fromGitResult(result: GitCommandResult): CommandExecutionResult {
   return result.ok

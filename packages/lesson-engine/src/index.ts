@@ -1,4 +1,19 @@
-export { InvalidLessonError, LessonNotFoundError, LessonSetupError } from "./errors";
+export {
+  courseDefinitionSchema,
+  loadAllCourses,
+  loadCourse,
+  parseCourse,
+  toCourseOutline,
+  type CourseSource,
+  type LoadedCourse,
+} from "./course";
+export {
+  CourseNotFoundError,
+  InvalidCourseError,
+  InvalidLessonError,
+  LessonNotFoundError,
+  LessonSetupError,
+} from "./errors";
 export {
   createInMemoryLessonSource,
   loadAllLessons,

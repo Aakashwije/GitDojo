@@ -22,4 +22,6 @@ export interface GitCommandSpec {
   flags: FlagSpec[];
   requiredFlags?: { name: string; message: string }[];
   acceptsArguments: boolean;
+  /** Upper bound on positional arguments; unlimited when omitted. */
+  maxArguments?: number;
 }

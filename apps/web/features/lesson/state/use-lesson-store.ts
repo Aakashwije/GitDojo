@@ -14,6 +14,8 @@ interface LessonStore {
   revealHint: (objectiveId: string) => void;
   dismissCompletion: () => void;
   resetAttempt: () => void;
+  /** Forget everything about the previous lesson before another one loads. */
+  startLesson: () => void;
 }
 
 /** View state for the active lesson. Progress itself is computed by the learning session. */
@@ -42,5 +44,14 @@ export const useLessonStore = create<LessonStore>()((set) => ({
   },
   resetAttempt: () => {
     set({ revealedHints: {}, commandCount: 0, completionDismissed: false });
+  },
+  startLesson: () => {
+    set({
+      progress: null,
+      validation: null,
+      revealedHints: {},
+      commandCount: 0,
+      completionDismissed: false,
+    });
   },
 }));

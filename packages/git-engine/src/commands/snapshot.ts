@@ -1,13 +1,14 @@
-import git from "isomorphic-git";
 import { WorkspaceFileSystem } from "../filesystem/workspace-file-system";
 import { type GitContext } from "../engine/context";
 import { type GitBranchInfo, type GitRepositorySnapshot } from "../engine/git-engine";
 import {
   currentBranch,
   isRepository,
+  readCommitsFrom,
   readCommitsFromHead,
   resolveRefOrNull,
 } from "../engine/repository";
+import { readBranches } from "./branch";
 import { readStatusEntries } from "../engine/status-matrix";
 
 export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapshot> {
@@ -21,6 +22,7 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       head: null,
       branches: [],
       commits: [],
+      allCommits: [],
       entries: files
         .filter((file) => file.type === "file")
         .map((file) => ({
@@ -34,20 +36,15 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     };
   }
 
-  const [branch, head, entries, branchNames] = await Promise.all([
+  const [branch, head, entries, branchStates] = await Promise.all([
     currentBranch(ctx),
     resolveRefOrNull(ctx, "HEAD"),
     readStatusEntries(ctx),
-    git.listBranches({ fs: ctx.fs, dir: ctx.dir }),
+    // Includes an unborn current branch: it has no ref yet, but learners still expect to see it.
+    readBranches(ctx),
   ]);
-
-  const branches: GitBranchInfo[] = await Promise.all(
-    branchNames.map(async (name) => ({ name, oid: await resolveRefOrNull(ctx, name) })),
-  );
-  // An unborn branch has no ref yet, but learners still expect to see it.
-  if (branch !== null && !branches.some((info) => info.name === branch)) {
-    branches.unshift({ name: branch, oid: null });
-  }
+  const branches: GitBranchInfo[] = branchStates.map(({ name, oid }) => ({ name, oid }));
+  const tips = [head, ...branches.map((info) => info.oid)].filter((oid) => oid !== null);
 
   return {
     initialized: true,
@@ -55,6 +52,7 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     head,
     branches,
     commits: head === null ? [] : await readCommitsFromHead(ctx),
+    allCommits: await readCommitsFrom(ctx, tips),
     entries,
   };
 }

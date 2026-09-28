@@ -1,0 +1,88 @@
+# Lesson: Create Your First Commit
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-commit
+slug: git-commit
+title: Create Your First Commit
+type: interactive
+
+goal: Record staged changes as a commit with a clear message.
+
+description: |
+  A commit saves everything in the staging area as a permanent snapshot in the repository's
+  history. Each commit needs a **message** that explains the change.
+
+  Commit `README.md` on its own first, then commit the rest.
+
+difficulty: beginner
+
+concepts:
+  - commits
+  - commit-messages
+
+commands:
+  - git add
+  - git commit
+  - git status
+
+content:
+  - type: example
+    title: Anatomy of a commit
+    command: git commit -m "Add README"
+    output: |
+      [main (root-commit) 3f2a91c] Add README
+       1 file changed
+       create mode 100644 README.md
+    explanation: |
+      - `main` is the branch the commit was made on.
+      - `root-commit` means this is the very first commit, with no parent.
+      - `3f2a91c` is the start of the commit's unique ID, its **hash**.
+      - The last lines summarize which files the commit changed.
+
+  - type: text
+    title: Writing a good message
+    body: |
+      Write the message as a short command that completes the sentence "This commit will...":
+      `Add README`, `Fix login redirect`, `Update forecast colors`. Aim for under 50 characters.
+
+setup:
+  initializeGit: true
+  files:
+    README.md: |
+      # Weather App
+
+      Shows today's forecast for your city.
+    index.js: |
+      console.log("Weather App");
+
+objectives:
+  - id: stage-readme
+    description: Stage `README.md` on its own.
+    validator:
+      type: file_staged
+      file: README.md
+
+  - id: commit-readme
+    description: Commit it with the message `Add README`.
+    validator:
+      type: commit_exists
+      message: Add README
+
+  - id: commit-rest
+    description: Commit the remaining file so the working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  stage-readme:
+    - Only staged changes go into a commit, so start by staging.
+    - Run `git add README.md`.
+  commit-readme:
+    - "`git commit` needs a message, given with the `-m` option in quotes."
+    - Run `git commit -m "Add README"`.
+  commit-rest:
+    - Run `git status`. One file is still untracked.
+    - Stage it, then commit it with a message of your own.
+    - Run `git add index.js`, then `git commit -m "Add app entry point"`.
+
+completion:
+  xp: 75

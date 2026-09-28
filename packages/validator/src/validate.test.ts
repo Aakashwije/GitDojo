@@ -140,6 +140,145 @@ describe("validators", () => {
   });
 });
 
+describe("branch validators", () => {
+  const A = "a".repeat(40);
+  const B = "b".repeat(40);
+  const C = "c".repeat(40);
+  const commitA = { ...commit("Initial commit", A), parents: [] };
+  const commitB = { ...commit("Add homepage", B), parents: [A] };
+  const commitC = { ...commit("Add login", C), parents: [B] };
+
+  // main → B, feature/login → C (one commit ahead), HEAD on main.
+  const repo = state({
+    head: B,
+    branches: [
+      { name: "feature/login", oid: C, current: false },
+      { name: "main", oid: B, current: true },
+    ],
+    commits: [commitB, commitA],
+    allCommits: [commitC, commitB, commitA],
+  });
+
+  describe("branch_exists / branch_not_exists", () => {
+    it("checks whether a branch exists", async () => {
+      expect((await check({ type: "branch_exists", branch: "feature/login" }, repo)).passed).toBe(
+        true,
+      );
+      expect(await check({ type: "branch_exists", branch: "bugfix" }, repo)).toEqual({
+        passed: false,
+        reason: "There is no branch named bugfix.",
+      });
+      expect((await check({ type: "branch_not_exists", branch: "bugfix" }, repo)).passed).toBe(
+        true,
+      );
+      expect(await check({ type: "branch_not_exists", branch: "main" }, repo)).toEqual({
+        passed: false,
+        reason: "A branch named main still exists.",
+      });
+    });
+
+    it("does not count an unborn branch", async () => {
+      const unborn = state({ branches: [{ name: "main", oid: null, current: true }] });
+      expect((await check({ type: "branch_exists", branch: "main" }, unborn)).passed).toBe(false);
+    });
+  });
+
+  describe("current_branch", () => {
+    it("passes when HEAD is on the branch", async () => {
+      expect((await check({ type: "current_branch", branch: "main" }, repo)).passed).toBe(true);
+    });
+
+    it("explains where HEAD is instead", async () => {
+      expect(await check({ type: "current_branch", branch: "feature/login" }, repo)).toEqual({
+        passed: false,
+        reason: "You are on main, not feature/login.",
+      });
+      const result = await check(
+        { type: "current_branch", branch: "main" },
+        EMPTY_REPOSITORY_STATE,
+      );
+      expect(result.reason).toMatch(/not a Git repository/);
+    });
+  });
+
+  describe("branch_points_to_commit", () => {
+    it("matches the tip commit's message", async () => {
+      const definition = { type: "branch_points_to_commit", branch: "main" } as const;
+      expect((await check({ ...definition, message: "Add homepage" }, repo)).passed).toBe(true);
+      expect(await check({ ...definition, message: "Add login" }, repo)).toEqual({
+        passed: false,
+        reason: 'main points to "Add homepage", not "Add login".',
+      });
+    });
+
+    it("compares with another branch", async () => {
+      const same = state({
+        ...repo,
+        branches: [...repo.branches, { name: "copy", oid: B, current: false }],
+      });
+      expect(
+        (await check({ type: "branch_points_to_commit", branch: "copy", sameAs: "main" }, same))
+          .passed,
+      ).toBe(true);
+      expect(
+        await check(
+          { type: "branch_points_to_commit", branch: "feature/login", sameAs: "main" },
+          same,
+        ),
+      ).toEqual({ passed: false, reason: "feature/login and main point to different commits." });
+    });
+
+    it("fails for a missing branch", async () => {
+      const result = await check(
+        { type: "branch_points_to_commit", branch: "nope", message: "x" },
+        repo,
+      );
+      expect(result.reason).toBe("There is no branch named nope.");
+    });
+  });
+
+  describe("commit_on_branch", () => {
+    it("finds commits reachable from the branch", async () => {
+      const onFeature = { type: "commit_on_branch", branch: "feature/login" } as const;
+      expect((await check({ ...onFeature, message: "Add login" }, repo)).passed).toBe(true);
+      // Ancestors count too: the branch contains its whole history.
+      expect((await check({ ...onFeature, message: "Initial commit" }, repo)).passed).toBe(true);
+      expect(
+        (await check({ type: "commit_on_branch", branch: "main", message: "Add login" }, repo))
+          .passed,
+      ).toBe(false);
+    });
+
+    it("excludes commits that are also on notOn", async () => {
+      expect(
+        (await check({ type: "commit_on_branch", branch: "feature/login", notOn: "main" }, repo))
+          .passed,
+      ).toBe(true);
+      expect(
+        await check({ type: "commit_on_branch", branch: "main", notOn: "feature/login" }, repo),
+      ).toEqual({
+        passed: false,
+        reason: "There is no commit on main that is not on feature/login.",
+      });
+      expect(
+        await check(
+          {
+            type: "commit_on_branch",
+            branch: "feature/login",
+            notOn: "main",
+            message: "Initial commit",
+          },
+          repo,
+        ),
+      ).toEqual({
+        passed: false,
+        reason:
+          'There is no commit on feature/login that is not on main with the message "Initial commit".',
+      });
+    });
+  });
+});
+
 describe("validateObjective", () => {
   it("contains handler failures", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -196,6 +335,13 @@ describe("validatorDefinitionSchema", () => {
       { type: "commit_exists", message: "Initial commit" },
       { type: "commit_count", count: 2 },
       { type: "clean_worktree" },
+      { type: "branch_exists", branch: "feature/login" },
+      { type: "branch_not_exists", branch: "old" },
+      { type: "current_branch", branch: "main" },
+      { type: "branch_points_to_commit", branch: "main", message: "Initial commit" },
+      { type: "branch_points_to_commit", branch: "feature", sameAs: "main" },
+      { type: "commit_on_branch", branch: "feature" },
+      { type: "commit_on_branch", branch: "feature", message: "Add login", notOn: "main" },
     ];
     for (const definition of definitions) {
       expect(validatorDefinitionSchema.safeParse(definition).success).toBe(true);
@@ -209,6 +355,10 @@ describe("validatorDefinitionSchema", () => {
     { type: "commit_count", count: -1 },
     { type: "commit_count", count: 1.5 },
     { type: "repository_initialized", extra: true },
+    { type: "branch_exists" },
+    { type: "current_branch", branch: " " },
+    { type: "branch_points_to_commit", branch: "main" },
+    { type: "branch_points_to_commit", branch: "main", message: "x", sameAs: "dev" },
   ])("rejects %j", (definition) => {
     expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
   });

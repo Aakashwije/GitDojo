@@ -30,15 +30,26 @@ export function createInitialProgress(lesson: LessonDefinition): LessonProgress 
  * Objectives are sticky: once achieved they stay achieved until the lesson is reset.
  * Validators only describe the current state, and later steps legitimately undo earlier ones
  * (committing empties the staging area, so "README.md is staged" stops being true).
+ *
+ * Objectives are also achieved in order: one can only complete once every objective before it
+ * has. That lets a lesson ask for something that is already true at the start (for example
+ * "switch back to main"), and lets a challenge describe the end state it expects.
  */
 export function advanceProgress(
   lesson: LessonDefinition,
   previous: LessonProgress,
   validation: LessonValidationResult,
 ): LessonProgress {
+  const passing = new Set(
+    validation.objectives
+      .filter((objective) => objective.passed)
+      .map((objective) => objective.objectiveId),
+  );
   const completed = new Set(previous.completedObjectiveIds);
-  for (const objective of validation.objectives) {
-    if (objective.passed) completed.add(objective.objectiveId);
+  for (const { id } of lesson.objectives) {
+    if (completed.has(id)) continue;
+    if (!passing.has(id)) break;
+    completed.add(id);
   }
   return buildProgress(lesson, completed);
 }

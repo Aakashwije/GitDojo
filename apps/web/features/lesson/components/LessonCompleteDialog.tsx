@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@gitdojo/ui";
-import { Trophy } from "lucide-react";
+import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
 
 export interface LessonCompleteDialogProps {
@@ -15,6 +15,8 @@ export interface LessonCompleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPracticeAgain: () => void;
+  /** Where to go next: the next lesson, or back to the course after the last one. */
+  next?: { href: string; label: string };
 }
 
 export function LessonCompleteDialog({
@@ -22,6 +24,7 @@ export function LessonCompleteDialog({
   open,
   onOpenChange,
   onPracticeAgain,
+  next = { href: "/", label: "Back to home" },
 }: LessonCompleteDialogProps) {
   const xp = lesson.completion?.xp;
   return (
@@ -58,7 +61,9 @@ export function LessonCompleteDialog({
             Practice again
           </Button>
           <Button variant="primary" asChild>
-            <Link href="/">Back to home</Link>
+            <Link href={next.href} data-testid="complete-next">
+              {next.label} <ArrowRight />
+            </Link>
           </Button>
         </DialogFooter>
       </DialogContent>

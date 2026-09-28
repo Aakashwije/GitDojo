@@ -1,0 +1,102 @@
+# Lesson: Understanding HEAD
+# Schema and authoring guide: docs/lesson-authoring.md
+id: understanding-head
+slug: understanding-head
+title: Understanding HEAD
+type: concept
+
+goal: Know what HEAD is and how it moves when you commit and switch branches.
+
+difficulty: beginner
+
+concepts:
+  - head
+  - branches
+
+content:
+  - type: text
+    title: '"You are here"'
+    body: |
+      With several branches, Git needs to know which one you are working on. That is **HEAD**:
+      a pointer to your current branch.
+
+      HEAD points at a branch, and the branch points at a commit. So HEAD also tells Git which
+      commit your working tree is based on.
+
+  - type: diagram
+    ascii: |
+      HEAD ──▶ main ──▶ ● Add styles
+                        │
+                        ● Add homepage
+                        │
+                        ● Initial commit
+    caption: "`git status` reports this as `On branch main`."
+
+  - type: demo
+    title: Follow HEAD
+    steps:
+      - caption: HEAD is on `main`. A second branch, `feature/login`, points at the same commit.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+          branches:
+            main: B
+            feature/login: B
+          head: main
+      - caption: >-
+          Switching moves HEAD to another branch. No commits change, only where you are.
+        command: git switch feature/login
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+          branches:
+            main: B
+            feature/login: B
+          head: feature/login
+      - caption: >-
+          A new commit moves the branch HEAD points to, and HEAD moves along with it.
+        command: git commit -m "Add login form"
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+          branches:
+            main: B
+            feature/login: C
+          head: feature/login
+      - caption: >-
+          Switching back to `main` moves HEAD, and Git updates the working tree to match `main`'s
+          commit. The login form is not lost; it is safe on `feature/login`.
+        command: git switch main
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+          branches:
+            main: B
+            feature/login: C
+          head: main
+
+  - type: example
+    title: Spotting HEAD
+    command: git log --oneline
+    output: |
+      4b7d2e1 (HEAD -> main, feature/login) Add homepage
+      a3f0c47 Initial commit
+    explanation: >-
+      `HEAD -> main` means HEAD points to `main`. `feature/login` points at the same commit. In
+      the GitDojo graph, HEAD is the blue label.
+
+  - type: callout
+    tone: note
+    title: Detached HEAD
+    body: >-
+      HEAD can also point straight at a commit instead of a branch. Git calls this a "detached
+      HEAD". It is useful for inspecting old commits, and is covered in a later course.
+
+completion:
+  xp: 25

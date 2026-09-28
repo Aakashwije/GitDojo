@@ -1,0 +1,24 @@
+# Course: Git Basics
+# Lessons live in content/lessons/git-basics/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: git-basics
+slug: git-basics
+title: Git Basics
+
+description: >
+  Learn how Git repositories, staging, commits,
+  and history work.
+
+difficulty: beginner
+order: 1
+
+lessons:
+  - what-is-git
+  - git-vs-github
+  - git-init
+  - git-status
+  - working-tree
+  - staging-area
+  - git-add
+  - git-commit
+  - git-log
+  - first-repository-challenge

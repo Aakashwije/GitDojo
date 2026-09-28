@@ -32,6 +32,7 @@ describe("RepositoryStateReader", () => {
       head: null,
       branches: [],
       commits: [],
+      allCommits: [],
       files: [{ path: "README.md", status: "untracked" }],
       stagedFiles: [],
       conflicts: [],
@@ -46,6 +47,7 @@ describe("RepositoryStateReader", () => {
       head: null,
       branches: [{ name: "main", oid: null, current: true }],
       commits: [],
+      allCommits: [],
       files: [],
       stagedFiles: [],
       conflicts: [],
@@ -131,5 +133,29 @@ describe("RepositoryStateReader", () => {
     const state = await reader.read(WS);
     expect(state.files).toEqual([]);
     expect(state.stagedFiles).toEqual([{ path: "a.txt", status: "staged", change: "deleted" }]);
+  });
+
+  it("exposes branch pointers, HEAD and commits on every branch", async () => {
+    await files.writeFile(WS, "README.md", "one");
+    await git.init();
+    await git.add(["."]);
+    const first = await git.commit({ message: "First" });
+    await git.createAndSwitchBranch("feature/login");
+    await files.writeFile(WS, "login.js", "login");
+    await git.add(["login.js"]);
+    const feature = await git.commit({ message: "Add login" });
+    await git.switchBranch("main");
+
+    const state = await reader.read(WS);
+    expect(state.currentBranch).toBe("main");
+    expect(state.head).toBe(first.data?.oid);
+    expect(state.branches).toEqual([
+      { name: "feature/login", oid: feature.data?.oid, current: false },
+      { name: "main", oid: first.data?.oid, current: true },
+    ]);
+    // `commits` follows HEAD, like `git log`; `allCommits` feeds the graph.
+    expect(state.commits.map((commit) => commit.message)).toEqual(["First"]);
+    expect(state.allCommits.map((commit) => commit.message)).toEqual(["Add login", "First"]);
+    expect(state.files).toEqual([{ path: "README.md", status: "committed" }]);
   });
 });

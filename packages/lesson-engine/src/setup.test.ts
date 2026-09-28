@@ -41,6 +41,44 @@ describe("setupLesson", () => {
   });
 });
 
+describe("setupLesson with history", () => {
+  const withHistory: LessonDefinition = {
+    ...lesson,
+    setup: {
+      initializeGit: true,
+      commits: [
+        { message: "Initial commit", files: { "README.md": "# Hello\n" } },
+        { message: "Add homepage", files: { "index.html": "<h1>Hi</h1>\n" } },
+      ],
+      branches: ["feature/login"],
+      files: { "README.md": "# Hello, edited\n", "notes.txt": "draft\n" },
+    },
+  };
+
+  it("creates commits oldest first, then branches, then uncommitted files", async () => {
+    const env = createTestEnvironment();
+    const state = await setupLesson(withHistory, WS, env);
+    expect(state.currentBranch).toBe("main");
+    expect(state.commits.map((commit) => commit.message)).toEqual([
+      "Add homepage",
+      "Initial commit",
+    ]);
+    // Back-dated so history reads naturally, and strictly ordered.
+    const [newest, oldest] = state.commits.map((commit) => commit.timestamp);
+    expect(newest).toBeGreaterThan(oldest ?? Infinity);
+    expect(newest).toBeLessThan(Date.now() / 1000);
+    expect(state.branches).toEqual([
+      { name: "feature/login", oid: state.head, current: false },
+      { name: "main", oid: state.head, current: true },
+    ]);
+    expect(state.files).toEqual([
+      { path: "index.html", status: "committed" },
+      { path: "notes.txt", status: "untracked" },
+      { path: "README.md", status: "modified" },
+    ]);
+  });
+});
+
 describe("resetLesson", () => {
   it("restores the exact original state after learner changes", async () => {
     const env = createTestEnvironment();

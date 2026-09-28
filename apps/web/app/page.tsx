@@ -34,7 +34,7 @@ export default function HomePage() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild variant="primary" size="hero">
-                  <Link href="/learn/demo">
+                  <Link href="/learn">
                     Start learning <ArrowRight />
                   </Link>
                 </Button>

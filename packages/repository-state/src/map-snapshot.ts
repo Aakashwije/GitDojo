@@ -1,5 +1,9 @@
-import { type GitRepositorySnapshot, type GitStatusEntry } from "@gitdojo/git-engine";
-import { type FileState, type RepositoryState } from "@gitdojo/shared-types";
+import {
+  type GitCommitInfo,
+  type GitRepositorySnapshot,
+  type GitStatusEntry,
+} from "@gitdojo/git-engine";
+import { type CommitState, type FileState, type RepositoryState } from "@gitdojo/shared-types";
 
 /** Working-tree status of a path, i.e. what the learner sees in "Working Tree". */
 function workingTreeFile(entry: GitStatusEntry): FileState | null {
@@ -23,6 +27,18 @@ function stagedFile(entry: GitStatusEntry): FileState | null {
     : { path: entry.path, status: "staged", change: entry.staged };
 }
 
+function commitState(commit: GitCommitInfo): CommitState {
+  return {
+    oid: commit.oid,
+    shortOid: commit.shortOid,
+    message: commit.message,
+    authorName: commit.author.name,
+    authorEmail: commit.author.email,
+    timestamp: commit.author.timestamp,
+    parents: commit.parents,
+  };
+}
+
 /** Pure mapping from the Git engine's snapshot to GitDojo's normalized repository model. */
 export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositoryState {
   return {
@@ -34,15 +50,8 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
       oid: branch.oid,
       current: branch.name === snapshot.currentBranch,
     })),
-    commits: snapshot.commits.map((commit) => ({
-      oid: commit.oid,
-      shortOid: commit.shortOid,
-      message: commit.message,
-      authorName: commit.author.name,
-      authorEmail: commit.author.email,
-      timestamp: commit.author.timestamp,
-      parents: commit.parents,
-    })),
+    commits: snapshot.commits.map(commitState),
+    allCommits: snapshot.allCommits.map(commitState),
     files: snapshot.entries.map(workingTreeFile).filter((file) => file !== null),
     stagedFiles: snapshot.entries.map(stagedFile).filter((file) => file !== null),
     // Merge conflicts arrive with merge support in a later phase.

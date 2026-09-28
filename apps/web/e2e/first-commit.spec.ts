@@ -115,9 +115,10 @@ test("reset restores the original lesson state", async ({ page, isMobile }) => {
   await expect(page.getByTestId("terminal")).toContainText("fatal: not a git repository");
 });
 
-test("landing page links to the demo lesson", async ({ page }) => {
+test("landing page links to the course list", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Learn Git by doing.");
   await page.getByRole("link", { name: "Start learning" }).first().click();
-  await expect(page).toHaveURL(/\/learn\/demo$/);
+  await expect(page).toHaveURL(/\/learn$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Learn Git");
 });

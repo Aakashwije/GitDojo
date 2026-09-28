@@ -1,0 +1,94 @@
+# Lesson: Staging Area
+# Schema and authoring guide: docs/lesson-authoring.md
+id: staging-area
+slug: staging-area
+title: Staging Area
+type: concept
+
+goal: Understand why Git has a staging area between your files and your history.
+
+difficulty: beginner
+
+concepts:
+  - staging
+  - commits
+
+content:
+  - type: text
+    title: A draft of your next commit
+    body: |
+      Git does not commit everything you changed. Instead, you choose which changes go into the
+      next commit by placing them in the **staging area** (also called the **index**).
+
+      Think of it as a loading dock: you stage what is ready, then commit ships exactly what is
+      on the dock.
+
+  - type: diagram
+    title: Three places your work lives
+    ascii: |
+      Working Tree  ── git add ──▶  Staging Area  ── git commit ──▶  Repository
+      (your files)                  (next commit)                    (history)
+    caption: >-
+      `git add` copies a change into the staging area. `git commit` turns everything staged into a
+      permanent snapshot.
+
+  - type: demo
+    title: Two changes, two focused commits
+    steps:
+      - caption: >-
+          You fixed a bug in `login.js` and, while you were there, restyled the page in
+          `style.css`. Both are modified.
+        areas:
+          workingTree:
+            - { path: login.js, status: modified }
+            - { path: style.css, status: modified }
+          staging: []
+          repository: [login.js, style.css]
+      - caption: Stage only the bug fix.
+        command: git add login.js
+        areas:
+          workingTree:
+            - { path: style.css, status: modified }
+          staging:
+            - { path: login.js, status: staged }
+          repository: [login.js, style.css]
+      - caption: >-
+          The commit contains only what was staged. `style.css` is still waiting in the working
+          tree.
+        command: git commit -m "Fix login redirect"
+        areas:
+          workingTree:
+            - { path: style.css, status: modified }
+          staging: []
+          repository: [login.js, style.css]
+      - caption: Now stage the styling change on its own.
+        command: git add style.css
+        areas:
+          workingTree: []
+          staging:
+            - { path: style.css, status: staged }
+          repository: [login.js, style.css]
+      - caption: >-
+          Two commits, each with one clear purpose. Anyone reading the history can tell exactly
+          what each change was for.
+        command: git commit -m "Refresh login page styles"
+        areas:
+          workingTree: []
+          staging: []
+          repository: [login.js, style.css]
+
+  - type: text
+    title: Why not commit everything at once?
+    body: |
+      Small, focused commits are easier to review, easier to understand months later, and easier
+      to undo. The staging area is what lets you build them, even when your working tree holds
+      several unrelated changes.
+
+  - type: callout
+    tone: tip
+    body: >-
+      `git add .` stages every change in the current folder at once. It is handy when everything
+      belongs in the same commit.
+
+completion:
+  xp: 25

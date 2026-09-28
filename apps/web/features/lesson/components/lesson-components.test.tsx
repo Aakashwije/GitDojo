@@ -57,3 +57,12 @@ describe("RichText", () => {
     expect(screen.getByText("Second paragraph.")).toBeInTheDocument();
   });
 });
+
+describe("RichText lists", () => {
+  it("renders a paragraph of `- ` lines as a bullet list", () => {
+    render(<RichText text={"Intro.\n\n- One `git init`\n- Two"} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual(["One git init", "Two"]);
+    expect(screen.getByText("git init").tagName).toBe("CODE");
+  });
+});

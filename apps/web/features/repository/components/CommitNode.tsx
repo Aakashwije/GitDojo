@@ -1,65 +1,114 @@
 "use client";
 
-import { Badge, cn, Tooltip } from "@gitdojo/ui";
+import { cn } from "@gitdojo/ui";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { GitBranch } from "lucide-react";
 import {
-  COMMIT_DOT_CENTER_X,
-  COMMIT_NODE_WIDTH,
+  COMMIT_CARD_HEIGHT,
+  COMMIT_CARD_WIDTH,
+  COMMIT_DOT_CENTER_Y,
+  COMMIT_ROW_HEIGHT,
+  LABEL_ROW_HEIGHT,
+  laneCenterX,
   type CommitFlowNode,
 } from "../services/build-commit-graph";
+import { laneColor } from "../services/lanes";
+import { RefLabels } from "./RefLabels";
 
-const HANDLE_STYLE = { left: COMMIT_DOT_CENTER_X, opacity: 0, pointerEvents: "none" } as const;
+const DOT_SIZE = 14;
 
-/** Selection is handled by the graph's `onNodeClick`; the button provides focus and keyboard access. */
+/** Edges attach at the dot's centre, so lines run through the dots of the lane rail. */
+function handleStyle(x: number) {
+  return {
+    left: x,
+    top: COMMIT_DOT_CENTER_Y,
+    bottom: "auto",
+    width: 1,
+    height: 1,
+    minWidth: 0,
+    minHeight: 0,
+    border: 0,
+    transform: "translate(-50%, -50%)",
+    opacity: 0,
+    pointerEvents: "none",
+  } as const;
+}
+
+/**
+ * One row of the graph: the commit's dot in its lane on the left rail, and a card to the right.
+ * Selection is handled by the graph's `onNodeClick`; the button provides focus and keyboard access.
+ */
 export function CommitNode({ data }: NodeProps<CommitFlowNode>) {
-  const { commit, isHead, branches, selected, latest } = data;
+  const { commit, isHead, currentBranch, branches, selected, latest, lane, railWidth } = data;
+  const dotX = laneCenterX(lane);
 
   return (
-    <div style={{ width: COMMIT_NODE_WIDTH }} className={cn(latest && "animate-gd-pop")}>
-      <Handle type="target" position={Position.Top} isConnectable={false} style={HANDLE_STYLE} />
-      {branches.length > 0 || isHead ? (
-        <div className="mb-1 flex items-center gap-1 pl-1">
-          {branches.map((branch) => (
-            <Badge key={branch} tone="branch" mono>
-              <GitBranch aria-hidden="true" />
-              {branch}
-            </Badge>
-          ))}
-          {isHead ? (
-            <Tooltip content="HEAD points to the commit or branch you currently have checked out.">
-              <span tabIndex={0} className="nopan inline-flex rounded-sm">
-                <Badge tone="accent">HEAD</Badge>
-              </span>
-            </Tooltip>
-          ) : null}
-        </div>
-      ) : null}
+    <div
+      style={{ width: railWidth + COMMIT_CARD_WIDTH, height: COMMIT_ROW_HEIGHT }}
+      // The pop animation goes on the dot and card, never on this wrapper: React Flow measures
+      // the handles inside it, and a scaled wrapper would skew where edges attach.
+      className="relative"
+      data-testid="commit-row"
+      data-lane={lane}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={false}
+        style={handleStyle(dotX)}
+      />
+      <div
+        className="absolute flex items-end pb-1"
+        style={{ left: railWidth, height: LABEL_ROW_HEIGHT }}
+      >
+        <RefLabels branches={branches} isHead={isHead} currentBranch={currentBranch} />
+      </div>
+      <span
+        aria-hidden="true"
+        data-testid={isHead ? "head-commit-dot" : undefined}
+        className={cn(
+          "absolute rounded-full border-2",
+          latest && "animate-gd-pop",
+          isHead ? "border-accent bg-accent ring-4 ring-accent-soft" : "bg-panel",
+        )}
+        style={{
+          width: DOT_SIZE,
+          height: DOT_SIZE,
+          left: dotX - DOT_SIZE / 2,
+          top: COMMIT_DOT_CENTER_Y - DOT_SIZE / 2,
+          ...(isHead ? {} : { borderColor: laneColor(lane) }),
+        }}
+      />
       <button
         type="button"
         data-testid="commit-node"
-        aria-label={`Commit ${commit.shortOid}: ${commit.message}`}
+        aria-label={`Commit ${commit.shortOid}: ${commit.message}${
+          branches.length > 0 ? ` (${branches.join(", ")})` : ""
+        }${isHead ? " (HEAD)" : ""}`}
         aria-pressed={selected}
+        style={{
+          position: "absolute",
+          left: railWidth,
+          top: LABEL_ROW_HEIGHT,
+          width: COMMIT_CARD_WIDTH,
+          height: COMMIT_CARD_HEIGHT,
+        }}
         className={cn(
-          "nopan flex w-full cursor-pointer items-center gap-3 rounded-md border bg-panel px-3 py-2 text-left transition-colors duration-150",
+          "nopan flex cursor-pointer flex-col justify-center rounded-md border bg-panel px-3 text-left transition-colors duration-150",
+          latest && "animate-gd-pop",
           selected ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong",
         )}
       >
-        <span
-          aria-hidden="true"
-          className={cn(
-            "size-3.5 shrink-0 rounded-full border-2",
-            isHead
-              ? "border-accent bg-accent ring-4 ring-accent-soft"
-              : "border-fg-muted bg-elevated",
-          )}
-        />
-        <span className="min-w-0">
-          <span className="block font-mono text-caption text-warning">{commit.shortOid}</span>
-          <span className="block truncate text-small text-fg">{commit.message}</span>
+        <span className="block font-mono text-caption leading-tight text-warning">
+          {commit.shortOid}
         </span>
+        <span className="block truncate text-small leading-tight text-fg">{commit.message}</span>
       </button>
-      <Handle type="source" position={Position.Bottom} isConnectable={false} style={HANDLE_STYLE} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        style={handleStyle(dotX)}
+      />
     </div>
   );
 }

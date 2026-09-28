@@ -1,0 +1,108 @@
+# Lesson: What is a Branch?
+# Schema and authoring guide: docs/lesson-authoring.md
+id: what-is-a-branch
+slug: what-is-a-branch
+title: What is a Branch?
+type: concept
+
+goal: Understand that a branch is a movable label pointing at a commit.
+
+difficulty: beginner
+
+concepts:
+  - branches
+
+content:
+  - type: text
+    title: A branch is a label
+    body: |
+      A **branch** is a name that points at one commit. That's all it is. `main` is not special:
+      it is simply the branch Git creates for you in a new repository.
+
+      When you commit, the branch you are on moves forward to the new commit automatically.
+
+  - type: diagram
+    graph:
+      commits:
+        - id: A
+          message: Initial commit
+        - id: B
+          parent: A
+          message: Add homepage
+        - id: C
+          parent: B
+          message: Add styles
+      branches:
+        main: C
+      head: main
+    caption: "`main` points at the newest commit. The commits before it are its history."
+
+  - type: text
+    title: Creating a branch is instant
+    body: |
+      Creating a branch adds a second label to the commit you are on. Git copies no files and
+      duplicates no history, which is why branches are cheap and people create them all the time.
+
+  - type: demo
+    title: Two lines of work
+    steps:
+      - caption: One branch, `main`, pointing at the latest commit.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+          branches:
+            main: B
+          head: main
+      - caption: >-
+          A new branch starts at the commit you are on. Both labels point at the same commit.
+        command: git branch feature/login
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+          branches:
+            main: B
+            feature/login: B
+          head: main
+      - caption: >-
+          Switch to `feature/login` and commit. Only that label moves; `main` stays exactly where
+          it was.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+          branches:
+            main: B
+            feature/login: C
+          head: feature/login
+      - caption: >-
+          Back on `main`, someone commits a bug fix. The history has split into two independent
+          lines that share the same past.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+            - { id: D, parent: B, message: Fix footer link }
+          branches:
+            main: D
+            feature/login: C
+          head: main
+
+  - type: text
+    title: Why teams use branches
+    body: |
+      - Work on a feature without breaking the version everyone else relies on.
+      - Try an idea, and throw the branch away if it does not work out.
+      - Keep several pieces of work in progress without mixing them up.
+
+  - type: callout
+    tone: note
+    body: >-
+      Branch names often use a prefix such as `feature/`, `bugfix/` or `docs/` to show what kind
+      of work they hold. The slash is just part of the name.
+
+completion:
+  xp: 25

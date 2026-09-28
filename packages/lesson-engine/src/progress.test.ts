@@ -55,4 +55,20 @@ describe("lesson progress", () => {
       completed: true,
     });
   });
+
+  it("completes objectives in order only", () => {
+    let progress = createInitialProgress(lesson);
+    // "commit" passes, but "init" and "stage" have not been achieved yet.
+    progress = advanceProgress(lesson, progress, validation({ commit: true }));
+    expect(progress.completedObjectiveIds).toEqual([]);
+    progress = advanceProgress(lesson, progress, validation({ init: true, commit: true }));
+    expect(progress.completedObjectiveIds).toEqual(["init"]);
+    // Several objectives can complete in one step when they all pass in order.
+    progress = advanceProgress(
+      lesson,
+      progress,
+      validation({ init: true, stage: true, commit: true }),
+    );
+    expect(progress.completed).toBe(true);
+  });
 });

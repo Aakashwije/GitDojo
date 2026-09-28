@@ -1,8 +1,14 @@
 "use client";
 
-import { type LessonDefinition } from "@gitdojo/shared-types";
+import { type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  courseHref,
+  lessonHref,
+  lessonNeighbors,
+} from "@/features/course/services/course-navigation";
+import { useCourseProgressStore } from "@/features/course/state/use-course-progress";
 import { LessonCompleteDialog } from "@/features/lesson/components/LessonCompleteDialog";
 import { LessonPanel } from "@/features/lesson/components/LessonPanel";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
@@ -21,15 +27,41 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 const BANNER =
   "\x1b[38;2;124;133;147mWelcome to GitDojo. This terminal runs Git in a safe sandbox.\r\nType \x1b[38;2;244;247;251mhelp\x1b[38;2;124;133;147m to see available commands.\x1b[39m";
 
-export function LessonWorkspace({ lesson }: { lesson: LessonDefinition }) {
+export interface LessonWorkspaceProps {
+  lesson: LessonDefinition;
+  /** The course this lesson belongs to; the standalone demo has none. */
+  course?: CourseOutline;
+}
+
+/** Hands-on lessons and challenges: lesson panel, terminal, graph and file panels. */
+export function LessonWorkspace({ lesson, course }: LessonWorkspaceProps) {
   const { status, errorDetails, execute, reset, retry } = useLearningSession(lesson);
   const terminalRef = useRef<TerminalHandle>(null);
   const [tab, setTab] = useState<WorkspaceTab>("lesson");
   const executor = useMemo(() => createTerminalExecutor(execute), [execute]);
 
-  const completed = useLessonStore((state) => state.progress?.completed ?? false);
+  const completed = useLessonStore(
+    (state) => state.progress?.lessonId === lesson.id && state.progress.completed,
+  );
   const completionDismissed = useLessonStore((state) => state.completionDismissed);
   const dismissCompletion = useLessonStore((state) => state.dismissCompletion);
+  const markLessonComplete = useCourseProgressStore((state) => state.markLessonComplete);
+
+  useEffect(() => {
+    if (completed) markLessonComplete(lesson.id);
+  }, [completed, lesson.id, markLessonComplete]);
+
+  const position = course ? lessonNeighbors(course, lesson.slug) : null;
+  const courseContext = course && position ? { slug: course.slug, position } : undefined;
+  const next =
+    course && position
+      ? position.next
+        ? {
+            href: lessonHref(course.slug, position.next.slug),
+            label: `Next: ${position.next.title}`,
+          }
+        : { href: courseHref(course.slug), label: "Back to course" }
+      : undefined;
 
   const resetLesson = useCallback(async () => {
     await reset();
@@ -41,7 +73,11 @@ export function LessonWorkspace({ lesson }: { lesson: LessonDefinition }) {
 
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
-      <WorkspaceTopbar lesson={lesson} ready={status === "ready"} onReset={resetLesson} />
+      <WorkspaceTopbar
+        lesson={lesson}
+        course={course}
+        terminal={{ ready: status === "ready", onReset: resetLesson }}
+      />
 
       {status === "error" ? (
         <WorkspaceError details={errorDetails} onRetry={retry} />
@@ -55,6 +91,7 @@ export function LessonWorkspace({ lesson }: { lesson: LessonDefinition }) {
         >
           <LessonPanel
             lesson={lesson}
+            course={courseContext}
             onPracticeAgain={() => void resetLesson()}
             className={cn(visibleOn("lesson"), "md:h-[480px] lg:h-auto")}
           />
@@ -92,6 +129,7 @@ export function LessonWorkspace({ lesson }: { lesson: LessonDefinition }) {
           if (!open) dismissCompletion();
         }}
         onPracticeAgain={() => void resetLesson()}
+        next={next}
       />
     </div>
   );

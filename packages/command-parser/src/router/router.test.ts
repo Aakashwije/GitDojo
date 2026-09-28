@@ -39,6 +39,56 @@ describe("command router", () => {
     );
   });
 
+  it("runs the branching flow end to end", async () => {
+    await runCommandLine("git init", context);
+    expect((await runCommandLine("git branch feature/login", context)).output).toBe(
+      "fatal: not a valid object name: 'main'",
+    );
+    await runCommandLine("git add README.md", context);
+    await runCommandLine('git commit -m "Initial commit"', context);
+
+    expect(await runCommandLine("git branch feature/login", context)).toEqual({
+      ok: true,
+      output: "",
+    });
+    expect((await runCommandLine("git branch", context)).output).toBe("  feature/login\n* main");
+    expect(await runCommandLine("git switch feature/login", context)).toEqual({
+      ok: true,
+      output: "Switched to branch 'feature/login'",
+    });
+    expect((await runCommandLine("git switch -c bugfix", context)).output).toBe(
+      "Switched to a new branch 'bugfix'",
+    );
+    expect((await runCommandLine("git status", context)).output).toMatch(/^On branch bugfix/);
+    expect(await runCommandLine("git switch nope", context)).toEqual({
+      ok: false,
+      output: "fatal: invalid reference: nope",
+      errorCode: "BRANCH_NOT_FOUND",
+    });
+    expect((await runCommandLine("git switch -c feature main", context)).errorCode).toBe(
+      "INVALID_ARGUMENT",
+    );
+  });
+
+  it("supports git checkout for switching branches", async () => {
+    await runCommandLine("git init", context);
+    await runCommandLine("git add README.md", context);
+    await runCommandLine('git commit -m "Initial commit"', context);
+
+    expect((await runCommandLine("git checkout -b feature", context)).output).toBe(
+      "Switched to a new branch 'feature'",
+    );
+    expect((await runCommandLine("git checkout main", context)).output).toBe(
+      "Switched to branch 'main'",
+    );
+    expect(await runCommandLine("git checkout nope", context)).toEqual({
+      ok: false,
+      output: "error: pathspec 'nope' did not match any file(s) known to git",
+      errorCode: "BRANCH_NOT_FOUND",
+    });
+    expect((await runCommandLine("git checkout", context)).errorCode).toBe("INVALID_ARGUMENT");
+  });
+
   it("returns friendly output for unknown git commands", async () => {
     expect(await runCommandLine("git xyz", context)).toEqual({
       ok: false,

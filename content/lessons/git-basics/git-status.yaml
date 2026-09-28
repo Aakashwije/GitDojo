@@ -1,0 +1,110 @@
+# Lesson: Understanding git status
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-status
+slug: git-status
+title: Understanding git status
+type: interactive
+
+goal: Read `git status` and use it to decide what to do next.
+
+description: |
+  `git status` is the command you will run most often. It never changes anything; it tells you
+  which branch you are on and how your files differ from the last commit.
+
+  This repository already has one commit, and someone has been working in it since. Use
+  `git status` to find out what changed. The objectives describe files by where `git status`
+  lists them, not by name.
+
+difficulty: beginner
+
+concepts:
+  - git-status
+  - staging
+
+commands:
+  - git status
+  - git add
+  - git commit
+
+content:
+  - type: example
+    title: Reading the report
+    command: git status
+    output: |
+      On branch main
+      Changes to be committed:
+        (use "git restore --staged <file>..." to unstage)
+      	new file:   app.js
+
+      Changes not staged for commit:
+        (use "git add <file>..." to update what will be committed)
+      	modified:   README.md
+
+      Untracked files:
+        (use "git add <file>..." to include in what will be committed)
+      	notes.txt
+    explanation: |
+      - **Changes to be committed** are staged: they will go into the next commit.
+      - **Changes not staged for commit** are edits to tracked files that are not staged yet.
+      - **Untracked files** are new files Git has never recorded.
+
+      When nothing is left in any section, Git reports `nothing to commit, working tree clean`.
+
+  - type: callout
+    tone: tip
+    body: >-
+      Run `git status` before and after every other command while you learn. It is the fastest way
+      to see what a command actually did.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+        index.js: |
+          console.log("Weather App");
+  files:
+    README.md: |
+      # Weather App
+
+      Shows today's forecast for your city.
+    todo.txt: |
+      - Add a five-day forecast
+      - Support Fahrenheit
+
+objectives:
+  - id: stage-modified
+    description: Stage the file that `git status` lists under **Changes not staged for commit**.
+    validator:
+      type: file_staged
+      file: README.md
+
+  - id: stage-untracked
+    description: Stage the file that `git status` lists under **Untracked files**.
+    validator:
+      type: file_staged
+      file: todo.txt
+
+  - id: clean
+    description: Commit your staged changes until `git status` reports a clean working tree.
+    validator:
+      type: clean_worktree
+
+hints:
+  stage-modified:
+    - Run `git status` and look for the section called "Changes not staged for commit".
+    - A tracked file was edited. Stage it with `git add` and the file name.
+    - Run `git add README.md`.
+  stage-untracked:
+    - Run `git status` again. Which file is listed under "Untracked files"?
+    - New files are staged the same way as modified ones.
+    - Run `git add todo.txt`.
+  clean:
+    - Staged changes stay in the staging area until you commit them.
+    - Every commit needs a message, given with `-m`.
+    - Run `git commit -m "Update README and add todo list"`, then `git status`.
+
+completion:
+  xp: 75

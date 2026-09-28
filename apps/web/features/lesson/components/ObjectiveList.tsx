@@ -1,6 +1,7 @@
 import { type LessonObjective } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { Circle, CircleCheck, CircleDot } from "lucide-react";
+import { renderInline } from "./RichText";
 
 export type ObjectiveState = "completed" | "current" | "upcoming";
 
@@ -66,7 +67,7 @@ export function ObjectiveList({ objectives, completedIds, currentId }: Objective
                 <Circle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               )}
               <span>
-                {objective.description}
+                {renderInline(objective.description)}
                 <span className="sr-only"> ({STATE_LABEL[state]})</span>
               </span>
             </li>

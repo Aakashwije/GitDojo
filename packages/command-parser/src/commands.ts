@@ -38,6 +38,30 @@ export const GIT_COMMAND_SPECS = {
     flags: [{ name: "oneline", takesValue: false }],
     acceptsArguments: false,
   },
+  branch: {
+    name: "branch",
+    summary: "List branches, or create one",
+    usage: "git branch [<name>]",
+    flags: [],
+    acceptsArguments: true,
+    maxArguments: 1,
+  },
+  switch: {
+    name: "switch",
+    summary: "Switch branches (-c creates one first)",
+    usage: "git switch [-c] <branch>",
+    flags: [{ name: "c", aliases: ["create"], takesValue: true }],
+    acceptsArguments: true,
+    maxArguments: 1,
+  },
+  checkout: {
+    name: "checkout",
+    summary: "Older way to switch branches (prefer git switch)",
+    usage: "git checkout [-b] <branch>",
+    flags: [{ name: "b", takesValue: true }],
+    acceptsArguments: true,
+    maxArguments: 1,
+  },
 } as const satisfies Record<string, GitCommandSpec>;
 
 export type SupportedGitCommand = keyof typeof GIT_COMMAND_SPECS;
@@ -48,8 +72,6 @@ export function isSupportedGitCommand(command: string): command is SupportedGitC
 
 /** Real Git commands that later GitDojo phases will support; they get a friendlier message. */
 export const PLANNED_GIT_COMMANDS: ReadonlySet<string> = new Set([
-  "branch",
-  "checkout",
   "cherry-pick",
   "clone",
   "config",
@@ -68,7 +90,6 @@ export const PLANNED_GIT_COMMANDS: ReadonlySet<string> = new Set([
   "rm",
   "show",
   "stash",
-  "switch",
   "tag",
 ]);
 

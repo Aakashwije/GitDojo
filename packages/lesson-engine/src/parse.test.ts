@@ -62,8 +62,15 @@ describe("parseLesson", () => {
       expect.arrayContaining([
         expect.stringContaining("title"),
         expect.stringContaining("difficulty"),
-        expect.stringContaining("objectives"),
+        expect.stringContaining("concepts"),
       ]),
+    );
+  });
+
+  it("requires objectives unless the lesson is a concept lesson", () => {
+    const withoutObjectives = VALID.slice(0, VALID.indexOf("objectives:"));
+    expect(issuesFor(withoutObjectives).join("\n")).toContain(
+      "objectives: a lesson needs at least one objective",
     );
   });
 
@@ -96,6 +103,131 @@ describe("parseLesson", () => {
 
   it("rejects an invalid difficulty", () => {
     expect(issuesFor(VALID.replace("beginner", "expert")).join("\n")).toContain("difficulty");
+  });
+});
+
+const CONCEPT = `
+id: concept
+slug: concept
+title: What is a branch?
+type: concept
+difficulty: beginner
+concepts: [branches]
+content:
+  - type: text
+    title: Pointers
+    body: A branch is a movable pointer to a commit.
+  - type: diagram
+    graph:
+      commits:
+        - id: A
+        - id: B
+          parent: A
+      branches:
+        main: B
+      head: main
+  - type: demo
+    steps:
+      - caption: Start
+        areas: { workingTree: [README.md], staging: [], repository: [] }
+      - caption: Stage it
+        command: git add README.md
+        areas:
+          workingTree: []
+          staging: [{ path: README.md, status: staged }]
+          repository: []
+`;
+
+describe("concept lessons", () => {
+  it("parse without setup or objectives", () => {
+    const lesson = parseLesson(CONCEPT);
+    expect(lesson.type).toBe("concept");
+    expect(lesson.objectives).toEqual([]);
+    expect(lesson.setup).toEqual({});
+    expect(lesson.content?.map((block) => block.type)).toEqual(["text", "diagram", "demo"]);
+  });
+
+  it("need content and must not have objectives", () => {
+    const noContent = CONCEPT.slice(0, CONCEPT.indexOf("content:"));
+    expect(issuesFor(noContent).join("\n")).toContain("at least one content block");
+    const withObjectives = `${CONCEPT}objectives:
+  - id: a
+    description: A.
+    validator: { type: repository_initialized }
+`;
+    expect(issuesFor(withObjectives).join("\n")).toContain("concept lessons have no objectives");
+  });
+
+  it("reject diagrams with zero or several visuals", () => {
+    const none = CONCEPT.replace(
+      / {2}- type: diagram\n {4}graph:[\s\S]*?head: main\n/,
+      "  - type: diagram\n    title: Empty\n",
+    );
+    expect(issuesFor(none).join("\n")).toContain("set exactly one of `ascii`, `graph`, `areas`");
+    const both = CONCEPT.replace("  - type: diagram\n", "  - type: diagram\n    ascii: x\n");
+    expect(issuesFor(both).join("\n")).toContain("set exactly one of");
+  });
+
+  it("reject graphs that reference unknown commits", () => {
+    expect(issuesFor(CONCEPT.replace("main: B", "main: Z")).join("\n")).toContain(
+      'branch "main" points to unknown commit "Z"',
+    );
+    expect(issuesFor(CONCEPT.replace("parent: A", "parent: B")).join("\n")).toContain(
+      'parent "B" must be listed before "B"',
+    );
+    expect(issuesFor(CONCEPT.replace("head: main", "head: nope")).join("\n")).toContain(
+      "neither a branch nor a commit",
+    );
+  });
+});
+
+const WITH_HISTORY = `
+id: history
+slug: history
+title: History
+difficulty: beginner
+concepts: []
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: "# Hi\\n"
+    - message: Add homepage
+      files:
+        index.html: "<h1>Hi</h1>\\n"
+  branches: [feature/login]
+objectives:
+  - id: switch
+    description: Switch.
+    validator: { type: current_branch, branch: feature/login }
+`;
+
+describe("setup history", () => {
+  it("parses setup commits and branches", () => {
+    const lesson = parseLesson(WITH_HISTORY);
+    expect(lesson.setup.commits?.map((commit) => commit.message)).toEqual([
+      "Initial commit",
+      "Add homepage",
+    ]);
+    expect(lesson.setup.branches).toEqual(["feature/login"]);
+  });
+
+  it("requires initializeGit for setup commits", () => {
+    expect(
+      issuesFor(WITH_HISTORY.replace("initializeGit: true", "initializeGit: false")).join("\n"),
+    ).toContain("setup commits require `initializeGit: true`");
+  });
+
+  it("rejects commits that change nothing and invalid or duplicate branches", () => {
+    const noop = WITH_HISTORY.replace('index.html: "<h1>Hi</h1>\\n"', 'README.md: "# Hi\\n"');
+    expect(issuesFor(noop).join("\n")).toContain("this commit does not change any file");
+    expect(issuesFor(WITH_HISTORY.replace("[feature/login]", "[bad..name]")).join("\n")).toContain(
+      "valid Git branch name",
+    );
+    expect(issuesFor(WITH_HISTORY.replace("[feature/login]", "[main]")).join("\n")).toContain(
+      'branch "main" already exists',
+    );
   });
 });
 

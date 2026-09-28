@@ -1,0 +1,103 @@
+# Lesson: Commit on a Feature Branch
+# Schema and authoring guide: docs/lesson-authoring.md
+id: commit-on-branch
+slug: commit-on-branch
+title: Commit on a Feature Branch
+type: interactive
+
+goal: Keep new work on its own branch, so `main` stays untouched.
+
+description: |
+  You have written `login.js`, but it is not ready for `main` yet. Commit it on a feature
+  branch instead, then switch back to `main` and see what happens to the file.
+
+difficulty: beginner
+
+concepts:
+  - branches
+  - commits
+  - git-switch
+
+commands:
+  - git switch -c
+  - git add
+  - git commit
+  - git switch
+
+content:
+  - type: diagram
+    title: What you are about to build
+    graph:
+      commits:
+        - { id: A, message: Initial commit }
+        - { id: B, parent: A, message: Add homepage }
+        - { id: C, parent: B, message: Add login page }
+      branches:
+        main: B
+        feature/login: C
+      head: feature/login
+    caption: "`main` stays on **Add homepage** while your work lives one commit ahead on `feature/login`."
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+  files:
+    login.js: |
+      export function login(email, password) {
+        return fetch("/api/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+      }
+
+objectives:
+  - id: on-feature
+    description: Create a branch named `feature/login` and switch to it.
+    validator:
+      type: current_branch
+      branch: feature/login
+
+  - id: commit-login
+    description: Commit `login.js` on `feature/login`.
+    validator:
+      type: commit_on_branch
+      branch: feature/login
+      notOn: main
+
+  - id: main-untouched
+    description: "`main` still points at **Add homepage**. Your commit is only on the feature branch."
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      message: Add homepage
+
+  - id: back-to-main
+    description: Switch back to `main`, and notice that `login.js` leaves the working tree.
+    validator:
+      type: current_branch
+      branch: main
+
+hints:
+  on-feature:
+    - One `git switch` option creates the branch and switches to it.
+    - Run `git switch -c feature/login`.
+  commit-login:
+    - Stage the file, then commit. The commit goes on the branch HEAD points to.
+    - Run `git add login.js`, then `git commit -m "Add login page"`.
+  main-untouched:
+    - Look at the graph. Which commit does the `main` label point to?
+    - If you committed on `main` by mistake, reset the lesson and switch branches first.
+  back-to-main:
+    - Run `git switch main`.
+    - "`login.js` is committed on `feature/login`, so Git removes it while you are on `main`. Switch back and it returns."
+
+completion:
+  xp: 100

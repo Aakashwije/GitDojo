@@ -54,7 +54,7 @@ Operations on a session are queued, so a lesson reset can never interleave with 
 | `@gitdojo/lesson-engine`    | Lesson schema, YAML loader, setup/reset, progress                       | validator, git-engine, repository-state, yaml, zod |
 | `@gitdojo/ui`               | Design tokens (from `UI.md`) and shadcn/ui-style components             | radix-ui, tailwind-merge                           |
 | `@gitdojo/config`           | Shared TypeScript, ESLint and Prettier configuration                    | –                                                  |
-| `@gitdojo/web`              | Next.js app: landing page and the `/learn/demo` workspace               | everything above                                   |
+| `@gitdojo/web`              | Next.js app: landing page, courses and the lesson workspace             | everything above                                   |
 
 Every package exposes a single public entry point through `package.json#exports` (plus
 `@gitdojo/lesson-engine/node` for the Node-only lesson source). Import from the package name,
@@ -92,23 +92,39 @@ libraries.
 - **UI-safe errors.** Engine and router failures are converted to Git-like messages with an
   internal error code. Stack traces are logged to the developer console, never shown to learners.
 
-## Lesson progress is sticky
+## Lesson progress is sticky and ordered
 
 Validators describe the _current_ state. Some lesson steps undo earlier ones: committing empties
 the staging area, so "README.md is staged" stops being true. `advanceProgress` in
 `@gitdojo/lesson-engine` therefore keeps an objective completed once it has passed, until the
 lesson is reset.
 
+Objectives also complete **in order**: an objective can only complete once every objective before
+it has. This lets a lesson ask for something that is already true at the start ("switch back to
+`main`"), and lets a challenge list the end state it expects without it being ticked off early.
+Several objectives can complete after a single command.
+
+## Courses and progress
+
+Courses live in `content/courses/<slug>.yaml` and list lesson slugs in order; each course's lessons
+live in `content/lessons/<course slug>/`. Every course page and lesson page is generated statically
+at build time (`/learn`, `/learn/[course]`, `/learn/[course]/[lesson]`).
+
+Which lessons a learner has finished is kept in `localStorage` (`use-course-progress`), until
+accounts exist. A hands-on lesson is recorded as finished when its objectives are complete; a
+concept lesson when the learner marks it complete.
+
 ## Web app structure
 
 ```text
 apps/web/
-├── app/                        routes: / (landing) and /learn/demo
+├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo
 ├── components/                 site chrome and landing page
 ├── features/
 │   ├── terminal/               xterm host, line editor, history, output highlighting
 │   ├── repository/             graph (React Flow), working tree / staging / repository panels
-│   ├── lesson/                 lesson panel, objectives, hints, completion
+│   ├── course/                 course outline, navigation, progress (localStorage)
+│   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
 │   └── workspace/              LearningSession, browser environment, layout
 └── e2e/                        Playwright tests
 ```

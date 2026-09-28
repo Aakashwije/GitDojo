@@ -1,0 +1,106 @@
+# Lesson: Working Tree
+# Schema and authoring guide: docs/lesson-authoring.md
+id: working-tree
+slug: working-tree
+title: Working Tree
+type: concept
+
+goal: Understand the working tree and the states a file can be in.
+
+difficulty: beginner
+
+concepts:
+  - working-tree
+  - file-states
+
+content:
+  - type: text
+    title: The files you can see
+    body: |
+      The **working tree** is your project folder as it is right now: the files you open, edit,
+      create and delete in your editor.
+
+      Git constantly compares the working tree with the last commit. Every difference shows up in
+      `git status`, and nothing is recorded until you decide to commit it.
+
+  - type: text
+    title: File states
+    body: |
+      - **Unmodified**: the file is exactly as it was in the last commit.
+      - **Modified**: a tracked file has been edited since the last commit.
+      - **Deleted**: a tracked file has been removed from the folder.
+      - **Untracked**: a new file Git has never recorded. Git ignores it until you add it.
+
+  - type: demo
+    title: Watch the working tree change
+    steps:
+      - caption: >-
+          Right after a commit, every file matches the repository. The working tree is
+          **clean**.
+        areas:
+          workingTree:
+            - { path: README.md, status: committed }
+            - { path: index.js, status: committed }
+          staging: []
+          repository: [README.md, index.js]
+      - caption: >-
+          You edit `index.js` in your editor. Git notices it differs from the last commit: it is
+          now **modified**.
+        areas:
+          workingTree:
+            - { path: README.md, status: committed }
+            - { path: index.js, status: modified }
+          staging: []
+          repository: [README.md, index.js]
+      - caption: >-
+          You create `login.js`. Git has never seen this file, so it is **untracked**.
+        areas:
+          workingTree:
+            - { path: README.md, status: committed }
+            - { path: index.js, status: modified }
+            - { path: login.js, status: untracked }
+          staging: []
+          repository: [README.md, index.js]
+      - caption: >-
+          You delete `README.md`. The repository still has it; the working tree does not.
+        areas:
+          workingTree:
+            - { path: README.md, status: deleted }
+            - { path: index.js, status: modified }
+            - { path: login.js, status: untracked }
+          staging: []
+          repository: [README.md, index.js]
+      - caption: >-
+          None of this touched the repository. The last commit is unchanged until you stage and
+          commit.
+        command: git status
+        areas:
+          workingTree:
+            - { path: README.md, status: deleted }
+            - { path: index.js, status: modified }
+            - { path: login.js, status: untracked }
+          staging: []
+          repository: [README.md, index.js]
+
+  - type: example
+    title: The same working tree in git status
+    command: git status
+    output: |
+      On branch main
+      Changes not staged for commit:
+        (use "git add/rm <file>..." to update what will be committed)
+      	deleted:    README.md
+      	modified:   index.js
+
+      Untracked files:
+        (use "git add <file>..." to include in what will be committed)
+      	login.js
+
+  - type: callout
+    tone: tip
+    body: >-
+      In a GitDojo workspace, the **Working Tree** panel shows exactly these changes, and updates
+      after every command you run.
+
+completion:
+  xp: 25

@@ -1,0 +1,88 @@
+# Lesson: Stage Your First File
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-add
+slug: git-add
+title: Stage Your First File
+type: interactive
+
+goal: Move changes from the working tree into the staging area with `git add`.
+
+description: |
+  This repository was just initialized, and all three project files are **untracked**. Stage
+  them one at a time first, then learn the shortcut for staging everything that is left.
+
+  Keep an eye on the **Working Tree** and **Staging Area** panels as you go.
+
+difficulty: beginner
+
+concepts:
+  - staging
+  - git-add
+
+commands:
+  - git status
+  - git add
+
+content:
+  - type: example
+    title: Staging a single file
+    command: git add README.md
+    explanation: >-
+      `git add` prints nothing when it succeeds, like most Git commands. Run `git status`
+      afterwards: the file moves from "Untracked files" to "Changes to be committed".
+
+  - type: example
+    title: Staging everything at once
+    command: git add .
+    explanation: >-
+      The `.` means "this folder". Every new, modified or deleted file inside it is staged.
+
+setup:
+  initializeGit: true
+  files:
+    README.md: |
+      # Weather App
+
+      Shows today's forecast for your city.
+    index.js: |
+      import { renderForecast } from "./forecast.js";
+
+      renderForecast(document.querySelector("#app"));
+    style.css: |
+      body {
+        font-family: system-ui, sans-serif;
+      }
+
+objectives:
+  - id: stage-readme
+    description: Stage `README.md`.
+    validator:
+      type: file_staged
+      file: README.md
+
+  - id: stage-index
+    description: Stage `index.js`.
+    validator:
+      type: file_staged
+      file: index.js
+
+  - id: stage-style
+    description: Stage the remaining file using the shortcut that stages everything.
+    validator:
+      type: file_staged
+      file: style.css
+
+hints:
+  stage-readme:
+    - Run `git status` to see the untracked files.
+    - "`git add` takes the name of the file to stage."
+    - Run `git add README.md`.
+  stage-index:
+    - Staging works one file at a time, the same way as before.
+    - Run `git add index.js`.
+  stage-style:
+    - "`.` means the current folder, including everything inside it."
+    - Run `git add .`, then `git status` to confirm nothing is left.
+
+completion:
+  xp: 50

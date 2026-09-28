@@ -36,7 +36,7 @@ export const useRepositoryStore = create<RepositoryStore>()((set) => ({
       loading: false,
       error: null,
       // Drop a selection that no longer exists (e.g. after a lesson reset).
-      selectedCommit: repositoryState.commits.some(
+      selectedCommit: repositoryState.allCommits.some(
         (commit) => commit.oid === current.selectedCommit,
       )
         ? current.selectedCommit

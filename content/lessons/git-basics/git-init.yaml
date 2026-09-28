@@ -1,0 +1,62 @@
+# Lesson: Initialize a Repository
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-init
+slug: git-init
+title: Initialize a Repository
+type: interactive
+
+goal: Turn an ordinary folder into a Git repository.
+
+description: |
+  This project folder already has a `README.md`, but Git is not tracking it yet. Git only
+  starts watching a folder once you **initialize** a repository in it.
+
+difficulty: beginner
+
+concepts:
+  - git-init
+  - repositories
+
+commands:
+  - git init
+  - git status
+
+content:
+  - type: example
+    title: Before and after
+    command: git init
+    output: Initialized empty Git repository in ~/project/.git/
+    explanation: >-
+      `git init` creates a hidden `.git` folder. That folder is the repository: it holds every
+      commit, branch and setting. Your own files stay exactly where they are.
+
+  - type: diagram
+    title: What changes on disk
+    ascii: |
+      project/                     project/
+      └── README.md      ──▶       ├── .git/        ← new: Git's database
+                                   └── README.md
+    caption: Delete `.git` and the folder is an ordinary folder again, with no history.
+
+setup:
+  initializeGit: false
+  files:
+    README.md: |
+      # Weather App
+
+      Shows today's forecast for your city.
+
+objectives:
+  - id: initialize
+    description: Initialize a Git repository in this folder.
+    validator:
+      type: repository_initialized
+
+hints:
+  initialize:
+    - Try `git status` first. Git will tell you this is not a repository yet.
+    - Every repository starts with one command that creates the `.git` folder.
+    - Run `git init`.
+
+completion:
+  xp: 50

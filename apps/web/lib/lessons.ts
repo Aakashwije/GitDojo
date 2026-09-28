@@ -1,13 +1,34 @@
 import "server-only";
 
-import { loadLesson as loadLessonFromSource } from "@gitdojo/lesson-engine";
-import { createDirectoryLessonSource } from "@gitdojo/lesson-engine/node";
+import {
+  loadAllCourses as loadAllCoursesFromSource,
+  loadCourse as loadCourseFromSource,
+  loadLesson as loadLessonFromSource,
+  type LoadedCourse,
+} from "@gitdojo/lesson-engine";
+import {
+  createDirectoryCourseSource,
+  createDirectoryLessonSource,
+} from "@gitdojo/lesson-engine/node";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import path from "node:path";
 
 // Lessons are read and validated at build time; an invalid lesson fails `next build`.
-const LESSONS_DIR = path.join(process.cwd(), "..", "..", "content", "lessons");
+const CONTENT_DIR = path.join(process.cwd(), "..", "..", "content");
+const LESSONS_DIR = path.join(CONTENT_DIR, "lessons");
+const courses = createDirectoryCourseSource(path.join(CONTENT_DIR, "courses"));
+const lessonsFor = (course: string) => createDirectoryLessonSource(path.join(LESSONS_DIR, course));
 
+/** A standalone lesson in `content/lessons/`, such as the demo. */
 export function loadLesson(slug: string): Promise<LessonDefinition> {
   return loadLessonFromSource(slug, createDirectoryLessonSource(LESSONS_DIR));
+}
+
+export function loadCourse(slug: string): Promise<LoadedCourse> {
+  return loadCourseFromSource(slug, courses, lessonsFor);
+}
+
+/** Every course, in display order. */
+export function loadAllCourses(): Promise<LoadedCourse[]> {
+  return loadAllCoursesFromSource(courses, lessonsFor);
 }
