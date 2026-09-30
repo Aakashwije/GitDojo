@@ -1,104 +1,32 @@
 import git from "isomorphic-git";
-import { ensureDirectory, pathExists } from "../filesystem/fs-helpers";
-import { parentPath } from "../filesystem/paths";
 import { type GitContext } from "../engine/context";
 import { failure, gitError, notARepository, success } from "../engine/errors";
-import { type GitStatusEntry, type GitSwitchResult } from "../engine/git-engine";
+import { type GitSwitchResult } from "../engine/git-engine";
+import { readMergeState } from "../engine/merge-state";
 import { currentBranch, isRepository, resolveRefOrNull } from "../engine/repository";
 import { readStatusEntries } from "../engine/status-matrix";
+import {
+  applyWorkingTreeUpdates,
+  overwriteError,
+  readBlob,
+  readTreeFiles,
+  updatesFromTree,
+} from "../engine/working-tree";
 import { newBranchNameError } from "./branch";
 
 export const MISSING_BRANCH_ARGUMENT = "fatal: missing branch or commit argument";
 
-/** A path whose committed content differs between the current commit and the target commit. */
-interface TreeChange {
-  path: string;
-  /** Blob in the target commit, or `null` when the target does not have the path. */
-  to: string | null;
-}
-
-/** Blob oid for every file in a commit's tree. */
-async function readTreeFiles(ctx: GitContext, commit: string | null): Promise<Map<string, string>> {
-  const files = new Map<string, string>();
-  if (commit === null) return files;
-  await git.walk({
-    fs: ctx.fs,
-    dir: ctx.dir,
-    trees: [git.TREE({ ref: commit })],
-    map: async (path, [entry]) => {
-      if (path !== "." && entry && (await entry.type()) === "blob") {
-        files.set(path, await entry.oid());
-      }
-      // Returning undefined (not null) keeps descending into subdirectories.
-      return undefined;
-    },
-  });
-  return files;
-}
-
-async function diffCommits(
+/** Paths whose committed content differs between two commits. */
+async function changedPaths(
   ctx: GitContext,
   from: string | null,
   to: string | null,
-): Promise<TreeChange[]> {
+): Promise<{ paths: string[]; target: Map<string, string> }> {
   const [before, after] = await Promise.all([readTreeFiles(ctx, from), readTreeFiles(ctx, to)]);
-  const changes: TreeChange[] = [];
-  for (const [path, oid] of before) {
-    if (after.get(path) !== oid) changes.push({ path, to: after.get(path) ?? null });
-  }
-  for (const [path, oid] of after) {
-    if (!before.has(path)) changes.push({ path, to: oid });
-  }
-  return changes.sort((a, b) => a.path.localeCompare(b.path));
-}
-
-function hasLocalChange(entry: GitStatusEntry | undefined): boolean {
-  return (
-    entry !== undefined &&
-    (entry.staged !== null || entry.unstaged === "modified" || entry.unstaged === "deleted")
-  );
-}
-
-function conflictError(heading: string, paths: string[], advice: string) {
-  return failure<never>(
-    gitError(
-      "CHECKOUT_CONFLICT",
-      [heading, ...paths.map((path) => `\t${path}`), advice, "Aborting"].join("\n"),
-    ),
-  );
-}
-
-/** Deletes empty directories from `path` upwards, stopping at the workspace root. */
-async function pruneEmptyDirectories(ctx: GitContext, path: string): Promise<void> {
-  for (let dir = path; dir !== ""; dir = parentPath(dir)) {
-    const absolute = `${ctx.dir}/${dir}`;
-    if ((await ctx.fs.promises.readdir(absolute)).length > 0) return;
-    await ctx.fs.promises.rmdir(absolute);
-  }
-}
-
-/**
- * Makes the working tree and index match the target commit for the paths that differ between the
- * two commits. Everything else, including uncommitted work, is carried over untouched, as in Git.
- */
-async function applyChanges(ctx: GitContext, changes: TreeChange[]): Promise<void> {
-  // Removals first, so a file can be replaced by a directory of the same name (and vice versa).
-  for (const change of changes.filter((c) => c.to === null)) {
-    const absolute = `${ctx.dir}/${change.path}`;
-    if (await pathExists(ctx.fs.promises, absolute)) await ctx.fs.promises.unlink(absolute);
-    await git.remove({ fs: ctx.fs, dir: ctx.dir, filepath: change.path });
-    await pruneEmptyDirectories(ctx, parentPath(change.path));
-  }
-  for (const change of changes) {
-    if (change.to === null) continue;
-    const { blob } = await git.readBlob({ fs: ctx.fs, dir: ctx.dir, oid: change.to });
-    const absolute = `${ctx.dir}/${change.path}`;
-    await ensureDirectory(ctx.fs.promises, `${ctx.dir}/${parentPath(change.path)}`);
-    // Replace rather than overwrite so Git's stat check sees the change (see WorkspaceFileSystem).
-    if (await pathExists(ctx.fs.promises, absolute)) await ctx.fs.promises.unlink(absolute);
-    await ctx.fs.promises.writeFile(absolute, blob);
-    await git.add({ fs: ctx.fs, dir: ctx.dir, filepath: change.path });
-  }
+  const paths = new Set<string>();
+  for (const [path, oid] of before) if (after.get(path) !== oid) paths.add(path);
+  for (const path of after.keys()) if (!before.has(path)) paths.add(path);
+  return { paths: [...paths].sort((a, b) => a.localeCompare(b)), target: after };
 }
 
 async function attachHead(ctx: GitContext, branch: string): Promise<void> {
@@ -143,36 +71,26 @@ async function switchToExisting(ctx: GitContext, name: string): Promise<GitSwitc
     });
   }
 
-  const changes = await diffCommits(ctx, await resolveRefOrNull(ctx, "HEAD"), target);
-  const status = new Map((await readStatusEntries(ctx)).map((entry) => [entry.path, entry]));
-
-  // Refuse, like Git, instead of silently overwriting the learner's work.
-  const overwritten = changes.filter((change) => hasLocalChange(status.get(change.path)));
-  if (overwritten.length > 0) {
-    return conflictError(
-      "error: Your local changes to the following files would be overwritten by checkout:",
-      overwritten.map((change) => change.path),
-      "Please commit your changes or stash them before you switch branches.",
-    );
-  }
-  const untracked = changes.filter(
-    (change) => change.to !== null && status.get(change.path)?.unstaged === "untracked",
+  const { paths, target: tree } = await changedPaths(
+    ctx,
+    await resolveRefOrNull(ctx, "HEAD"),
+    target,
   );
-  if (untracked.length > 0) {
-    return conflictError(
-      "error: The following untracked working tree files would be overwritten by checkout:",
-      untracked.map((change) => change.path),
-      "Please move or remove them before you switch branches.",
-    );
-  }
+  const status = new Map((await readStatusEntries(ctx)).map((entry) => [entry.path, entry]));
+  // Refuse, like Git, instead of silently overwriting the learner's work.
+  const problem = overwriteError("checkout", paths, status, (path) => tree.has(path));
+  if (problem) return failure(problem);
 
-  await applyChanges(ctx, changes);
+  await applyWorkingTreeUpdates(
+    ctx,
+    await updatesFromTree(paths, tree, (oid) => readBlob(ctx, oid)),
+  );
   await attachHead(ctx, name);
   return success(`Switched to branch '${name}'`, {
     branch: name,
     switched: true,
     created: false,
-    updatedPaths: changes.map((change) => change.path),
+    updatedPaths: paths,
   });
 }
 
@@ -184,5 +102,13 @@ export async function runSwitch(
 ): Promise<GitSwitchResult> {
   if (name === "") return failure(gitError("INVALID_ARGUMENT", MISSING_BRANCH_ARGUMENT));
   if (!(await isRepository(ctx))) return notARepository();
+  if (await readMergeState(ctx)) {
+    return failure(
+      gitError(
+        "MERGE_IN_PROGRESS",
+        "error: you need to resolve your current index first\nhint: Finish the merge with 'git commit', or cancel it with 'git merge --abort'.",
+      ),
+    );
+  }
   return create ? createAndSwitch(ctx, name) : switchToExisting(ctx, name);
 }

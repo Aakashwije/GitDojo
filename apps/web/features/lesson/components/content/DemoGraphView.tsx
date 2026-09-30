@@ -5,6 +5,7 @@ import {
   assignLanes,
   laneColor,
   laneEdgePath,
+  MERGE_COLOR,
   tipsInLaneOrder,
 } from "@/features/repository/services/lanes";
 
@@ -16,10 +17,14 @@ const DOT_RADIUS = 6;
 interface PlacedCommit {
   id: string;
   label: string;
-  parent: string | undefined;
+  parents: string[];
   lane: number;
   row: number;
   branches: string[];
+}
+
+function parentsOf(commit: DemoGraph["commits"][number]): string[] {
+  return [commit.parent, commit.merge].filter((id) => id !== undefined);
 }
 
 /** Where HEAD points: a branch (attached) or a commit id (detached). */
@@ -60,10 +65,7 @@ export function DemoGraphView({ graph, className }: { graph: DemoGraph; classNam
   const branches = Object.entries(graph.branches ?? {});
   const head = resolveHead(graph);
   const { lanes, laneCount } = assignLanes(
-    newestFirst.map((commit) => ({
-      id: commit.id,
-      parents: commit.parent === undefined ? [] : [commit.parent],
-    })),
+    newestFirst.map((commit) => ({ id: commit.id, parents: parentsOf(commit) })),
     tipsInLaneOrder(
       branches.map(([name, target]) => ({ name, target })),
       head.commit,
@@ -73,7 +75,7 @@ export function DemoGraphView({ graph, className }: { graph: DemoGraph; classNam
   const placed: PlacedCommit[] = newestFirst.map((commit, row) => ({
     id: commit.id,
     label: commit.message ?? commit.id,
-    parent: commit.parent,
+    parents: parentsOf(commit),
     lane: lanes.get(commit.id) ?? 0,
     row,
     branches: branches.filter(([, target]) => target === commit.id).map(([name]) => name),
@@ -98,19 +100,27 @@ export function DemoGraphView({ graph, className }: { graph: DemoGraph; classNam
         width={railWidth}
         height={placed.length * ROW_HEIGHT}
       >
-        {placed.map((commit) => {
-          const parent = commit.parent === undefined ? undefined : byId.get(commit.parent);
-          if (!parent) return null;
-          return (
-            <path
-              key={`${commit.id}->${parent.id}`}
-              d={laneEdgePath(point(commit), point(parent), ROW_HEIGHT)}
-              fill="none"
-              stroke={laneColor(commit.lane)}
-              strokeWidth={2}
-            />
-          );
-        })}
+        {placed.flatMap((commit) =>
+          commit.parents.map((parentId, index) => {
+            const parent = byId.get(parentId);
+            if (!parent) return null;
+            const merge = index > 0;
+            return (
+              <path
+                key={`${commit.id}->${parent.id}`}
+                d={laneEdgePath(
+                  point(commit),
+                  point(parent),
+                  ROW_HEIGHT,
+                  merge ? "child" : "parent",
+                )}
+                fill="none"
+                stroke={laneColor(merge ? parent.lane : commit.lane)}
+                strokeWidth={2}
+              />
+            );
+          }),
+        )}
         {placed.map((commit) => {
           const { x, y } = point(commit);
           const isHead = commit.id === head.commit;
@@ -121,7 +131,13 @@ export function DemoGraphView({ graph, className }: { graph: DemoGraph; classNam
               cy={y}
               r={DOT_RADIUS}
               strokeWidth={2}
-              stroke={isHead ? "var(--accent-primary)" : laneColor(commit.lane)}
+              stroke={
+                isHead
+                  ? "var(--accent-primary)"
+                  : commit.parents.length > 1
+                    ? MERGE_COLOR
+                    : laneColor(commit.lane)
+              }
               fill={isHead ? "var(--accent-primary)" : "var(--bg-panel)"}
             />
           );

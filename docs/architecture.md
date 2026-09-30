@@ -42,6 +42,11 @@ execute(input)
 
 Operations on a session are queued, so a lesson reset can never interleave with a running command.
 
+The terminal is not the only input: resolving a merge conflict means editing a file. The conflict
+editor saves through `LearningSession.writeFile`, which goes through the same queue and is followed
+by the same state read, validation and progress update as a command. It writes the working tree
+only; marking a conflict resolved is still `git add`, so nothing is ever resolved automatically.
+
 ## Packages
 
 | Package                     | Responsibility                                                          | Depends on                                         |
@@ -123,6 +128,7 @@ apps/web/
 ├── features/
 │   ├── terminal/               xterm host, line editor, history, output highlighting
 │   ├── repository/             graph (React Flow), working tree / staging / repository panels
+│   ├── conflicts/              conflict banner and the conflict editor
 │   ├── course/                 course outline, navigation, progress (localStorage)
 │   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
 │   └── workspace/              LearningSession, browser environment, layout

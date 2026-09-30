@@ -8,6 +8,10 @@ export type GitErrorCode =
   | "BRANCH_EXISTS"
   | "BRANCH_NOT_FOUND"
   | "CHECKOUT_CONFLICT"
+  | "MERGE_CONFLICT"
+  | "MERGE_IN_PROGRESS"
+  | "UNRESOLVED_CONFLICTS"
+  | "NO_MERGE"
   | "UNKNOWN";
 
 /**

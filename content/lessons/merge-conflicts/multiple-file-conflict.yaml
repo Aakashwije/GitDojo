@@ -1,0 +1,139 @@
+# Lesson: Multiple File Conflict
+# Schema and authoring guide: docs/lesson-authoring.md
+id: multiple-file-conflict
+slug: multiple-file-conflict
+title: Multiple File Conflict
+type: interactive
+
+goal: Resolve a merge that conflicts in several files, one file at a time.
+
+description: |
+  `feature/checkout` tuned the same settings as `main`, in two different files. It also added a
+  brand-new `src/checkout.ts`, which merges without any trouble.
+
+  Resolve each conflicted file, stage it, and use `git status` to see what is left.
+
+difficulty: intermediate
+
+concepts:
+  - merge-conflicts
+  - merging
+
+commands:
+  - git merge
+  - git status
+  - git add
+  - git commit
+
+content:
+  - type: example
+    title: Tracking progress with git status
+    command: git status
+    output: |
+      On branch main
+      You have unmerged paths.
+        (fix conflicts and run "git commit")
+        (use "git merge --abort" to abort the merge)
+
+      Changes to be committed:
+        (use "git restore --staged <file>..." to unstage)
+      	new file:   src/checkout.ts
+      	modified:   src/auth.ts
+
+      Unmerged paths:
+        (use "git add <file>..." to mark resolution)
+      	both modified:   src/config.ts
+    explanation: >-
+      `src/checkout.ts` merged cleanly and `src/auth.ts` is already resolved and staged. Only
+      `src/config.ts` is still unmerged.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 30;
+        src/config.ts: |
+          export const config = {
+            region: "eu-west",
+            // Network
+            retries: 3,
+          };
+    - message: Add checkout settings
+      branch: feature/checkout
+      files:
+        src/checkout.ts: |
+          export const currency = "EUR";
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 60;
+        src/config.ts: |
+          export const config = {
+            region: "eu-west",
+            // Network
+            retries: 1,
+          };
+    - message: Tune production settings
+      files:
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 15;
+        src/config.ts: |
+          export const config = {
+            region: "eu-west",
+            // Network
+            retries: 5,
+          };
+
+objectives:
+  - id: conflict
+    description: Merge `feature/checkout` into `main`.
+    validator:
+      type: conflict_exists
+
+  - id: auth
+    description: Resolve and stage `src/auth.ts`.
+    validator:
+      type: conflict_resolved
+      file: src/auth.ts
+
+  - id: config
+    description: Resolve and stage `src/config.ts`.
+    validator:
+      type: conflict_resolved
+      file: src/config.ts
+
+  - id: all-resolved
+    description: "`git status` reports: All conflicts fixed but you are still merging."
+    validator:
+      type: all_conflicts_resolved
+
+  - id: completed
+    description: Commit to complete the merge.
+    validator:
+      type: merge_completed
+      branch: feature/checkout
+
+hints:
+  conflict:
+    - Run `git merge feature/checkout`.
+  auth:
+    - Open `src/auth.ts` from the conflict banner and keep a single `timeout` line.
+    - Save, then run `git add src/auth.ts`.
+  config:
+    - Same again for `src/config.ts`. Keep one `retries` line.
+    - Save, then run `git add src/config.ts`.
+  all-resolved:
+    - Run `git status` to check nothing is left under "Unmerged paths".
+  completed:
+    - Run `git commit`.
+
+completion:
+  xp: 100

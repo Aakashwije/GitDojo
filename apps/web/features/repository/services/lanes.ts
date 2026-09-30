@@ -75,21 +75,40 @@ export function laneColor(lane: number): string {
 }
 
 /**
- * SVG path for an edge from a child commit down to its parent. It stays in the child's lane and
- * bends into the parent's lane just above the parent, so it never crosses commits in between.
+ * SVG path for an edge from a child commit down to its parent.
+ *
+ * - `"parent"` (first parents): stays in the child's lane and bends into the parent's lane just
+ *   above the parent, so a branch visibly splits off where it started.
+ * - `"child"` (merge parents): bends out of the child's lane right away and runs down the
+ *   parent's lane, so a merge visibly joins at the merge commit.
+ *
+ * Either way the line never crosses the commits in between.
  */
 export function laneEdgePath(
   from: { x: number; y: number },
   to: { x: number; y: number },
   rowHeight: number,
+  bend: "parent" | "child" = "parent",
 ): string {
-  if (from.x === to.x)
-    return `M ${String(from.x)} ${String(from.y)} L ${String(to.x)} ${String(to.y)}`;
+  const f = (value: number) => String(value);
+  if (from.x === to.x) return `M ${f(from.x)} ${f(from.y)} L ${f(to.x)} ${f(to.y)}`;
+  if (bend === "child") {
+    const bendEnd = Math.min(to.y, from.y + rowHeight);
+    const middle = (from.y + bendEnd) / 2;
+    return [
+      `M ${f(from.x)} ${f(from.y)}`,
+      `C ${f(from.x)} ${f(middle)} ${f(to.x)} ${f(middle)} ${f(to.x)} ${f(bendEnd)}`,
+      `L ${f(to.x)} ${f(to.y)}`,
+    ].join(" ");
+  }
   const bendStart = Math.max(from.y, to.y - rowHeight);
   const middle = (bendStart + to.y) / 2;
   return [
-    `M ${String(from.x)} ${String(from.y)}`,
-    `L ${String(from.x)} ${String(bendStart)}`,
-    `C ${String(from.x)} ${String(middle)} ${String(to.x)} ${String(middle)} ${String(to.x)} ${String(to.y)}`,
+    `M ${f(from.x)} ${f(from.y)}`,
+    `L ${f(from.x)} ${f(bendStart)}`,
+    `C ${f(from.x)} ${f(middle)} ${f(to.x)} ${f(middle)} ${f(to.x)} ${f(to.y)}`,
   ].join(" ");
 }
+
+/** Accent for merge commits (UI.md: merges are purple). */
+export const MERGE_COLOR = "var(--purple)";

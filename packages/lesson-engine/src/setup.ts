@@ -1,4 +1,4 @@
-import { type GitEngineFactory, type VirtualFileSystem } from "@gitdojo/git-engine";
+import { DEFAULT_BRANCH, type GitEngineFactory, type VirtualFileSystem } from "@gitdojo/git-engine";
 import { type RepositoryStateReader } from "@gitdojo/repository-state";
 import {
   type GitCommandResult,
@@ -36,9 +36,20 @@ export async function setupLesson(
   }
   if (setup.initializeGit) check(await git.init());
 
+  // Commits run in order; each goes on its branch (default main). A new branch starts at main's
+  // tip at that point, so the list reads like a story of how the history was built.
   const commits = setup.commits ?? [];
   const now = Math.floor(Date.now() / 1000);
+  let onBranch = DEFAULT_BRANCH;
+  const moveTo = async (branch: string) => {
+    if (branch === onBranch) return;
+    const exists = (await git.listBranches()).some((info) => info.name === branch && info.oid);
+    if (!exists && onBranch !== DEFAULT_BRANCH) check(await git.switchBranch(DEFAULT_BRANCH));
+    check(exists ? await git.switchBranch(branch) : await git.createAndSwitchBranch(branch));
+    onBranch = branch;
+  };
   for (const [index, commit] of commits.entries()) {
+    await moveTo(commit.branch ?? DEFAULT_BRANCH);
     for (const [path, content] of Object.entries(commit.files)) {
       await env.files.writeFile(workspaceId, path, content);
     }
@@ -47,7 +58,9 @@ export async function setupLesson(
     const timestamp = now - (commits.length - index) * 60;
     check(await git.commit({ message: commit.message, timestamp }));
   }
+  if (commits.length > 0) await moveTo(DEFAULT_BRANCH);
   for (const branch of setup.branches ?? []) check(await git.createBranch(branch));
+  if (setup.currentBranch !== undefined) await moveTo(setup.currentBranch);
 
   // Written last, so with setup commits these are the learner's uncommitted changes.
   for (const [path, content] of Object.entries(setup.files ?? {})) {

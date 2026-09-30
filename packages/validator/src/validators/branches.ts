@@ -25,3 +25,15 @@ export function reachableFrom(repository: RepositoryState, tip: string): Set<str
 export function notInitialized() {
   return Promise.resolve({ passed: false, reason: "This directory is not a Git repository yet." });
 }
+
+/** Tip of `branch` when given, otherwise HEAD's commit; `null` when there is none. */
+export function tipOf(repository: RepositoryState, branch: string | undefined): string | null {
+  return branch === undefined ? repository.head : (findBranch(repository, branch)?.oid ?? null);
+}
+
+/** Commits reachable from `tip`, newest first. */
+export function historyOf(repository: RepositoryState, tip: string | null) {
+  if (tip === null) return [];
+  const reachable = reachableFrom(repository, tip);
+  return repository.allCommits.filter((commit) => reachable.has(commit.oid));
+}

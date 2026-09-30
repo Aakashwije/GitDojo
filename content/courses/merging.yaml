@@ -1,0 +1,19 @@
+# Course: Merging
+# Lessons live in content/lessons/merging/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: merging
+slug: merging
+title: Merging
+
+description: >
+  Bring finished work back together: fast-forward merges, three-way merges and
+  merge commits, and the everyday feature-branch workflow.
+
+difficulty: beginner
+order: 3
+
+lessons:
+  - what-is-merging
+  - fast-forward-merge
+  - three-way-merge
+  - merge-feature-into-main
+  - merge-challenge

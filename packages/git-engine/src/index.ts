@@ -6,6 +6,8 @@ export { COMMIT_MESSAGE_REQUIRED } from "./commands/commit";
 export { formatGitDate } from "./commands/log";
 export { isValidBranchName } from "./commands/branch";
 export { MISSING_BRANCH_ARGUMENT } from "./commands/switch";
+export { MERGE_USAGE } from "./commands/merge";
+export { hasConflictMarkers, mergeText } from "./engine/text-merge";
 export { classifyStatusRow, type StatusRow } from "./engine/status-matrix";
 export {
   createGitEngine,

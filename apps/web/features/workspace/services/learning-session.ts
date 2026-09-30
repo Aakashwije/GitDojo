@@ -76,6 +76,22 @@ export class LearningSession {
     });
   }
 
+  /** Reads a working-tree file, e.g. to open it in the conflict editor. */
+  readFile(path: string): Promise<string> {
+    return this.enqueue(() => this.env.files.readFile(this.workspaceId, path));
+  }
+
+  /**
+   * Saves a working-tree file edited in the UI. Like a command, it is followed by a fresh read of
+   * the repository and a new evaluation (editing a file is not a Git command, so no output).
+   */
+  writeFile(path: string, content: string): Promise<SessionSnapshot> {
+    return this.enqueue(async () => {
+      await this.env.files.writeFile(this.workspaceId, path, content);
+      return this.evaluate(await this.env.stateReader.read(this.workspaceId));
+    });
+  }
+
   reset(): Promise<SessionSnapshot> {
     return this.enqueue(async () => {
       this.progress = createInitialProgress(this.lesson);

@@ -1,5 +1,5 @@
 import { hasErrorCode } from "./fs-errors";
-import { emptyDirectory, ensureDirectory, pathExists } from "./fs-helpers";
+import { emptyDirectory, ensureDirectory, pathExists, replaceFile } from "./fs-helpers";
 import {
   isGitInternalPath,
   normalizeWorkspacePath,
@@ -32,12 +32,8 @@ export class WorkspaceFileSystem implements VirtualFileSystem {
   async writeFile(workspaceId: string, path: string, content: string): Promise<void> {
     const normalized = this.mutablePath(path);
     await ensureDirectory(this.fs, resolveWorkspacePath(workspaceId, parentPath(normalized)));
-    const absolutePath = resolveWorkspacePath(workspaceId, normalized);
-    // isomorphic-git detects changes by comparing stats at one-second granularity, so a same-size
-    // rewrite within the same second would look unchanged ("racy Git"). LightningFS keeps the inode
-    // on overwrite; replacing the file assigns a new inode, which Git's stat check does notice.
-    if (await pathExists(this.fs, absolutePath)) await this.fs.unlink(absolutePath);
-    await this.fs.writeFile(absolutePath, content, "utf8");
+    // Replaced with a fresh inode so Git notices even a same-size edit (see replaceFile).
+    await replaceFile(this.fs, resolveWorkspacePath(workspaceId, normalized), content);
   }
 
   async readFile(workspaceId: string, path: string): Promise<string> {

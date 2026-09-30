@@ -46,6 +46,9 @@ function formatCommit(commit: GitCommitInfo, decoration: string, oneline: boolea
     .join("\n");
   return [
     `commit ${commit.oid}${decoration}`,
+    ...(commit.parents.length > 1
+      ? [`Merge: ${commit.parents.map((parent) => parent.slice(0, 7)).join(" ")}`]
+      : []),
     `Author: ${commit.author.name} <${commit.author.email}>`,
     `Date:   ${formatGitDate(commit.author.timestamp, commit.author.timezoneOffset)}`,
     "",

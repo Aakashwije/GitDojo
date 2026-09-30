@@ -79,6 +79,38 @@ describe("setupLesson with history", () => {
   });
 });
 
+describe("setupLesson with diverged branches", () => {
+  it("commits on other branches and starts on the chosen branch", async () => {
+    const env = createTestEnvironment();
+    const state = await setupLesson(
+      {
+        ...lesson,
+        setup: {
+          initializeGit: true,
+          commits: [
+            { message: "Initial commit", files: { "README.md": "# Hello\n" } },
+            { message: "Add login", branch: "feature/login", files: { "login.js": "login\n" } },
+            { message: "Update README", files: { "README.md": "# Hello, main\n" } },
+          ],
+          currentBranch: "feature/login",
+        },
+      },
+      WS,
+      env,
+    );
+    expect(state.currentBranch).toBe("feature/login");
+    expect(state.commits.map((commit) => commit.message)).toEqual(["Add login", "Initial commit"]);
+    expect(state.allCommits.map((commit) => commit.message).sort()).toEqual([
+      "Add login",
+      "Initial commit",
+      "Update README",
+    ]);
+    // The working tree matches feature/login, which branched before main's README change.
+    expect(await env.files.readFile(WS, "README.md")).toBe("# Hello\n");
+    expect(await env.files.readFile(WS, "login.js")).toBe("login\n");
+  });
+});
+
 describe("resetLesson", () => {
   it("restores the exact original state after learner changes", async () => {
     const env = createTestEnvironment();

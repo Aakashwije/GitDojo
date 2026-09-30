@@ -26,7 +26,8 @@ learner.
    `src/content.test.ts` loads every course and lesson and fails with a precise message (for
    example `objectives.1.validator: Invalid input`) if anything is wrong. It also plays a reference
    solution for every hands-on lesson through the real parser, Git engine and validators: add one to
-   `SOLUTIONS` for each new interactive lesson or challenge.
+   `SOLUTIONS` for each new interactive lesson or challenge. Steps are commands, or
+   `{ write, content }` for a file edited in the UI (e.g. resolving a conflict).
 
 ## Lesson types
 
@@ -94,11 +95,31 @@ setup:
     - message: Add homepage
       files:
         index.html: "<h1>Weather App</h1>\n"
-  branches: # created at the last setup commit; the learner stays on main
+  branches: # created at main's last setup commit
     - feature/login
   files: # written last, so these are uncommitted changes
     login.js: "export {};\n"
 ```
+
+Commits can go on other branches, which is how merge and conflict lessons build diverged
+histories. A branch that does not exist yet is created at `main`'s tip at that point in the list,
+so the list reads in the order the history was made:
+
+```yaml
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit # the first commit is always on main
+      files: { src/auth.ts: "export const timeout = 30;\n" }
+    - message: Extend session timeout
+      branch: feature/login # branches off main here
+      files: { src/auth.ts: "export const timeout = 60;\n" }
+    - message: Shorten session timeout # back on main: the branches have diverged
+      files: { src/auth.ts: "export const timeout = 15;\n" }
+  currentBranch: main # optional; the branch the learner starts on (default main)
+```
+
+Changing the same line on both branches gives a deterministic merge conflict.
 
 ### Content blocks
 
@@ -117,6 +138,7 @@ content:
       commits: # oldest first; parents must come before children
         - { id: A, message: Initial commit }
         - { id: B, parent: A, message: Add homepage }
+        # - { id: M, parent: B, merge: C } adds a merge commit (merge = second parent)
       branches: { main: B, feature/login: B }
       head: main # a branch name, or a commit id for a detached HEAD
     caption: Both branches point at the same commit.

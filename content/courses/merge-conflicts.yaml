@@ -1,0 +1,19 @@
+# Course: Merge Conflicts
+# Lessons live in content/lessons/merge-conflicts/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: merge-conflicts
+slug: merge-conflicts
+title: Merge Conflicts
+
+description: >
+  Learn why conflicts happen, how to read conflict markers, and how to resolve
+  them by hand, one file or several at a time.
+
+difficulty: intermediate
+order: 4
+
+lessons:
+  - why-conflicts-happen
+  - reading-conflict-markers
+  - resolve-first-conflict
+  - multiple-file-conflict
+  - conflict-challenge

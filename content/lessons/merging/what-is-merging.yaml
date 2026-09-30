@@ -1,0 +1,109 @@
+# Lesson: What is Merging?
+# Schema and authoring guide: docs/lesson-authoring.md
+id: what-is-merging
+slug: what-is-merging
+title: What is Merging?
+type: concept
+
+goal: Understand how Git brings the work of two branches together.
+
+difficulty: beginner
+
+concepts:
+  - merging
+  - branches
+
+content:
+  - type: text
+    title: Bringing work back together
+    body: |
+      Branches let work happen in isolation. **Merging** is how that work comes back: it takes the
+      commits from another branch and joins them into the branch you are on.
+
+      You always merge *into* your current branch. To bring `feature/login` into `main`, you
+      switch to `main` and run `git merge feature/login`.
+
+  - type: demo
+    title: "Fast-forward: nothing to combine"
+    steps:
+      - caption: >-
+          `feature/login` has two new commits. `main` has not moved since the branch was created.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+            - { id: D, parent: C, message: Style login form }
+          branches:
+            main: B
+            feature/login: D
+          head: main
+      - caption: >-
+          `main` is simply behind, so Git moves its label forward to `feature/login`'s commit. No
+          new commit is needed. This is a **fast-forward**.
+        command: git merge feature/login
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+            - { id: D, parent: C, message: Style login form }
+          branches:
+            main: D
+            feature/login: D
+          head: main
+
+  - type: demo
+    title: "Three-way merge: both branches moved"
+    steps:
+      - caption: >-
+          This time `main` got a commit of its own after `feature/login` started. The history has
+          split into two lines.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+            - { id: D, parent: C, message: Style login form }
+            - { id: E, parent: B, message: Update footer }
+          branches:
+            main: E
+            feature/login: D
+          head: main
+      - caption: >-
+          `main` cannot just move forward without losing **Update footer**. Git combines both
+          sides into a new **merge commit** with two parents.
+        command: git merge feature/login
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+            - { id: D, parent: C, message: Style login form }
+            - { id: E, parent: B, message: Update footer }
+            - { id: M, parent: E, merge: D, message: "Merge branch 'feature/login'" }
+          branches:
+            main: M
+            feature/login: D
+          head: main
+
+  - type: text
+    title: Why "three-way"?
+    body: |
+      To combine the branches, Git compares three snapshots:
+
+      - the **merge base**, the last commit both branches share (here **Add homepage**),
+      - **ours**, the tip of the branch you are on,
+      - **theirs**, the tip of the branch you are merging in.
+
+      Whatever changed on only one side since the merge base is taken from that side. That is why
+      two people can edit different files, or different parts of one file, without any trouble.
+
+  - type: callout
+    tone: note
+    body: >-
+      When both sides changed the *same* lines, Git cannot know which version you want. That is a
+      merge conflict, and the next course is all about resolving them.
+
+completion:
+  xp: 25

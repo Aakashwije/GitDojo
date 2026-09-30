@@ -36,6 +36,24 @@ validator:
   notOn: main
 ```
 
+### Merge validators
+
+| Type                     | Fields                | Passes when                                                                           |
+| ------------------------ | --------------------- | ------------------------------------------------------------------------------------- |
+| `branches_merged`        | `branch`, `into?`     | `branch`'s tip is reachable from `into` (default: the current branch).                |
+| `merge_commit_exists`    | `branch?`, `message?` | A commit with two or more parents is in `branch`'s history (default: HEAD).           |
+| `branch_contains_commit` | `branch`, `message`   | A commit with exactly `message` is in `branch`'s history.                             |
+| `conflict_exists`        | `file?`               | A merge is in progress with a conflict (in `file`, if given).                         |
+| `conflict_resolved`      | `file`                | The conflict in `file` has had its markers removed and been staged with `git add`.    |
+| `all_conflicts_resolved` | –                     | A merge is in progress, it has conflicts, and every one is resolved.                  |
+| `merge_completed`        | `branch?`             | No merge is in progress and HEAD's history has a merge commit (with `branch` merged). |
+
+`branches_merged` passes for fast-forwards and merge commits alike; pair it with
+`branch_points_to_commit` (`sameAs`) or `merge_commit_exists` to require one or the other.
+`merge_completed` needs a merge commit, so a fast-forward does not count. Conflict validators only
+describe the merge in progress: once it is committed they stop passing, which is fine because
+progress is sticky. `clean_worktree` fails while a merge is in progress.
+
 File paths may be written as `README.md` or `./README.md`.
 
 ```yaml

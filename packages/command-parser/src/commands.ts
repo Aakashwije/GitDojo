@@ -27,8 +27,8 @@ export const GIT_COMMAND_SPECS = {
     name: "commit",
     summary: "Record staged changes as a new commit",
     usage: 'git commit -m "<message>"',
+    // `-m` is checked by the engine: while concluding a merge, `git commit` alone is enough.
     flags: [{ name: "m", aliases: ["message"], takesValue: true, repeatSeparator: "\n\n" }],
-    requiredFlags: [{ name: "m", message: "error: commit message is required" }],
     acceptsArguments: false,
   },
   log: {
@@ -62,6 +62,17 @@ export const GIT_COMMAND_SPECS = {
     acceptsArguments: true,
     maxArguments: 1,
   },
+  merge: {
+    name: "merge",
+    summary: "Join another branch into the current one",
+    usage: "git merge [--no-ff] <branch>",
+    flags: [
+      { name: "no-ff", takesValue: false },
+      { name: "abort", takesValue: false },
+    ],
+    acceptsArguments: true,
+    maxArguments: 1,
+  },
 } as const satisfies Record<string, GitCommandSpec>;
 
 export type SupportedGitCommand = keyof typeof GIT_COMMAND_SPECS;
@@ -77,7 +88,6 @@ export const PLANNED_GIT_COMMANDS: ReadonlySet<string> = new Set([
   "config",
   "diff",
   "fetch",
-  "merge",
   "mv",
   "pull",
   "push",

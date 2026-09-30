@@ -1,0 +1,92 @@
+# Lesson: Reading Conflict Markers
+# Schema and authoring guide: docs/lesson-authoring.md
+id: reading-conflict-markers
+slug: reading-conflict-markers
+title: Reading Conflict Markers
+type: concept
+
+goal: Read a conflicted file and know exactly what to change to resolve it.
+
+difficulty: intermediate
+
+concepts:
+  - merge-conflicts
+  - conflict-markers
+
+content:
+  - type: text
+    title: Both versions, side by side
+    body: |
+      When a merge conflicts, Git writes **both** versions of the disputed lines into the file,
+      fenced by three kinds of marker lines. Everything outside the markers merged cleanly.
+
+  - type: diagram
+    title: src/auth.ts after a conflicting merge
+    ascii: |
+      export const provider = "password";
+      // Session settings
+      <<<<<<< HEAD
+      export const timeout = 15;
+      =======
+      export const timeout = 60;
+      >>>>>>> feature/login
+      export const rememberMe = true;
+
+  - type: text
+    title: The three markers
+    body: |
+      - `<<<<<<< HEAD` starts the conflict. The lines below it are **your current branch's**
+        version.
+      - `=======` separates the two versions.
+      - `>>>>>>> feature/login` ends the conflict. The lines above it are the **incoming**
+        branch's version.
+
+  - type: text
+    title: Resolving means editing
+    body: |
+      Decide what the code should say, then make the file say exactly that:
+
+      - keep your version, keep theirs, or write a combination of both;
+      - delete **every** marker line;
+      - save the file.
+
+      There is no special command for this part. It is ordinary editing.
+
+  - type: diagram
+    title: One possible resolution
+    ascii: |
+      export const provider = "password";
+      // Session settings
+      export const timeout = 60;
+      export const rememberMe = true;
+    caption: >-
+      The team agreed on 60 minutes. The markers and the 15-minute version are gone.
+
+  - type: example
+    title: Telling Git it is resolved
+    command: git add src/auth.ts
+    explanation: >-
+      Staging a conflicted file marks it as resolved. Once every conflicted file is staged,
+      `git commit` creates the merge commit and the merge is complete.
+
+  - type: example
+    title: Where you are, at any time
+    command: git status
+    output: |
+      On branch main
+      You have unmerged paths.
+        (fix conflicts and run "git commit")
+        (use "git merge --abort" to abort the merge)
+
+      Unmerged paths:
+        (use "git add <file>..." to mark resolution)
+      	both modified:   src/auth.ts
+
+  - type: callout
+    tone: warning
+    body: >-
+      Real Git lets you stage a file that still contains markers, and the markers then end up in
+      your code. GitDojo refuses, so you learn the habit: check the file before `git add`.
+
+completion:
+  xp: 25

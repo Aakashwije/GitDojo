@@ -1,0 +1,80 @@
+# Lesson: Why Conflicts Happen
+# Schema and authoring guide: docs/lesson-authoring.md
+id: why-conflicts-happen
+slug: why-conflicts-happen
+title: Why Conflicts Happen
+type: concept
+
+goal: Understand when Git can merge on its own, and when it needs you to decide.
+
+difficulty: intermediate
+
+concepts:
+  - merge-conflicts
+  - merging
+
+content:
+  - type: text
+    title: Git merges what it can
+    body: |
+      In a three-way merge, Git compares each file in three versions: the **merge base** both
+      branches started from, **ours** (your current branch) and **theirs** (the branch being
+      merged in).
+
+      - Changed on one side only: Git takes that side's change.
+      - Changed on both sides, in different places: Git keeps both changes.
+      - Changed on both sides, **in the same lines**, differently: that is a **conflict**.
+
+  - type: diagram
+    title: One line, two decisions
+    # "|2": the first line of the drawing is indented more than the rest.
+    ascii: |2
+                      merge base
+                  timeout = 30 minutes
+                   /              \
+                  /                \
+           main (ours)        feature/login (theirs)
+       timeout = 15 minutes   timeout = 60 minutes
+                  \                /
+                   \              /
+                     git merge  →  15?  60?  something else?
+    caption: >-
+      Both branches changed the same line. Either answer could be right, so Git refuses to guess.
+
+  - type: comparison
+    title: Merges cleanly vs conflicts
+    columns:
+      - title: Merges cleanly
+        items:
+          - Only one branch changed the file
+          - Both changed the file, but in different parts
+          - Both made exactly the same change
+      - title: Conflicts
+        items:
+          - Both changed the same lines in different ways
+          - Both changed lines right next to each other
+          - One branch deleted a file the other changed
+
+  - type: example
+    title: What a conflict looks like in the terminal
+    command: git merge feature/login
+    output: |
+      Auto-merging src/auth.ts
+      CONFLICT (content): Merge conflict in src/auth.ts
+      Automatic merge failed; fix conflicts and then commit the result.
+    explanation: |
+      The merge **stops halfway**. Files that merged cleanly are already staged; the conflicted
+      file is written with conflict markers so you can see both versions. No merge commit exists
+      yet. It is made when you finish.
+
+      Until then you can always back out with `git merge --abort`.
+
+  - type: callout
+    tone: tip
+    title: Conflicts are normal
+    body: >-
+      A conflict does not mean anything broke. It is Git asking a question only a person can
+      answer. Small, frequent merges keep conflicts small and easy.
+
+completion:
+  xp: 25

@@ -53,4 +53,10 @@ describe("laneEdgePath", () => {
       "M 30 0 L 30 80 C 30 100 10 100 10 120",
     );
   });
+
+  it("bends a merge edge right below the merge commit", () => {
+    expect(laneEdgePath({ x: 10, y: 0 }, { x: 30, y: 120 }, 40, "child")).toBe(
+      "M 10 0 C 10 20 30 20 30 40 L 30 120",
+    );
+  });
 });

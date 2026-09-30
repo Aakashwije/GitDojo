@@ -279,6 +279,135 @@ describe("branch validators", () => {
   });
 });
 
+describe("merge validators", () => {
+  const A = "a".repeat(40);
+  const B = "b".repeat(40);
+  const C = "c".repeat(40);
+  const M = "d".repeat(40);
+  const commitA = { ...commit("Initial commit", A), parents: [] };
+  const commitB = { ...commit("Update README", B), parents: [A] };
+  const commitC = { ...commit("Add login form", C), parents: [A] };
+  const commitM = { ...commit("Merge branch 'feature/login'", M), parents: [B, C] };
+
+  // Before: main → B, feature/login → C, diverged from A.
+  const before = state({
+    head: B,
+    branches: [
+      { name: "feature/login", oid: C, current: false },
+      { name: "main", oid: B, current: true },
+    ],
+    commits: [commitB, commitA],
+    allCommits: [commitB, commitC, commitA],
+  });
+  // After: main → M, a merge commit of B and C.
+  const after = state({
+    head: M,
+    branches: [
+      { name: "feature/login", oid: C, current: false },
+      { name: "main", oid: M, current: true },
+    ],
+    commits: [commitM, commitB, commitC, commitA],
+    allCommits: [commitM, commitB, commitC, commitA],
+  });
+
+  it("branches_merged checks that the branch is part of the target", async () => {
+    const definition = { type: "branches_merged", branch: "feature/login" } as const;
+    expect(await check(definition, before)).toEqual({
+      passed: false,
+      reason: "feature/login has not been merged into main.",
+    });
+    expect((await check(definition, after)).passed).toBe(true);
+    expect((await check({ ...definition, into: "main" }, after)).passed).toBe(true);
+    // main is not merged into feature/login.
+    expect(
+      (await check({ type: "branches_merged", branch: "main", into: "feature/login" }, after))
+        .passed,
+    ).toBe(false);
+  });
+
+  it("merge_commit_exists looks for a commit with two parents", async () => {
+    expect((await check({ type: "merge_commit_exists" }, before)).passed).toBe(false);
+    expect((await check({ type: "merge_commit_exists" }, after)).passed).toBe(true);
+    expect(
+      (await check({ type: "merge_commit_exists", branch: "feature/login" }, after)).passed,
+    ).toBe(false);
+    expect(
+      (await check({ type: "merge_commit_exists", message: "Merge branch 'feature/login'" }, after))
+        .passed,
+    ).toBe(true);
+  });
+
+  it("branch_contains_commit finds commits in a branch's history", async () => {
+    const definition = {
+      type: "branch_contains_commit",
+      branch: "main",
+      message: "Add login form",
+    } as const;
+    expect(await check(definition, before)).toEqual({
+      passed: false,
+      reason: 'main does not contain a commit "Add login form".',
+    });
+    expect((await check(definition, after)).passed).toBe(true);
+  });
+
+  const conflicted = state({
+    ...before,
+    merge: { branch: "feature/login", oid: C },
+    conflicts: [
+      { path: "src/auth.ts", ours: "a", theirs: "b", base: "c", resolved: true },
+      { path: "src/config.ts", ours: "a", theirs: "b", base: "c", resolved: false },
+    ],
+  });
+
+  it("conflict_exists needs a merge in progress with the conflict", async () => {
+    expect(await check({ type: "conflict_exists" }, before)).toEqual({
+      passed: false,
+      reason: "No merge is in progress.",
+    });
+    expect((await check({ type: "conflict_exists" }, conflicted)).passed).toBe(true);
+    expect(
+      (await check({ type: "conflict_exists", file: "./src/auth.ts" }, conflicted)).passed,
+    ).toBe(true);
+    expect((await check({ type: "conflict_exists", file: "README.md" }, conflicted)).passed).toBe(
+      false,
+    );
+  });
+
+  it("conflict_resolved and all_conflicts_resolved follow each file's resolution", async () => {
+    expect(
+      (await check({ type: "conflict_resolved", file: "src/auth.ts" }, conflicted)).passed,
+    ).toBe(true);
+    expect(await check({ type: "conflict_resolved", file: "src/config.ts" }, conflicted)).toEqual({
+      passed: false,
+      reason: "src/config.ts still needs to be edited and staged with git add.",
+    });
+    expect(await check({ type: "all_conflicts_resolved" }, conflicted)).toEqual({
+      passed: false,
+      reason: "Still in conflict: src/config.ts.",
+    });
+    const resolved = state({
+      ...conflicted,
+      conflicts: conflicted.conflicts.map((conflict) => ({ ...conflict, resolved: true })),
+    });
+    expect((await check({ type: "all_conflicts_resolved" }, resolved)).passed).toBe(true);
+  });
+
+  it("merge_completed needs the merge committed", async () => {
+    expect((await check({ type: "merge_completed" }, conflicted)).reason).toMatch(/in progress/);
+    expect((await check({ type: "merge_completed" }, before)).passed).toBe(false);
+    expect((await check({ type: "merge_completed", branch: "feature/login" }, after)).passed).toBe(
+      true,
+    );
+  });
+
+  it("clean_worktree fails while a merge is in progress", async () => {
+    expect(await check({ type: "clean_worktree" }, conflicted)).toEqual({
+      passed: false,
+      reason: "A merge is still in progress.",
+    });
+  });
+});
+
 describe("validateObjective", () => {
   it("contains handler failures", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -342,6 +471,17 @@ describe("validatorDefinitionSchema", () => {
       { type: "branch_points_to_commit", branch: "feature", sameAs: "main" },
       { type: "commit_on_branch", branch: "feature" },
       { type: "commit_on_branch", branch: "feature", message: "Add login", notOn: "main" },
+      { type: "branches_merged", branch: "feature" },
+      { type: "branches_merged", branch: "feature", into: "main" },
+      { type: "merge_commit_exists" },
+      { type: "merge_commit_exists", branch: "main", message: "Merge" },
+      { type: "branch_contains_commit", branch: "main", message: "Add login" },
+      { type: "conflict_exists" },
+      { type: "conflict_exists", file: "src/auth.ts" },
+      { type: "conflict_resolved", file: "src/auth.ts" },
+      { type: "all_conflicts_resolved" },
+      { type: "merge_completed" },
+      { type: "merge_completed", branch: "feature" },
     ];
     for (const definition of definitions) {
       expect(validatorDefinitionSchema.safeParse(definition).success).toBe(true);
@@ -359,6 +499,9 @@ describe("validatorDefinitionSchema", () => {
     { type: "current_branch", branch: " " },
     { type: "branch_points_to_commit", branch: "main" },
     { type: "branch_points_to_commit", branch: "main", message: "x", sameAs: "dev" },
+    { type: "branch_contains_commit", branch: "main" },
+    { type: "conflict_resolved" },
+    { type: "branches_merged" },
   ])("rejects %j", (definition) => {
     expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
   });

@@ -35,6 +35,10 @@ const objectiveSchema = z.strictObject({
 
 const fileMap = z.record(z.string(), z.string());
 
+const branchName = z
+  .string()
+  .refine(isValidBranchName, { message: "must be a valid Git branch name" });
+
 const setupSchema = z.strictObject({
   // Keys are checked below: Zod reports record-key failures only as "Invalid key in record".
   files: fileMap.optional(),
@@ -47,12 +51,12 @@ const setupSchema = z.strictObject({
         files: fileMap.refine((files) => Object.keys(files).length > 0, {
           message: "a setup commit needs at least one file",
         }),
+        branch: branchName.optional(),
       }),
     )
     .optional(),
-  branches: z
-    .array(z.string().refine(isValidBranchName, { message: "must be a valid Git branch name" }))
-    .optional(),
+  branches: z.array(branchName).optional(),
+  currentBranch: branchName.optional(),
 });
 
 type Setup = z.infer<typeof setupSchema>;
@@ -74,10 +78,24 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
       message: "setup commits require `initializeGit: true`",
     });
   }
-  // Track committed content so a commit that changes nothing (which Git refuses) fails here.
-  const committed = new Map<string, string>();
+  // Track committed content per branch so a commit that changes nothing (which Git refuses)
+  // fails here. A new branch starts from main's content at that point.
+  const trees = new Map<string, Map<string, string>>([["main", new Map()]]);
   for (const [index, commit] of commits.entries()) {
     checkPaths(commit.files, ["setup", "commits", index, "files"]);
+    const branch = commit.branch ?? "main";
+    if (index === 0 && branch !== "main") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["setup", "commits", 0, "branch"],
+        message: "the first setup commit must be on main",
+      });
+    }
+    let committed = trees.get(branch);
+    if (!committed) {
+      committed = new Map(trees.get("main"));
+      trees.set(branch, committed);
+    }
     const changes = Object.entries(commit.files).filter(
       ([path, content]) => committed.get(normalizeSafely(path)) !== content,
     );
@@ -99,7 +117,7 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
       message: "setup branches need at least one setup commit to point at",
     });
   }
-  const seen = new Set(["main"]);
+  const seen = new Set(trees.keys());
   for (const [index, branch] of branches.entries()) {
     if (seen.has(branch)) {
       ctx.addIssue({
@@ -109,6 +127,13 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
       });
     }
     seen.add(branch);
+  }
+  if (setup.currentBranch !== undefined && !seen.has(setup.currentBranch)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["setup", "currentBranch"],
+      message: `"${setup.currentBranch}" is not created by this setup`,
+    });
   }
 }
 

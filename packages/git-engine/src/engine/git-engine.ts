@@ -31,10 +31,14 @@ export interface GitInitData {
   defaultBranch: string;
 }
 
+export type ConflictKind = "both modified" | "both added" | "deleted by us" | "deleted by them";
+
 export interface GitStatusData {
   branch: string | null;
   hasCommits: boolean;
   entries: GitStatusEntry[];
+  /** Set while a merge that stopped for conflicts has not been committed or aborted. */
+  merge: { unresolved: { path: string; kind: ConflictKind }[] } | null;
 }
 
 export interface GitAddData {
@@ -42,6 +46,8 @@ export interface GitAddData {
   staged: string[];
   /** Paths removed from the index because they were deleted from the working tree. */
   removed: string[];
+  /** Conflicted paths this `git add` marked as resolved. */
+  resolved: string[];
 }
 
 export interface GitCommitData {
@@ -104,6 +110,38 @@ export interface GitSwitchData {
   updatedPaths: string[];
 }
 
+export interface GitMergeOptions {
+  /** `--no-ff`: record a merge commit even when a fast-forward is possible. */
+  noFastForward?: boolean;
+}
+
+export interface GitMergeData {
+  type: "fast-forward" | "merge-commit" | "conflict" | "up-to-date";
+  /** The commit the current branch now points to (not set for conflicts). */
+  oid?: string;
+  /** Paths left conflicted. */
+  conflicts?: string[];
+}
+
+export interface GitAbortMergeData {
+  restoredPaths: string[];
+}
+
+/** A conflicted path; contents are `null` where that side does not have the file. */
+export interface GitConflictInfo {
+  path: string;
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
+  resolved: boolean;
+}
+
+export interface GitMergeInfo {
+  branch: string;
+  theirs: string;
+  conflicts: GitConflictInfo[];
+}
+
 /** Read-only view of everything the repository-state package needs, in engine-neutral shapes. */
 export interface GitRepositorySnapshot {
   initialized: boolean;
@@ -115,6 +153,8 @@ export interface GitRepositorySnapshot {
   /** Commits reachable from HEAD or any branch, children before parents. */
   allCommits: GitCommitInfo[];
   entries: GitStatusEntry[];
+  /** The merge in progress, if one stopped for conflicts. */
+  merge: GitMergeInfo | null;
 }
 
 export type GitInitResult = GitCommandResult<GitInitData>;
@@ -125,6 +165,8 @@ export type GitLogResult = GitCommandResult<GitLogData>;
 export type GitBranchListResult = GitCommandResult<GitBranchListData>;
 export type GitBranchCreateResult = GitCommandResult<GitBranchCreateData>;
 export type GitSwitchResult = GitCommandResult<GitSwitchData>;
+export type GitMergeResult = GitCommandResult<GitMergeData>;
+export type GitAbortMergeResult = GitCommandResult<GitAbortMergeData>;
 
 /**
  * The only entry point to Git for the rest of GitDojo. Implementations are bound to one workspace.
@@ -145,6 +187,13 @@ export interface GitEngine {
   switchBranch(name: string): Promise<GitSwitchResult>;
   /** `git switch -c <name>`: creates a branch at HEAD and switches to it. */
   createAndSwitchBranch(name: string): Promise<GitSwitchResult>;
+  /**
+   * `git merge <branch>`: fast-forwards when possible, otherwise three-way merges into a merge
+   * commit. Conflicts leave the merge in progress (`ok: false`, `data.type: "conflict"`).
+   */
+  merge(branch: string, options?: GitMergeOptions): Promise<GitMergeResult>;
+  /** `git merge --abort`: undoes a merge that stopped for conflicts. */
+  abortMerge(): Promise<GitAbortMergeResult>;
   /** Branches as data (no output). Empty outside a repository. Rejects only on internal failures. */
   listBranches(): Promise<BranchState[]>;
   /** Reads repository state without mutating it. Rejects only on unexpected internal failures. */

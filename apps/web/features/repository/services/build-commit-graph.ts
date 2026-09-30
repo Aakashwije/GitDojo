@@ -30,6 +30,8 @@ export interface CommitNodeData extends Record<string, unknown> {
   lane: number;
   /** Width of the lane rail; commit cards start after it so they line up. */
   railWidth: number;
+  /** Has more than one parent. */
+  isMerge: boolean;
 }
 
 export type CommitFlowNode = Node<CommitNodeData, "commit">;
@@ -73,6 +75,7 @@ export function buildCommitGraph(state: RepositoryState, selectedOid: string | n
       latest: index === 0,
       lane: laneOf(commit.oid),
       railWidth,
+      isMerge: commit.parents.length > 1,
     },
   }));
 
@@ -80,14 +83,19 @@ export function buildCommitGraph(state: RepositoryState, selectedOid: string | n
   const edges: Edge[] = commits.flatMap((commit) =>
     commit.parents
       .filter((parent) => known.has(parent))
-      .map((parent) => ({
-        id: `${commit.oid}->${parent}`,
-        source: commit.oid,
-        target: parent,
-        type: "lane",
-        // A branch's line takes the color of the lane it leaves from.
-        style: { stroke: laneColor(laneOf(commit.oid)), strokeWidth: 2 },
-      })),
+      .map((parent, index) => {
+        const merge = index > 0;
+        return {
+          id: `${commit.oid}->${parent}`,
+          source: commit.oid,
+          target: parent,
+          type: "lane",
+          data: { bend: merge ? "child" : "parent" },
+          // A line takes the color of the branch it belongs to: the child's lane for first
+          // parents, the incoming branch's lane for merges.
+          style: { stroke: laneColor(laneOf(merge ? parent : commit.oid)), strokeWidth: 2 },
+        };
+      }),
   );
 
   return { nodes, edges, laneCount };

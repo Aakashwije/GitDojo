@@ -1,0 +1,120 @@
+# Challenge: Merge Conflicts
+# Schema and authoring guide: docs/lesson-authoring.md
+# Challenges describe the end state and never prescribe commands, including in hints.
+id: conflict-challenge
+slug: conflict-challenge
+title: Conflict Challenge
+type: challenge
+
+goal: Land a feature on `main` through a conflicting merge, with a history that shows it.
+
+description: |
+  `feature/tax` adds sales tax to the checkout. While it was being built, `main` got a holiday
+  discount and a bigger cart, touching the very same lines.
+
+  Get the tax feature into `main` with a merge commit. Resolve every conflict so both the
+  discount and the tax survive, and finish on `main` with nothing left uncommitted.
+
+  You are currently on `feature/tax`.
+
+difficulty: intermediate
+
+concepts:
+  - merge-conflicts
+  - merging
+
+commands:
+  - git switch
+  - git merge
+  - git status
+  - git add
+  - git commit
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather Shop
+        src/pricing.ts: |
+          export function total(subtotal: number): number {
+            const discount = 0;
+            return subtotal - discount;
+          }
+        src/cart.ts: |
+          export const currency = "USD";
+          // Limits
+          export const maxItems = 20;
+    - message: Add sales tax
+      branch: feature/tax
+      files:
+        src/tax.ts: |
+          export const TAX_RATE = 0.08;
+        src/pricing.ts: |
+          export function total(subtotal: number): number {
+            const discount = 0;
+            return (subtotal - discount) * 1.08;
+          }
+        src/cart.ts: |
+          export const currency = "USD";
+          // Limits
+          export const maxItems = 25;
+    - message: Add holiday discount
+      files:
+        src/pricing.ts: |
+          export function total(subtotal: number): number {
+            const discount = subtotal * 0.1;
+            return subtotal - discount;
+          }
+        src/cart.ts: |
+          export const currency = "USD";
+          // Limits
+          export const maxItems = 50;
+  currentBranch: feature/tax
+
+objectives:
+  - id: on-main
+    description: You are on `main`, the branch receiving the work.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: resolved
+    description: Every conflict is resolved and staged.
+    validator:
+      type: all_conflicts_resolved
+
+  - id: merged
+    description: "`feature/tax` is merged into `main`."
+    validator:
+      type: branches_merged
+      branch: feature/tax
+      into: main
+
+  - id: merge-commit
+    description: "`main` has a merge commit."
+    validator:
+      type: merge_commit_exists
+      branch: main
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  on-main:
+    - Work is merged into the branch you are on.
+  resolved:
+    - "`git status` lists every file that still needs a decision."
+    - Both changes to `total` matter; the resolved code can combine them.
+  merged:
+    - A merge that stopped for conflicts is not finished until it is committed.
+  merge-commit:
+    - "Check the graph: a merge commit has two parents."
+  clean:
+    - "`git status` shows whether anything is left over."
+
+completion:
+  xp: 200

@@ -4,7 +4,11 @@ type StatusSection = "staged" | "unstaged" | null;
 
 function sectionFor(line: string, current: StatusSection): StatusSection {
   if (line.startsWith("Changes to be committed:")) return "staged";
-  if (line.startsWith("Changes not staged for commit:") || line.startsWith("Untracked files:")) {
+  if (
+    line.startsWith("Changes not staged for commit:") ||
+    line.startsWith("Untracked files:") ||
+    line.startsWith("Unmerged paths:")
+  ) {
     return "unstaged";
   }
   return line === "" ? current : line.startsWith("\t") || line.startsWith("  (") ? current : null;
@@ -26,7 +30,18 @@ function highlightDecoration(decoration: string): string {
 
 function highlightLine(line: string, section: StatusSection, ok: boolean): string {
   if (/^(fatal|error):/.test(line)) return ansi.error(line);
-  if (line.startsWith("hint:")) return ansi.warning(line);
+  if (line.startsWith("hint:") || line.startsWith("warning:")) return ansi.warning(line);
+  // git merge: conflicts in red, the failure summary too.
+  if (line.startsWith("CONFLICT (") || line.startsWith("Automatic merge failed")) {
+    return ansi.error(line);
+  }
+  if (line === "Fast-forward" || line.startsWith("Merge made by")) return ansi.success(line);
+  // Diffstat bars: " login.js | 5 +++--"
+  const stat = /^( .+ \| +\d+ )(\+*)(-*)$/.exec(line);
+  if (stat) {
+    const [, head = "", plus = "", minus = ""] = stat;
+    return `${head}${ansi.success(plus)}${ansi.error(minus)}`;
+  }
   if (line.endsWith(": command not found") || line.endsWith("is not a git command.")) {
     return ansi.error(line);
   }

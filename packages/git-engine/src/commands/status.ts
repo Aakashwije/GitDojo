@@ -6,15 +6,28 @@ import {
   type GitStatusResult,
 } from "../engine/git-engine";
 import { currentBranch, isRepository, resolveRefOrNull } from "../engine/repository";
+import { readMergeState, unresolvedConflicts } from "../engine/merge-state";
 import { readStatusEntries } from "../engine/status-matrix";
+import { conflictKind } from "./merge";
 
 export async function readStatusData(ctx: GitContext): Promise<GitStatusData> {
-  const [branch, head, entries] = await Promise.all([
+  const [branch, head, entries, merge] = await Promise.all([
     currentBranch(ctx),
     resolveRefOrNull(ctx, "HEAD"),
     readStatusEntries(ctx),
+    readMergeState(ctx),
   ]);
-  return { branch, hasCommits: head !== null, entries };
+  return {
+    branch,
+    hasCommits: head !== null,
+    entries,
+    merge: merge && {
+      unresolved: unresolvedConflicts(merge).map((conflict) => ({
+        path: conflict.path,
+        kind: conflictKind(conflict),
+      })),
+    },
+  };
 }
 
 export async function runStatus(ctx: GitContext): Promise<GitStatusResult> {
@@ -31,7 +44,16 @@ function labelled(label: string, path: string): string {
 }
 
 /** Renders long-format `git status` output, mirroring real Git's wording and hints. */
-export function formatStatus({ branch, hasCommits, entries }: GitStatusData): string {
+export function formatStatus({
+  branch,
+  hasCommits,
+  entries: allEntries,
+  merge,
+}: GitStatusData): string {
+  // Unresolved conflicts are listed only under "Unmerged paths".
+  const unmerged = merge?.unresolved ?? [];
+  const unmergedPaths = new Set(unmerged.map((conflict) => conflict.path));
+  const entries = allEntries.filter((entry) => !unmergedPaths.has(entry.path));
   const staged = entries.filter((entry) => entry.staged !== null);
   const unstaged = entries.filter(
     (entry): entry is GitStatusEntry & { unstaged: "modified" | "deleted" } =>
@@ -41,6 +63,20 @@ export function formatStatus({ branch, hasCommits, entries }: GitStatusData): st
 
   const sections: string[] = [];
   if (!hasCommits) sections.push("No commits yet");
+  // Git prints the merge notice directly under "On branch", not as a separate section.
+  const mergeNotice =
+    merge === null
+      ? []
+      : unmerged.length > 0
+        ? [
+            "You have unmerged paths.",
+            '  (fix conflicts and run "git commit")',
+            '  (use "git merge --abort" to abort the merge)',
+          ]
+        : [
+            "All conflicts fixed but you are still merging.",
+            '  (use "git commit" to conclude merge)',
+          ];
 
   if (staged.length > 0) {
     const unstageHint = hasCommits
@@ -51,6 +87,16 @@ export function formatStatus({ branch, hasCommits, entries }: GitStatusData): st
         "Changes to be committed:",
         unstageHint,
         ...staged.map((entry) => labelled(STAGED_LABELS[entry.staged ?? "modified"], entry.path)),
+      ].join("\n"),
+    );
+  }
+
+  if (unmerged.length > 0) {
+    sections.push(
+      [
+        "Unmerged paths:",
+        '  (use "git add <file>..." to mark resolution)',
+        ...unmerged.map((conflict) => `\t${`${conflict.kind}:`.padEnd(17)}${conflict.path}`),
       ].join("\n"),
     );
   }
@@ -75,8 +121,13 @@ export function formatStatus({ branch, hasCommits, entries }: GitStatusData): st
     );
   }
 
-  const header = `On branch ${branch ?? "HEAD"}`;
-  const summary = statusSummary(staged.length, unstaged.length, untracked.length, hasCommits);
+  const header = [`On branch ${branch ?? "HEAD"}`, ...mergeNotice].join("\n");
+  const summary =
+    unmerged.length > 0 && staged.length === 0
+      ? 'no changes added to commit (use "git add" and/or "git commit -a")'
+      : merge && staged.length === 0 && unstaged.length === 0 && untracked.length === 0
+        ? null
+        : statusSummary(staged.length, unstaged.length, untracked.length, hasCommits);
 
   if (sections.length === 0) return `${header}\n${summary}`;
   const body = [header, ...sections].join("\n\n");

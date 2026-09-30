@@ -99,6 +99,16 @@ describe("parseCommand", () => {
     });
   });
 
+  it("parses git merge and its options", () => {
+    expect(parsed("git merge feature/login")).toMatchObject({
+      command: "merge",
+      args: ["feature/login"],
+      flags: {},
+    });
+    expect(parsed("git merge --no-ff feature/login").flags).toEqual({ "no-ff": true });
+    expect(parsed("git merge --abort")).toMatchObject({ args: [], flags: { abort: true } });
+  });
+
   it("treats everything after -- as arguments", () => {
     expect(parsed("git add -- -weird-name.txt").args).toEqual(["-weird-name.txt"]);
   });
@@ -133,8 +143,8 @@ describe("parseCommand", () => {
     });
 
     it("explains that real but unsupported git commands are coming", () => {
-      expect(errorOf("git merge feature").message).toBe(
-        "git: 'merge' is not available in GitDojo yet.",
+      expect(errorOf("git rebase main").message).toBe(
+        "git: 'rebase' is not available in GitDojo yet.",
       );
     });
 
@@ -153,11 +163,9 @@ describe("parseCommand", () => {
       });
     });
 
-    it("requires a commit message", () => {
-      expect(errorOf("git commit")).toEqual({
-        code: "MISSING_REQUIRED_FLAG",
-        message: "error: commit message is required",
-      });
+    it("leaves the commit message check to the engine", () => {
+      // A merge in progress can be concluded with a plain `git commit`.
+      expect(parsed("git commit")).toMatchObject({ command: "commit", flags: {} });
     });
 
     it("requires a value for -m", () => {

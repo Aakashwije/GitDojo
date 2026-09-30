@@ -10,6 +10,9 @@ export const cleanWorktree: ValidatorHandler<ValidatorOfType<"clean_worktree">> 
       reason: "This directory is not a Git repository yet.",
     });
   }
+  if (repository.merge !== null) {
+    return Promise.resolve({ passed: false, reason: "A merge is still in progress." });
+  }
   if (repository.stagedFiles.length > 0) {
     return Promise.resolve({ passed: false, reason: "There are staged changes to commit." });
   }

@@ -4,6 +4,7 @@ import { readBranches, runCreateBranch, runShowBranches } from "../commands/bran
 import { runCommit } from "../commands/commit";
 import { runInit } from "../commands/init";
 import { runLog } from "../commands/log";
+import { runAbortMerge, runMerge } from "../commands/merge";
 import { readSnapshot } from "../commands/snapshot";
 import { runStatus } from "../commands/status";
 import { runSwitch } from "../commands/switch";
@@ -12,6 +13,7 @@ import { workspaceRoot } from "../filesystem/paths";
 import { type GitContext } from "./context";
 import { unexpected } from "./errors";
 import {
+  type GitAbortMergeResult,
   type GitAddResult,
   type GitBranchCreateResult,
   type GitBranchListResult,
@@ -21,6 +23,8 @@ import {
   type GitInitResult,
   type GitLogOptions,
   type GitLogResult,
+  type GitMergeOptions,
+  type GitMergeResult,
   type GitRepositorySnapshot,
   type GitStatusResult,
   type GitSwitchResult,
@@ -87,6 +91,14 @@ export class IsomorphicGitEngine implements GitEngine {
 
   createAndSwitchBranch(name: string): Promise<GitSwitchResult> {
     return guard(() => runSwitch(this.ctx, name, { create: true }));
+  }
+
+  merge(branch: string, options?: GitMergeOptions): Promise<GitMergeResult> {
+    return guard(() => runMerge(this.ctx, branch, options));
+  }
+
+  abortMerge(): Promise<GitAbortMergeResult> {
+    return guard(() => runAbortMerge(this.ctx));
   }
 
   listBranches(): Promise<BranchState[]> {

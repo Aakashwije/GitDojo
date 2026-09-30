@@ -30,6 +30,25 @@ export const validatorDefinitionSchema = z.discriminatedUnion("type", [
       },
     ),
   z.strictObject({
+    type: z.literal("branches_merged"),
+    branch: branchName,
+    into: branchName.optional(),
+  }),
+  z.strictObject({
+    type: z.literal("merge_commit_exists"),
+    branch: branchName.optional(),
+    message: commitMessage.optional(),
+  }),
+  z.strictObject({
+    type: z.literal("branch_contains_commit"),
+    branch: branchName,
+    message: commitMessage,
+  }),
+  z.strictObject({ type: z.literal("conflict_exists"), file: filePath.optional() }),
+  z.strictObject({ type: z.literal("conflict_resolved"), file: filePath }),
+  z.strictObject({ type: z.literal("all_conflicts_resolved") }),
+  z.strictObject({ type: z.literal("merge_completed"), branch: branchName.optional() }),
+  z.strictObject({
     type: z.literal("commit_on_branch"),
     branch: branchName,
     message: commitMessage.optional(),

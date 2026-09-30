@@ -9,6 +9,7 @@ import {
   resolveRefOrNull,
 } from "../engine/repository";
 import { readBranches } from "./branch";
+import { readMergeState } from "../engine/merge-state";
 import { readStatusEntries } from "../engine/status-matrix";
 
 export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapshot> {
@@ -23,6 +24,7 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       branches: [],
       commits: [],
       allCommits: [],
+      merge: null,
       entries: files
         .filter((file) => file.type === "file")
         .map((file) => ({
@@ -36,12 +38,13 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     };
   }
 
-  const [branch, head, entries, branchStates] = await Promise.all([
+  const [branch, head, entries, branchStates, merge] = await Promise.all([
     currentBranch(ctx),
     resolveRefOrNull(ctx, "HEAD"),
     readStatusEntries(ctx),
     // Includes an unborn current branch: it has no ref yet, but learners still expect to see it.
     readBranches(ctx),
+    readMergeState(ctx),
   ]);
   const branches: GitBranchInfo[] = branchStates.map(({ name, oid }) => ({ name, oid }));
   const tips = [head, ...branches.map((info) => info.oid)].filter((oid) => oid !== null);
@@ -54,5 +57,16 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     commits: head === null ? [] : await readCommitsFromHead(ctx),
     allCommits: await readCommitsFrom(ctx, tips),
     entries,
+    merge: merge && {
+      branch: merge.branch,
+      theirs: merge.theirs,
+      conflicts: merge.conflicts.map(({ path, base, ours, theirs, resolved }) => ({
+        path,
+        base,
+        ours,
+        theirs,
+        resolved,
+      })),
+    },
   };
 }

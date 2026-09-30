@@ -37,4 +37,16 @@ describe("highlightOutput", () => {
     const strip = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
     expect(strip(highlightOutput(output, true))).toBe(output);
   });
+
+  it("colors merge conflicts and diffstats", () => {
+    const output = [
+      "Auto-merging src/auth.ts",
+      "CONFLICT (content): Merge conflict in src/auth.ts",
+      "Automatic merge failed; fix conflicts and then commit the result.",
+    ].join("\n");
+    const lines = highlightOutput(output, false).split("\n");
+    expect(lines[0]).toBe("Auto-merging src/auth.ts");
+    expect(lines[1]).toContain("\x1b[");
+    expect(highlightOutput(" login.js | 3 ++-", true)).toContain("\x1b[");
+  });
 });

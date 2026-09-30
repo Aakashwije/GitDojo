@@ -1,0 +1,96 @@
+# Lesson: Fast-Forward Merge
+# Schema and authoring guide: docs/lesson-authoring.md
+id: fast-forward-merge
+slug: fast-forward-merge
+title: Fast-Forward Merge
+type: interactive
+
+goal: Merge a branch that is simply ahead of `main`, and see Git fast-forward.
+
+description: |
+  `feature/login` has two finished commits, and nobody has touched `main` since the branch was
+  created. You are on `main`. Merge the feature in and watch the `main` label in the graph jump
+  forward.
+
+difficulty: beginner
+
+concepts:
+  - merging
+  - fast-forward
+
+commands:
+  - git merge
+  - git log --oneline
+
+content:
+  - type: example
+    title: What a fast-forward looks like
+    command: git merge feature/login
+    output: |
+      Updating 4b7d2e1..9c1e5b2
+      Fast-forward
+       login.css | 3 +++
+       login.js  | 5 +++++
+       2 files changed, 8 insertions(+)
+       create mode 100644 login.css
+       create mode 100644 login.js
+    explanation: >-
+      `Updating 4b7d2e1..9c1e5b2` means `main` moved from its old commit to the feature's
+      commit. The lines below summarize which files changed and by how many lines.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+    - message: Add login form
+      branch: feature/login
+      files:
+        login.js: |
+          export function login(email, password) {
+            return fetch("/api/login", {
+              method: "POST",
+              body: JSON.stringify({ email, password }),
+            });
+          }
+    - message: Style login form
+      branch: feature/login
+      files:
+        login.css: |
+          form {
+            max-width: 320px;
+          }
+
+objectives:
+  - id: merged
+    description: Merge `feature/login` into `main`.
+    validator:
+      type: branches_merged
+      branch: feature/login
+      into: main
+
+  - id: fast-forward
+    description: >-
+      `main` now points at the same commit as `feature/login`. No merge commit was needed.
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      sameAs: feature/login
+
+hints:
+  merged:
+    - You are already on `main`, the branch that receives the work.
+    - "`git merge` takes the name of the branch to bring in."
+    - Run `git merge feature/login`.
+  fast-forward:
+    - Run `git log --oneline` and look at the labels on the newest commit.
+    - If you used `--no-ff`, Git made a merge commit instead. Reset the lesson and merge without it.
+
+completion:
+  xp: 75

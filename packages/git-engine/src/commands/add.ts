@@ -5,7 +5,10 @@ import { type GitContext } from "../engine/context";
 import { failure, gitError, notARepository, success } from "../engine/errors";
 import { type GitAddResult, type GitStatusEntry } from "../engine/git-engine";
 import { isRepository } from "../engine/repository";
+import { readMergeState, unresolvedConflicts, writeMergeState } from "../engine/merge-state";
 import { readStatusEntries } from "../engine/status-matrix";
+import { hasConflictMarkers } from "../engine/text-merge";
+import { readWorkingText } from "../engine/working-tree";
 
 function matchesPathspec(path: string, pathspec: string): boolean {
   return pathspec === "" || path === pathspec || path.startsWith(`${pathspec}/`);
@@ -57,10 +60,15 @@ export async function runAdd(ctx: GitContext, rawPaths: string[]): Promise<GitAd
     for (const entry of matches) selected.set(entry.path, entry);
   }
 
+  const merge = await readMergeState(ctx);
+  const conflicted = new Set(unresolvedConflicts(merge).map((conflict) => conflict.path));
+
   const staged: string[] = [];
   const removed: string[] = [];
   for (const entry of selected.values()) {
-    if (entry.unstaged === null) continue;
+    // A conflicted file resolved to exactly the current version has no changes, but adding it
+    // still marks the conflict as resolved.
+    if (entry.unstaged === null && !conflicted.has(entry.path)) continue;
     if (entry.unstaged === "deleted") {
       await git.remove({ fs: ctx.fs, dir: ctx.dir, filepath: entry.path });
       removed.push(entry.path);
@@ -70,6 +78,25 @@ export async function runAdd(ctx: GitContext, rawPaths: string[]): Promise<GitAd
     }
   }
 
+  const resolved: string[] = [];
+  const warnings: string[] = [];
+  if (merge) {
+    for (const conflict of merge.conflicts) {
+      if (conflict.resolved || !selected.has(conflict.path)) continue;
+      const content = await readWorkingText(ctx, conflict.path);
+      // Git would accept the markers; GitDojo insists they are edited out first.
+      if (content !== null && hasConflictMarkers(content)) {
+        warnings.push(
+          `warning: ${conflict.path} still contains conflict markers (<<<<<<<, =======, >>>>>>>).\nhint: Edit the file to keep what you want, then run 'git add ${conflict.path}' again.`,
+        );
+        continue;
+      }
+      conflict.resolved = true;
+      resolved.push(conflict.path);
+    }
+    if (resolved.length > 0) await writeMergeState(ctx, merge);
+  }
+
   // Real `git add` is silent on success.
-  return success("", { staged, removed });
+  return success(warnings.join("\n"), { staged, removed, resolved });
 }

@@ -34,8 +34,25 @@ export interface BranchState {
   current: boolean;
 }
 
+/** A path left conflicted by a merge. File contents are `undefined` where that side lacks the file. */
 export interface ConflictState {
   path: string;
+  /** The current branch's version (HEAD). */
+  ours?: string;
+  /** The incoming branch's version. */
+  theirs?: string;
+  /** The version both sides started from (the merge base). */
+  base?: string;
+  /** True once the learner has edited out the markers and staged the file with `git add`. */
+  resolved: boolean;
+}
+
+/** A merge that stopped for conflicts and has not been committed or aborted yet. */
+export interface MergeState {
+  /** The branch being merged in, as the learner typed it. */
+  branch: string;
+  /** Its commit (MERGE_HEAD). */
+  oid: string;
 }
 
 export interface RepositoryState {
@@ -54,7 +71,9 @@ export interface RepositoryState {
   files: FileState[];
   /** Index view: one entry per path whose staged content differs from HEAD. */
   stagedFiles: FileState[];
+  /** Conflicts of the merge in progress; empty when no merge is in progress. */
   conflicts: ConflictState[];
+  merge: MergeState | null;
 }
 
 export const EMPTY_REPOSITORY_STATE: RepositoryState = {
@@ -67,4 +86,5 @@ export const EMPTY_REPOSITORY_STATE: RepositoryState = {
   files: [],
   stagedFiles: [],
   conflicts: [],
+  merge: null,
 };

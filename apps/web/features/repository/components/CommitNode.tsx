@@ -11,7 +11,7 @@ import {
   laneCenterX,
   type CommitFlowNode,
 } from "../services/build-commit-graph";
-import { laneColor } from "../services/lanes";
+import { laneColor, MERGE_COLOR } from "../services/lanes";
 import { RefLabels } from "./RefLabels";
 
 const DOT_SIZE = 14;
@@ -38,7 +38,8 @@ function handleStyle(x: number) {
  * Selection is handled by the graph's `onNodeClick`; the button provides focus and keyboard access.
  */
 export function CommitNode({ data }: NodeProps<CommitFlowNode>) {
-  const { commit, isHead, currentBranch, branches, selected, latest, lane, railWidth } = data;
+  const { commit, isHead, currentBranch, branches, selected, latest, lane, railWidth, isMerge } =
+    data;
   const dotX = laneCenterX(lane);
 
   return (
@@ -75,13 +76,13 @@ export function CommitNode({ data }: NodeProps<CommitFlowNode>) {
           height: DOT_SIZE,
           left: dotX - DOT_SIZE / 2,
           top: COMMIT_DOT_CENTER_Y - DOT_SIZE / 2,
-          ...(isHead ? {} : { borderColor: laneColor(lane) }),
+          ...(isHead ? {} : { borderColor: isMerge ? MERGE_COLOR : laneColor(lane) }),
         }}
       />
       <button
         type="button"
         data-testid="commit-node"
-        aria-label={`Commit ${commit.shortOid}: ${commit.message}${
+        aria-label={`${isMerge ? "Merge commit" : "Commit"} ${commit.shortOid}: ${commit.message}${
           branches.length > 0 ? ` (${branches.join(", ")})` : ""
         }${isHead ? " (HEAD)" : ""}`}
         aria-pressed={selected}

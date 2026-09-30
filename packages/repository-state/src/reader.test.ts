@@ -36,6 +36,7 @@ describe("RepositoryStateReader", () => {
       files: [{ path: "README.md", status: "untracked" }],
       stagedFiles: [],
       conflicts: [],
+      merge: null,
     });
   });
 
@@ -51,6 +52,7 @@ describe("RepositoryStateReader", () => {
       files: [],
       stagedFiles: [],
       conflicts: [],
+      merge: null,
     });
   });
 
@@ -157,5 +159,35 @@ describe("RepositoryStateReader", () => {
     expect(state.commits.map((commit) => commit.message)).toEqual(["First"]);
     expect(state.allCommits.map((commit) => commit.message)).toEqual(["Add login", "First"]);
     expect(state.files).toEqual([{ path: "README.md", status: "committed" }]);
+  });
+
+  it("reports a merge in progress with its conflicts", async () => {
+    await files.writeFile(WS, "a.txt", "base\n");
+    await git.init();
+    await git.add(["."]);
+    await git.commit({ message: "Base" });
+    await git.createAndSwitchBranch("feature");
+    await files.writeFile(WS, "a.txt", "theirs\n");
+    await git.add(["."]);
+    const theirs = await git.commit({ message: "Theirs" });
+    await git.switchBranch("main");
+    await files.writeFile(WS, "a.txt", "ours\n");
+    await git.add(["."]);
+    await git.commit({ message: "Ours" });
+    await git.merge("feature");
+
+    const state = await reader.read(WS);
+    expect(state.merge).toEqual({ branch: "feature", oid: theirs.data?.oid });
+    expect(state.conflicts).toEqual([
+      { path: "a.txt", base: "base\n", ours: "ours\n", theirs: "theirs\n", resolved: false },
+    ]);
+    expect(state.files).toEqual([{ path: "a.txt", status: "conflicted" }]);
+    expect(state.stagedFiles).toEqual([]);
+
+    await files.writeFile(WS, "a.txt", "both\n");
+    await git.add(["a.txt"]);
+    const resolved = await reader.read(WS);
+    expect(resolved.conflicts[0]?.resolved).toBe(true);
+    expect(resolved.files).toEqual([{ path: "a.txt", status: "staged" }]);
   });
 });

@@ -15,6 +15,8 @@ export interface LearningSessionControls {
   status: SessionStatus;
   errorDetails: string | null;
   execute: (input: string) => Promise<CommandExecutionResult>;
+  readFile: (path: string) => Promise<string>;
+  saveFile: (path: string, content: string) => Promise<void>;
   reset: () => Promise<void>;
   retry: () => void;
 }
@@ -95,6 +97,19 @@ export function useLearningSession(
     }
   }, []);
 
+  const readFile = useCallback(async (path: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("The workspace is still loading.");
+    return session.readFile(path);
+  }, []);
+
+  const saveFile = useCallback(async (path: string, content: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("The workspace is still loading.");
+    useLessonStore.getState().recordCommand();
+    publish(await session.writeFile(path, content));
+  }, []);
+
   const reset = useCallback(async () => {
     const session = sessionRef.current;
     if (!session) return;
@@ -111,5 +126,5 @@ export function useLearningSession(
     setAttempt((value) => value + 1);
   }, []);
 
-  return { status, errorDetails, execute, reset, retry };
+  return { status, errorDetails, execute, readFile, saveFile, reset, retry };
 }

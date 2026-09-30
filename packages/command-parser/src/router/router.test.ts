@@ -7,10 +7,12 @@ import { executeCommand, runCommandLine } from "./router";
 const WORKSPACE = "router-test";
 let dbCounter = 0;
 
+let files: WorkspaceFileSystem;
+
 async function createContext(): Promise<CommandExecutionContext> {
   dbCounter += 1;
   const fs = createLightningFs(`router-test-${String(dbCounter)}`, { wipe: true });
-  const files = new WorkspaceFileSystem(fs);
+  files = new WorkspaceFileSystem(fs);
   await files.createWorkspace(WORKSPACE);
   await files.writeFile(WORKSPACE, "README.md", "# GitDojo\n");
   return { workspaceId: WORKSPACE, git: createGitEngine({ fs, workspaceId: WORKSPACE }) };
@@ -112,11 +114,47 @@ describe("command router", () => {
   });
 
   it("reports a missing commit message", async () => {
+    await runCommandLine("git init", context);
+    await runCommandLine("git add README.md", context);
     expect(await runCommandLine("git commit", context)).toEqual({
       ok: false,
       output: "error: commit message is required",
-      errorCode: "MISSING_REQUIRED_FLAG",
+      errorCode: "INVALID_ARGUMENT",
     });
+  });
+
+  it("merges, reports conflicts and concludes with a plain git commit", async () => {
+    const write = (content: string) => files.writeFile(WORKSPACE, "README.md", content);
+    await runCommandLine("git init", context);
+    await runCommandLine("git add README.md", context);
+    await runCommandLine('git commit -m "Initial commit"', context);
+    expect((await runCommandLine("git merge", context)).errorCode).toBe("INVALID_ARGUMENT");
+    expect(await runCommandLine("git merge nope", context)).toEqual({
+      ok: false,
+      output: "merge: nope - not something we can merge",
+      errorCode: "BRANCH_NOT_FOUND",
+    });
+
+    await runCommandLine("git switch -c feature", context);
+    await write("# From feature\n");
+    await runCommandLine("git add README.md", context);
+    await runCommandLine('git commit -m "Feature"', context);
+    await runCommandLine("git switch main", context);
+    await write("# From main\n");
+    await runCommandLine("git add README.md", context);
+    await runCommandLine('git commit -m "Main"', context);
+
+    const merge = await runCommandLine("git merge feature", context);
+    expect(merge).toMatchObject({ ok: false, errorCode: "MERGE_CONFLICT" });
+    expect(merge.output).toContain("CONFLICT (content): Merge conflict in README.md");
+    expect((await runCommandLine("git merge --abort", context)).ok).toBe(true);
+
+    await runCommandLine("git merge feature", context);
+    await write("# From both\n");
+    await runCommandLine("git add README.md", context);
+    expect((await runCommandLine("git commit", context)).output).toMatch(
+      /^\[main [0-9a-f]{7}\] Merge branch 'feature'$/,
+    );
   });
 
   it("handles built-ins", async () => {

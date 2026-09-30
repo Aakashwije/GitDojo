@@ -14,6 +14,11 @@ export interface LessonSetupCommit {
   message: string;
   /** Files written and staged for this commit (workspace-relative path → content). */
   files: Record<string, string>;
+  /**
+   * Branch to commit on (default: `main`). A branch that does not exist yet is created at `main`'s
+   * tip at that point in the list.
+   */
+  branch?: string;
 }
 
 export interface LessonSetup {
@@ -24,8 +29,10 @@ export interface LessonSetup {
   initializeGit?: boolean;
   /** Commits on the default branch, oldest first. Requires `initializeGit`. */
   commits?: LessonSetupCommit[];
-  /** Branches created at the last setup commit. The learner stays on the default branch. */
+  /** Branches created at `main`'s last setup commit. */
   branches?: string[];
+  /** Branch the learner starts on (default: `main`). */
+  currentBranch?: string;
 }
 
 export interface LessonObjective {
@@ -55,6 +62,8 @@ export interface DemoGraphCommit {
   message?: string;
   /** Parent commit id; omitted for the root commit. Parents must be listed before children. */
   parent?: string;
+  /** Second parent, for a merge commit. */
+  merge?: string;
 }
 
 /** A tiny hand-authored commit graph, used to explain branches and HEAD. */

@@ -1,0 +1,97 @@
+# Lesson: Merge Feature Into Main
+# Schema and authoring guide: docs/lesson-authoring.md
+id: merge-feature-into-main
+slug: merge-feature-into-main
+title: Merge Feature Into Main
+type: interactive
+
+goal: Run the whole feature-branch workflow, from new branch to merged feature.
+
+description: |
+  This is how most teams work every day: start a branch, commit the work there, then merge it
+  into `main` once it is done.
+
+  `search.js` is written and waiting in your working tree.
+
+difficulty: beginner
+
+concepts:
+  - branches
+  - merging
+  - workflow
+
+commands:
+  - git switch -c
+  - git add
+  - git commit
+  - git switch
+  - git merge
+
+content:
+  - type: diagram
+    title: The feature-branch workflow
+    ascii: |
+      1. git switch -c feature/search     start a branch for the work
+      2. git add + git commit             commit on the branch, main stays untouched
+      3. git switch main                  go back to the branch that receives the work
+      4. git merge feature/search         bring the feature in
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+  files:
+    search.js: |
+      export function searchCities(cities, query) {
+        const needle = query.trim().toLowerCase();
+        return cities.filter((city) => city.name.toLowerCase().includes(needle));
+      }
+
+objectives:
+  - id: on-feature
+    description: Create a branch named `feature/search` and switch to it.
+    validator:
+      type: current_branch
+      branch: feature/search
+
+  - id: committed
+    description: Commit `search.js` on `feature/search`.
+    validator:
+      type: commit_on_branch
+      branch: feature/search
+      notOn: main
+
+  - id: back-on-main
+    description: Switch back to `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: merged
+    description: Merge `feature/search` into `main`.
+    validator:
+      type: branches_merged
+      branch: feature/search
+      into: main
+
+hints:
+  on-feature:
+    - Run `git switch -c feature/search`.
+  committed:
+    - Stage the file, then commit it.
+    - Run `git add search.js`, then `git commit -m "Add city search"`.
+  back-on-main:
+    - Run `git switch main`. Notice `search.js` disappears from the working tree for now.
+  merged:
+    - "`main` has not moved, so this will be a fast-forward."
+    - Run `git merge feature/search`.
+
+completion:
+  xp: 100

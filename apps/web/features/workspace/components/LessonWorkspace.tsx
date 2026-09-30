@@ -9,6 +9,9 @@ import {
   lessonNeighbors,
 } from "@/features/course/services/course-navigation";
 import { useCourseProgressStore } from "@/features/course/state/use-course-progress";
+import { ConflictBanner } from "@/features/conflicts/components/ConflictBanner";
+import { ConflictEditorDialog } from "@/features/conflicts/components/ConflictEditorDialog";
+import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
 import { LessonCompleteDialog } from "@/features/lesson/components/LessonCompleteDialog";
 import { LessonPanel } from "@/features/lesson/components/LessonPanel";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
@@ -35,7 +38,8 @@ export interface LessonWorkspaceProps {
 
 /** Hands-on lessons and challenges: lesson panel, terminal, graph and file panels. */
 export function LessonWorkspace({ lesson, course }: LessonWorkspaceProps) {
-  const { status, errorDetails, execute, reset, retry } = useLearningSession(lesson);
+  const { status, errorDetails, execute, readFile, saveFile, reset, retry } =
+    useLearningSession(lesson);
   const terminalRef = useRef<TerminalHandle>(null);
   const [tab, setTab] = useState<WorkspaceTab>("lesson");
   const executor = useMemo(() => createTerminalExecutor(execute), [execute]);
@@ -64,6 +68,7 @@ export function LessonWorkspace({ lesson, course }: LessonWorkspaceProps) {
       : undefined;
 
   const resetLesson = useCallback(async () => {
+    useConflictEditorStore.getState().close();
     await reset();
     terminalRef.current?.restart();
   }, [reset]);
@@ -79,6 +84,7 @@ export function LessonWorkspace({ lesson, course }: LessonWorkspaceProps) {
         terminal={{ ready: status === "ready", onReset: resetLesson }}
       />
 
+      {status === "error" ? null : <ConflictBanner />}
       {status === "error" ? (
         <WorkspaceError details={errorDetails} onRetry={retry} />
       ) : (
@@ -121,6 +127,7 @@ export function LessonWorkspace({ lesson, course }: LessonWorkspaceProps) {
         </main>
       )}
 
+      <ConflictEditorDialog readFile={readFile} saveFile={saveFile} />
       <MobileTabs active={tab} onChange={setTab} />
       <LessonCompleteDialog
         lesson={lesson}

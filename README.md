@@ -14,7 +14,7 @@ GitDojo is an open-source interactive Git learning environment where developers 
 real commands, manipulating safe browser-based repositories, and visualizing what happens
 internally.
 
-> **Status: early development.** Two beginner courses, Git Basics and Branching, run end to end:
+> **Status: early development.** Four courses, from Git Basics to Merge Conflicts, run end to end:
 > concept lessons with visual demos, hands-on lessons and challenges in a browser terminal, a real
 > Git engine, live working tree / staging / branch graph visualization, and state-based objective
 > validation. Accounts, more commands and more courses are on the [roadmap](#roadmap).
@@ -38,6 +38,10 @@ Or pick a course at `/learn`:
 - **Branching** (6 lessons): branches and HEAD, `git branch`, `git switch` / `git switch -c`,
   committing on a feature branch, and a branching challenge. The graph draws each branch in its own
   lane.
+- **Merging** (5 lessons): fast-forward and three-way merges, merge commits, the feature-branch
+  workflow, and a merge challenge.
+- **Merge Conflicts** (5 lessons): why conflicts happen, reading conflict markers, and resolving
+  them by hand in a built-in editor, across one file or several.
 
 Everything runs locally in the browser: Git is [isomorphic-git](https://isomorphic-git.org), files
 live in IndexedDB via [LightningFS](https://github.com/isomorphic-git/lightning-fs), and there is
@@ -133,15 +137,16 @@ single YAML file. See:
 
 - [x] Monorepo, CI, design tokens
 - [x] Browser virtual filesystem and Git engine (`init`, `status`, `add`, `commit`, `log`,
-      `branch`, `switch`)
+      `branch`, `switch`, `merge`)
 - [x] Safe command parser and router
 - [x] Terminal, repository graph, working tree / staging visualization
 - [x] Data-driven lessons with state-based validation, and the first-commit lesson
-- [x] Courses (`/learn`): Git Basics (10 lessons) and Branching (6 lessons), with saved progress
+- [x] Courses (`/learn`): Git Basics, Branching, Merging and Merge Conflicts, with saved progress
 - [x] Branch visualization with lanes, branch labels and HEAD
-- [ ] More commands: `diff`, `restore`, `rm`, `merge`
-- [ ] Built-in file editor, so learners can modify files and see `modified` states
-- [ ] Merge visualization, conflicts
+- [x] Merging (fast-forward, three-way) and hand-resolved merge conflicts
+- [ ] More commands: `diff`, `restore`, `rm`, `rebase`
+- [ ] General file editor (today only conflicted files can be edited), so learners can see
+      `modified` states
 - [ ] Real-world challenges ("you committed to the wrong branch...")
 - [ ] Playground mode and command reference
 - [ ] Accounts, and progress that syncs across devices (today it is saved in the browser)

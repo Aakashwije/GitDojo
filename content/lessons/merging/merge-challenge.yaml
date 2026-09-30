@@ -1,0 +1,113 @@
+# Challenge: Merging
+# Schema and authoring guide: docs/lesson-authoring.md
+# Challenges describe the end state and never prescribe commands, including in hints.
+id: merge-challenge
+slug: merge-challenge
+title: Merge Challenge
+type: challenge
+
+goal: Integrate two finished branches into `main`, which has moved on since they started.
+
+description: |
+  Release day. Two branches are finished and reviewed:
+
+  - `feature/profile` adds a profile page,
+  - `bugfix/typo` fixes a typo in the README.
+
+  Meanwhile, `main` gained a footer. Bring both branches into `main`, and finish on `main` with
+  nothing left uncommitted.
+
+difficulty: beginner
+
+concepts:
+  - merging
+  - merge-commits
+
+commands:
+  - git switch
+  - git merge
+  - git log
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+
+          Shows todays forecast for your city.
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+    - message: Add profile page
+      branch: feature/profile
+      files:
+        profile.html: |
+          <h1>Your profile</h1>
+    - message: Add avatar upload
+      branch: feature/profile
+      files:
+        avatar.js: |
+          export function uploadAvatar(file) {
+            return fetch("/api/avatar", { method: "PUT", body: file });
+          }
+    - message: Fix typo in README
+      branch: bugfix/typo
+      files:
+        README.md: |
+          # Weather App
+
+          Shows today's forecast for your city.
+    - message: Add footer
+      files:
+        footer.html: |
+          <footer>Made with care</footer>
+
+objectives:
+  - id: profile-merged
+    description: "`feature/profile` is merged into `main`."
+    validator:
+      type: branches_merged
+      branch: feature/profile
+      into: main
+
+  - id: typo-merged
+    description: "`bugfix/typo` is merged into `main`."
+    validator:
+      type: branches_merged
+      branch: bugfix/typo
+      into: main
+
+  - id: merge-commit
+    description: "`main` has a merge commit."
+    validator:
+      type: merge_commit_exists
+      branch: main
+
+  - id: on-main
+    description: You are on `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  profile-merged:
+    - Work is merged into the branch you are on. Check where HEAD is first.
+  typo-merged:
+    - Each branch is merged separately; the order does not matter.
+  merge-commit:
+    - "`main` moved on after both branches started, so a fast-forward is not possible."
+  on-main:
+    - The graph shows where HEAD is.
+  clean:
+    - "`git status` shows whether anything is left over."
+
+completion:
+  xp: 150

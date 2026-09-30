@@ -52,7 +52,12 @@ describe("lesson content", () => {
 describe("courses", () => {
   it("load in order with every listed lesson", async () => {
     const loaded = await loadAllCourses(courses, lessonsFor);
-    expect(loaded.map(({ course }) => course.slug)).toEqual(["git-basics", "branching"]);
+    expect(loaded.map(({ course }) => course.slug)).toEqual([
+      "git-basics",
+      "branching",
+      "merging",
+      "merge-conflicts",
+    ]);
   });
 
   it("have no lesson files that the course does not list", async () => {
@@ -97,7 +102,10 @@ describe("courses", () => {
  * Plays commands through the real parser, Git engine and validators, exactly like a learner's
  * session, and returns the progress after each step.
  */
-async function play(lesson: LessonDefinition, commands: string[]): Promise<LessonProgress> {
+/** A command typed in the terminal, or a file edited in the UI (e.g. resolving a conflict). */
+type Step = string | { write: string; content: string };
+
+async function play(lesson: LessonDefinition, steps: Step[]): Promise<LessonProgress> {
   const env = createTestEnvironment();
   const workspaceId = `curriculum-${lesson.id}`;
   let repository = await setupLesson(lesson, workspaceId, env);
@@ -108,9 +116,18 @@ async function play(lesson: LessonDefinition, commands: string[]): Promise<Lesso
   );
   expect(progress.completedObjectiveIds, `${lesson.id} starts with objectives done`).toEqual([]);
 
-  for (const command of commands) {
-    const result = await runCommandLine(command, { workspaceId, git: env.gitFor(workspaceId) });
-    expect(result.ok, `${lesson.id}: \`${command}\` failed:\n${result.output}`).toBe(true);
+  for (const step of steps) {
+    if (typeof step !== "string") {
+      await env.files.writeFile(workspaceId, step.write, step.content);
+    } else {
+      const result = await runCommandLine(step, { workspaceId, git: env.gitFor(workspaceId) });
+      // `git merge` reports a conflict as a failure; that is the expected outcome in these lessons.
+      const expectedFailure = result.errorCode === "MERGE_CONFLICT";
+      expect(
+        result.ok || expectedFailure,
+        `${lesson.id}: \`${step}\` failed:\n${result.output}`,
+      ).toBe(true);
+    }
     repository = await env.stateReader.read(workspaceId);
     progress = advanceProgress(lesson, progress, await validateLesson(lesson, { repository }));
   }
@@ -118,7 +135,15 @@ async function play(lesson: LessonDefinition, commands: string[]): Promise<Lesso
 }
 
 /** One straightforward solution per hands-on lesson. Every such lesson must have one. */
-const SOLUTIONS: Record<string, string[]> = {
+const AUTH_RESOLVED = [
+  'export const provider = "password";',
+  "// Session settings",
+  "export const timeout = 60;",
+  "export const rememberMe = true;",
+  "",
+].join("\n");
+
+const SOLUTIONS: Record<string, Step[]> = {
   "git-init": ["git init"],
   "git-status": [
     "git status",
@@ -149,6 +174,58 @@ const SOLUTIONS: Record<string, string[]> = {
     "git add search.js",
     'git commit -m "Add search"',
     "git switch main",
+  ],
+  "fast-forward-merge": ["git merge feature/login", "git log --oneline"],
+  "three-way-merge": ["git switch main", "git merge feature/login"],
+  "merge-feature-into-main": [
+    "git switch -c feature/search",
+    "git add search.js",
+    'git commit -m "Add city search"',
+    "git switch main",
+    "git merge feature/search",
+  ],
+  "merge-challenge": ["git merge feature/profile", "git merge bugfix/typo"],
+  "resolve-first-conflict": [
+    "git merge feature/login",
+    { write: "src/auth.ts", content: AUTH_RESOLVED },
+    "git add src/auth.ts",
+    "git commit",
+  ],
+  "multiple-file-conflict": [
+    "git merge feature/checkout",
+    {
+      write: "src/auth.ts",
+      content:
+        'export const provider = "password";\n// Session settings\nexport const timeout = 15;\n',
+    },
+    "git add src/auth.ts",
+    {
+      write: "src/config.ts",
+      content: 'export const config = {\n  region: "eu-west",\n  // Network\n  retries: 5,\n};\n',
+    },
+    "git add src/config.ts",
+    "git status",
+    "git commit",
+  ],
+  "conflict-challenge": [
+    "git switch main",
+    "git merge feature/tax",
+    {
+      write: "src/pricing.ts",
+      content: [
+        "export function total(subtotal: number): number {",
+        "  const discount = subtotal * 0.1;",
+        "  return (subtotal - discount) * 1.08;",
+        "}",
+        "",
+      ].join("\n"),
+    },
+    {
+      write: "src/cart.ts",
+      content: 'export const currency = "USD";\n// Limits\nexport const maxItems = 50;\n',
+    },
+    "git add .",
+    'git commit -m "Merge feature/tax"',
   ],
 };
 
@@ -208,5 +285,35 @@ describe("curriculum walkthroughs", async () => {
     ]);
     expect(committedOnMain.completed).toBe(false);
     expect(committedOnMain.currentObjectiveId).toBe("commit");
+
+    // --no-ff makes a merge commit, so main no longer points at feature/login's commit.
+    const noFastForward = await play(byId("fast-forward-merge"), [
+      "git merge --no-ff feature/login",
+    ]);
+    expect(noFastForward.currentObjectiveId).toBe("fast-forward");
+
+    // Merging main into the feature branch is the wrong direction.
+    const wrongDirection = await play(byId("three-way-merge"), ["git merge main"]);
+    expect(wrongDirection.currentObjectiveId).toBe("on-main");
+  });
+
+  it("does not accept a conflict staged with its markers", async () => {
+    const progress = await play(byId("resolve-first-conflict"), [
+      "git merge feature/login",
+      "git add src/auth.ts",
+    ]);
+    expect(progress.currentObjectiveId).toBe("resolved");
+  });
+
+  it("accepts aborting and redoing a merge", async () => {
+    const progress = await play(byId("resolve-first-conflict"), [
+      "git merge feature/login",
+      "git merge --abort",
+      "git merge feature/login",
+      { write: "src/auth.ts", content: AUTH_RESOLVED },
+      "git add .",
+      'git commit -m "Merge feature/login"',
+    ]);
+    expect(progress.completed).toBe(true);
   });
 });

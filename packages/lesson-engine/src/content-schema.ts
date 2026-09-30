@@ -25,6 +25,7 @@ const demoGraph = z
           id: text,
           message: text.optional(),
           parent: text.optional(),
+          merge: text.optional(),
         }),
       )
       .min(1, "a graph needs at least one commit"),
@@ -47,6 +48,22 @@ const demoGraph = z
           path: ["commits", index, "parent"],
           message: `parent "${commit.parent}" must be listed before "${commit.id}"`,
         });
+      }
+      if (commit.merge !== undefined) {
+        if (!seen.has(commit.merge) || commit.merge === commit.parent) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["commits", index, "merge"],
+            message: `merge parent "${commit.merge}" must be an earlier commit other than "parent"`,
+          });
+        }
+        if (commit.parent === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["commits", index, "parent"],
+            message: "a merge commit needs a `parent` too",
+          });
+        }
       }
       seen.add(commit.id);
     }

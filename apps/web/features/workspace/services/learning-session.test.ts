@@ -79,4 +79,44 @@ describe("LearningSession", () => {
     expect(reset.repository).toEqual(initial.repository);
     expect(reset.progress.completedObjectiveIds).toEqual([]);
   });
+
+  it("resolves a merge conflict through file edits and re-evaluates after saving", async () => {
+    const conflictLesson: LessonDefinition = {
+      id: "conflict",
+      slug: "conflict",
+      title: "Conflict",
+      difficulty: "beginner",
+      concepts: [],
+      setup: {
+        initializeGit: true,
+        commits: [
+          { message: "Base", files: { "a.txt": "base\n" } },
+          { message: "Theirs", branch: "feature", files: { "a.txt": "theirs\n" } },
+          { message: "Ours", files: { "a.txt": "ours\n" } },
+        ],
+      },
+      objectives: [
+        { id: "conflict", description: "c", validator: { type: "conflict_exists" } },
+        {
+          id: "resolved",
+          description: "r",
+          validator: { type: "conflict_resolved", file: "a.txt" },
+        },
+        { id: "done", description: "d", validator: { type: "merge_completed" } },
+      ],
+    };
+    const session = new LearningSession(conflictLesson, environment());
+    await session.start();
+    const merge = await session.execute("git merge feature");
+    expect(merge.result.errorCode).toBe("MERGE_CONFLICT");
+    expect(merge.snapshot.repository.files).toEqual([{ path: "a.txt", status: "conflicted" }]);
+    expect(await session.readFile("a.txt")).toContain("<<<<<<< HEAD");
+
+    const saved = await session.writeFile("a.txt", "ours and theirs\n");
+    expect(saved.repository.conflicts[0]?.resolved).toBe(false);
+    await session.execute("git add a.txt");
+    const done = await session.execute("git commit");
+    expect(done.result.ok).toBe(true);
+    expect(done.snapshot.progress.completed).toBe(true);
+  });
 });

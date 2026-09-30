@@ -41,6 +41,17 @@ function commitState(commit: GitCommitInfo): CommitState {
 
 /** Pure mapping from the Git engine's snapshot to GitDojo's normalized repository model. */
 export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositoryState {
+  // A conflicted path is "conflicted" in the working tree until resolved, whatever the index says.
+  const unresolved = new Set(
+    (snapshot.merge?.conflicts ?? [])
+      .filter((conflict) => !conflict.resolved)
+      .map((conflict) => conflict.path),
+  );
+  const workingTree = (entry: GitStatusEntry): FileState | null =>
+    unresolved.has(entry.path)
+      ? { path: entry.path, status: "conflicted" }
+      : workingTreeFile(entry);
+
   return {
     initialized: snapshot.initialized,
     currentBranch: snapshot.currentBranch,
@@ -52,9 +63,18 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
     })),
     commits: snapshot.commits.map(commitState),
     allCommits: snapshot.allCommits.map(commitState),
-    files: snapshot.entries.map(workingTreeFile).filter((file) => file !== null),
-    stagedFiles: snapshot.entries.map(stagedFile).filter((file) => file !== null),
-    // Merge conflicts arrive with merge support in a later phase.
-    conflicts: [],
+    files: snapshot.entries.map(workingTree).filter((file) => file !== null),
+    stagedFiles: snapshot.entries
+      .filter((entry) => !unresolved.has(entry.path))
+      .map(stagedFile)
+      .filter((file) => file !== null),
+    conflicts: (snapshot.merge?.conflicts ?? []).map((conflict) => ({
+      path: conflict.path,
+      ...(conflict.ours === null ? {} : { ours: conflict.ours }),
+      ...(conflict.theirs === null ? {} : { theirs: conflict.theirs }),
+      ...(conflict.base === null ? {} : { base: conflict.base }),
+      resolved: conflict.resolved,
+    })),
+    merge: snapshot.merge && { branch: snapshot.merge.branch, oid: snapshot.merge.theirs },
   };
 }

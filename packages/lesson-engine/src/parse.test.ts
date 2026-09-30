@@ -219,6 +219,22 @@ describe("setup history", () => {
     ).toContain("setup commits require `initializeGit: true`");
   });
 
+  it("accepts commits on other branches and a starting branch", () => {
+    const branched = WITH_HISTORY.replace(
+      "    - message: Add homepage\n",
+      "    - message: Add homepage\n      branch: feature/home\n",
+    ).replace(
+      "  branches: [feature/login]\n",
+      "  branches: [feature/login]\n  currentBranch: feature/home\n",
+    );
+    const lesson = parseLesson(branched);
+    expect(lesson.setup.commits?.[1]?.branch).toBe("feature/home");
+    expect(lesson.setup.currentBranch).toBe("feature/home");
+    expect(
+      issuesFor(branched.replace("currentBranch: feature/home", "currentBranch: nope")).join("\n"),
+    ).toContain('"nope" is not created by this setup');
+  });
+
   it("rejects commits that change nothing and invalid or duplicate branches", () => {
     const noop = WITH_HISTORY.replace('index.html: "<h1>Hi</h1>\\n"', 'README.md: "# Hi\\n"');
     expect(issuesFor(noop).join("\n")).toContain("this commit does not change any file");

@@ -1,0 +1,118 @@
+# Lesson: Three-Way Merge
+# Schema and authoring guide: docs/lesson-authoring.md
+id: three-way-merge
+slug: three-way-merge
+title: Three-Way Merge
+type: interactive
+
+goal: Merge two branches that have both moved on, creating a merge commit.
+
+description: |
+  While you built the login form on `feature/login`, someone updated the homepage on `main`. The
+  history has split, so a fast-forward is impossible: Git has to combine both sides.
+
+  You are currently on `feature/login`.
+
+difficulty: beginner
+
+concepts:
+  - merging
+  - merge-commits
+
+commands:
+  - git switch
+  - git merge
+  - git log --oneline
+
+content:
+  - type: example
+    title: A merge commit
+    command: git merge feature/login
+    output: |
+      Merge made by the 'ort' strategy.
+       login.css | 3 +++
+       login.js  | 5 +++++
+       2 files changed, 8 insertions(+)
+       create mode 100644 login.css
+       create mode 100644 login.js
+    explanation: >-
+      Git combined both branches in a new commit with the message
+      `Merge branch 'feature/login'`. It has two parents: `main`'s previous commit and
+      `feature/login`'s.
+
+  - type: diagram
+    title: What you are about to build
+    graph:
+      commits:
+        - { id: A, message: Initial commit }
+        - { id: C, parent: A, message: Add login form }
+        - { id: D, parent: C, message: Style login form }
+        - { id: E, parent: A, message: Update homepage }
+        - { id: M, parent: E, merge: D, message: "Merge branch 'feature/login'" }
+      branches:
+        main: M
+        feature/login: D
+      head: main
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+        index.html: |
+          <h1>Weather App</h1>
+    - message: Add login form
+      branch: feature/login
+      files:
+        login.js: |
+          export function login(email, password) {
+            return fetch("/api/login", { method: "POST" });
+          }
+    - message: Style login form
+      branch: feature/login
+      files:
+        login.css: |
+          form {
+            max-width: 320px;
+          }
+    - message: Update homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+          <p>Today's forecast, at a glance.</p>
+  currentBranch: feature/login
+
+objectives:
+  - id: on-main
+    description: Switch to `main`, the branch that should receive the login work.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: merged
+    description: Merge `feature/login` into `main`.
+    validator:
+      type: branches_merged
+      branch: feature/login
+      into: main
+
+  - id: merge-commit
+    description: Find the new merge commit, with two parents, at the top of the graph.
+    validator:
+      type: merge_commit_exists
+      branch: main
+
+hints:
+  on-main:
+    - You always merge into the branch you are on.
+    - Run `git switch main`.
+  merged:
+    - Name the branch whose work you want to bring in.
+    - Run `git merge feature/login`.
+  merge-commit:
+    - Run `git log --oneline`. The merge commit is at the top.
+
+completion:
+  xp: 75

@@ -1,3 +1,4 @@
+import { MERGE_USAGE } from "@gitdojo/git-engine";
 import { type GitCommandResult } from "@gitdojo/shared-types";
 import { isBuiltinProgram, isSupportedGitCommand, type SupportedGitCommand } from "../commands";
 import { parseCommand, notAGitCommandMessage } from "../parser";
@@ -31,6 +32,14 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
         : git.createAndSwitchBranch(create);
     }
     return git.switchBranch(parsed.args[0] ?? "");
+  },
+  merge: (parsed, { git }) => {
+    if (parsed.flags.abort === true) {
+      return parsed.args.length > 0
+        ? invalidArgument(`error: --abort takes no branch\n${MERGE_USAGE}`)
+        : git.abortMerge();
+    }
+    return git.merge(parsed.args[0] ?? "", { noFastForward: parsed.flags["no-ff"] === true });
   },
   // Kept for comparison with older tutorials. Only the branch-switching forms are supported.
   checkout: async (parsed, { git }) => {

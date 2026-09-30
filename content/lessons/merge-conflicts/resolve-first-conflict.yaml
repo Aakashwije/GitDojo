@@ -1,0 +1,112 @@
+# Lesson: Resolve Your First Conflict
+# Schema and authoring guide: docs/lesson-authoring.md
+id: resolve-first-conflict
+slug: resolve-first-conflict
+title: Resolve Your First Conflict
+type: interactive
+
+goal: Merge a branch, resolve the conflict by hand, and complete the merge.
+
+description: |
+  On `main`, someone shortened the session timeout to 15 minutes. On `feature/login`, it was
+  extended to 60. Both changed the same line of `src/auth.ts`.
+
+  Merge `feature/login` into `main`. When Git stops, open the file with the **Resolve** button,
+  decide what the line should be, remove the markers and save.
+
+difficulty: intermediate
+
+concepts:
+  - merge-conflicts
+  - merging
+
+commands:
+  - git merge
+  - git status
+  - git add
+  - git commit
+
+content:
+  - type: diagram
+    title: Where you are headed
+    ascii: |
+      1. git merge feature/login     Git stops: CONFLICT in src/auth.ts
+      2. edit src/auth.ts            keep what you want, delete the markers, save
+      3. git add src/auth.ts         mark the conflict as resolved
+      4. git commit                  create the merge commit
+
+  - type: callout
+    tone: tip
+    body: >-
+      While a merge is stopped, `git commit` without `-m` is enough: Git already prepared the
+      message `Merge branch 'feature/login'`. Changed your mind? `git merge --abort` puts
+      everything back.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 30;
+          export const rememberMe = true;
+    - message: Add login form
+      branch: feature/login
+      files:
+        src/login.ts: |
+          export function login(email: string, password: string) {
+            return fetch("/api/login", { method: "POST", body: JSON.stringify({ email, password }) });
+          }
+    - message: Extend session timeout
+      branch: feature/login
+      files:
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 60;
+          export const rememberMe = true;
+    - message: Shorten session timeout
+      files:
+        src/auth.ts: |
+          export const provider = "password";
+          // Session settings
+          export const timeout = 15;
+          export const rememberMe = true;
+
+objectives:
+  - id: conflict
+    description: Merge `feature/login` into `main`. Git stops with a conflict in `src/auth.ts`.
+    validator:
+      type: conflict_exists
+      file: src/auth.ts
+
+  - id: resolved
+    description: Edit `src/auth.ts` to remove the conflict, save it, and stage it with `git add`.
+    validator:
+      type: conflict_resolved
+      file: src/auth.ts
+
+  - id: completed
+    description: Commit to complete the merge.
+    validator:
+      type: merge_completed
+      branch: feature/login
+
+hints:
+  conflict:
+    - You are on `main`, the branch receiving the work.
+    - Run `git merge feature/login`.
+  resolved:
+    - Click **Resolve** next to `src/auth.ts` in the red conflict banner.
+    - Keep one `timeout` line, for example `export const timeout = 60;`, and delete the three marker lines. Then save.
+    - Run `git add src/auth.ts`.
+  completed:
+    - Every conflict is resolved; only the merge commit is missing.
+    - Run `git commit`.
+
+completion:
+  xp: 100
