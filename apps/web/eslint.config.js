@@ -9,6 +9,8 @@ export default [
       "test-results/**",
       "public/monaco/**",
       "scripts/**",
+      // Plain Node test tooling (the mock identity provider), like scripts/.
+      "e2e/mock-idp/**",
     ],
   },
   ...next,

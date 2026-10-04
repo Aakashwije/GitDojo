@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import base from "./playwright.config";
+import base, { appServer } from "./playwright.config";
 
 /** Browser stress scenarios (`pnpm perf:browser`), kept out of the regular e2e run. */
 export default defineConfig({
@@ -11,4 +11,5 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  webServer: appServer,
 });

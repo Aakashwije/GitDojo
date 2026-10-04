@@ -15,6 +15,15 @@ export {
   DialogTitle,
   DialogTrigger,
 } from "./components/dialog";
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./components/dropdown-menu";
 export { Kbd } from "./components/kbd";
 export {
   Panel,

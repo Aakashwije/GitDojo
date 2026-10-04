@@ -17,9 +17,9 @@ internally.
 > **Status: early development.** Five courses, from Git Basics to Undo and Recover, ten real-world
 > challenges and a free playground run end to end in the browser: a real Git engine, a terminal
 > and code editor, live working tree / staging / branch graph visualization, state-based
-> objective validation, progressive hints, plain-words error explanations, and a progress
-> dashboard saved locally with no account. Accounts and cloud sync are on the
-> [roadmap](#roadmap).
+> objective validation, progressive hints, plain-words error explanations, a progress dashboard
+> saved locally with no account, and optional accounts through WSO2 Identity Platform. Syncing
+> progress to accounts is on the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -60,6 +60,11 @@ Then:
 Your progress is saved in the browser, no account needed. The **dashboard** (`/dashboard`) shows
 where to continue, lessons and challenges completed, XP, the Git commands you have used, course
 progress and recent activity, and lets you export your progress as JSON or reset it.
+
+Accounts are optional. When a site configures [WSO2 Identity Platform](docs/authentication.md),
+learners can **sign up and sign in** on its secure hosted pages (GitDojo never handles
+passwords) and get an account menu on every page. Signing in or out never touches local
+progress; linking progress to accounts comes later.
 
 Every workspace has a **code editor** (Monaco) with a file explorer and Git status letters, so
 editing a file really makes it "modified". When a command fails, the terminal shows Git's real
@@ -105,6 +110,7 @@ See [docs/architecture.md](docs/architecture.md) for the full picture, including
 | Visualization | React Flow                                                   |
 | State         | Zustand                                                      |
 | Content       | YAML lessons validated with Zod                              |
+| Accounts      | WSO2 Identity Platform (`@asgardeo/nextjs`), optional        |
 | Tests         | Vitest, React Testing Library, Playwright                    |
 | Tooling       | pnpm workspaces, Turborepo, ESLint, Prettier, GitHub Actions |
 
@@ -129,6 +135,10 @@ pnpm dev            # http://localhost:3000, then open /learn
 | `pnpm test:e2e`         | Build, then run Playwright (desktop + mobile, with accessibility scans) |
 | `pnpm perf`             | Stress scenarios with timings (see docs/testing.md)                     |
 | `pnpm format`           | Format with Prettier                                                    |
+
+Accounts are optional. To try sign-in locally, copy `apps/web/.env.example` to
+`apps/web/.env.local` and follow [docs/authentication.md](docs/authentication.md); without it
+everything else works and the sign-in pages say accounts are unavailable.
 
 Before the first `pnpm test:e2e`, install a browser:
 `pnpm --filter @gitdojo/web exec playwright install chromium`.
@@ -173,6 +183,8 @@ single YAML file. See:
 - [docs/git-engine.md](docs/git-engine.md): how Git commands are implemented
 - [docs/command-parser.md](docs/command-parser.md): how input is parsed and routed
 - [docs/progress.md](docs/progress.md): local progress, XP and what counts
+- [docs/authentication.md](docs/authentication.md): accounts with WSO2 Identity Platform, setup
+  and console configuration
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [UI.md](UI.md): the design system
 
@@ -196,8 +208,8 @@ single YAML file. See:
 - [x] Local progress and dashboard: completions, XP, command and hint stats, export and reset
 - [x] Testing and stabilization: integration and end-to-end coverage, accessibility (WCAG AA
       scans), performance fixes
-- [ ] Accounts (WSO2 Identity Platform), and progress that syncs across devices (today it is
-      saved in the browser)
+- [x] Accounts with WSO2 Identity Platform: hosted sign-in and sign-up, account menu, sign-out
+- [ ] Progress that syncs across devices with an account (today it is saved in the browser)
 - [ ] Remote repositories (`clone`, `fetch`, `pull`, `push`), then real GitHub
 
 ## License

@@ -72,8 +72,9 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @gitdojo/web exec playwright install-deps chromium
 
-      # Desktop and mobile projects, including the axe accessibility scans. Turborepo reuses the
-      # build above from its local cache.
+      # Desktop and mobile projects with the axe accessibility scans, plus the account sign-in flow
+      # against a local mock identity provider (test-only values, no secrets). Turborepo reuses
+      # the build above from its local cache.
       - name: End-to-end tests
         run: pnpm test:e2e
 

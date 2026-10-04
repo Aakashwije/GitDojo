@@ -226,12 +226,22 @@ completion is never stored: it is derived from completed lessons and the course'
 list. The dashboard (`/dashboard`) shows totals, course progress, recent activity and command
 usage, and lets the learner export or reset their progress.
 
+## Accounts
+
+Optional accounts use WSO2 Identity Platform through `@asgardeo/nextjs`; see
+[authentication.md](./authentication.md). The SDK provider renders only in the `app/(account)/`
+route group (sign-in, sign-up, callback, sign-out, account), so learning pages stay static and
+work without any configuration. Headers learn the account state from `/api/auth/session`, which
+validates the session on the server. `proxy.ts` refreshes sessions and guards `/account` on
+account routes only. Accounts never read or change local progress.
+
 ## Web app structure
 
 ```text
 apps/web/
 ├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo,
-│                               /playground, /challenges, /challenges/[slug], /dashboard
+│                               /playground, /challenges, /challenges/[slug], /dashboard,
+│                               (account)/: /sign-in, /sign-up, /account, /auth/*; /api/auth/session
 ├── components/                 site chrome and landing page
 ├── features/
 │   ├── terminal/               xterm host, line editor, history, output highlighting
@@ -242,10 +252,13 @@ apps/web/
 │   ├── errors/                 "Why did this happen?" explanation panel
 │   ├── course/                 course outline and navigation
 │   ├── progress/               progress store, ProgressProvider, dashboard, lesson tracking hook
+│   ├── auth/                   account controls, sign-in/up/out components, session store
 │   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
 │   ├── playground/             PlaygroundSession, scenario picker, playground layout
 │   └── workspace/              WorkspaceSession, LearningSession, browser environment, layout
-├── e2e/                        Playwright tests (desktop + mobile), including axe accessibility scans
+├── lib/auth/                   auth config, return-path validation, server session (SDK boundary)
+├── proxy.ts                    session refresh and /account guard (account routes only)
+├── e2e/                        Playwright tests (desktop + mobile), axe scans, mock identity provider
 └── perf/                       stress scenarios (`pnpm perf`, `pnpm perf:browser`)
 ```
 

@@ -1,5 +1,6 @@
 import { Button } from "@gitdojo/ui";
 import Link from "next/link";
+import { AccountControls } from "@/features/auth/components/AccountControls";
 import { SITE } from "@/lib/site";
 import { GitHubIcon } from "./github-icon";
 import { Logo } from "./logo";
@@ -47,9 +48,10 @@ export function SiteHeader() {
           <Button asChild variant="secondary" size="sm">
             <a href={SITE.githubUrl} aria-label="Star GitDojo on GitHub">
               <GitHubIcon />
-              <span className="hidden sm:inline">Star on GitHub</span>
+              <span className="hidden lg:inline">Star on GitHub</span>
             </a>
           </Button>
+          <AccountControls />
           <MobileNav items={NAV_ITEMS} />
         </div>
       </div>

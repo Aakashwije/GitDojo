@@ -1,6 +1,3 @@
-import { Button } from "@gitdojo/ui";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
 import { HeroDemo } from "@/components/landing/hero-demo";
 import {
   HowItWorks,
@@ -11,6 +8,9 @@ import {
 import { Logo } from "@/components/site/logo";
 import { SiteHeader } from "@/components/site/site-header";
 import { SITE } from "@/lib/site";
+import { Button } from "@gitdojo/ui";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -21,11 +21,11 @@ export default function HomePage() {
           {/* Subtle radial glow behind the hero. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 -top-40 h-[560px] bg-[radial-gradient(ellipse_at_center,rgb(108_140_255/0.14),transparent_65%)]"
+            className="pointer-events-none absolute inset-x-0 -top-40 h-140 bg-[radial-gradient(ellipse_at_center,rgb(108_140_255/0.14),transparent_65%)]"
           />
-          <div className="relative mx-auto grid max-w-[1280px] gap-12 px-4 pt-16 pb-12 sm:px-6 sm:pt-24 lg:grid-cols-[1fr_1.05fr] lg:items-center">
+          <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pt-16 pb-12 sm:px-6 sm:pt-24 lg:grid-cols-[1fr_1.05fr] lg:items-center">
             <div>
-              <h1 className="text-[40px] leading-[48px] font-bold tracking-[-0.03em] text-fg sm:text-display">
+              <h1 className="text-h1 font-bold tracking-[-0.03em] text-fg sm:text-display">
                 Learn Git <span className="text-accent">by doing.</span>
               </h1>
               <p className="mt-5 max-w-xl text-body-lg text-fg-secondary">
@@ -55,7 +55,7 @@ export default function HomePage() {
         <OpenSourceSection />
       </main>
       <footer className="border-t border-border-subtle">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-4 py-8 text-small text-fg-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-small text-fg-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <Logo />
           <p>
             MIT licensed ·{" "}

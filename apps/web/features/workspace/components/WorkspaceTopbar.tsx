@@ -4,6 +4,7 @@ import { type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types
 import { SegmentedProgress } from "@gitdojo/ui";
 import Link from "next/link";
 import { LogoMark } from "@/components/site/logo";
+import { AccountControls } from "@/features/auth/components/AccountControls";
 import { CourseNavigationDialog } from "@/features/course/components/CourseNavigationDialog";
 import { type ChallengeContext } from "@/features/challenges/services/challenge-navigation";
 import { lessonNeighbors } from "@/features/course/services/course-navigation";
@@ -90,8 +91,10 @@ export function WorkspaceTopbar({ lesson, course, challenge, terminal }: Workspa
               onReset={terminal.onReset}
               disabled={!terminal.ready}
             />
+            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           </>
         ) : null}
+        <AccountControls compact />
       </div>
     </header>
   );

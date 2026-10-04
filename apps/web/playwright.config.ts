@@ -3,6 +3,20 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.PORT ?? 3100);
 const baseURL = `http://localhost:${String(PORT)}`;
 
+// A second server from the same build, with accounts configured against a local mock identity
+// provider (e2e/mock-idp), so the real SDK sign-in flow runs without a WSO2 tenant.
+const AUTH_PORT = PORT + 1;
+const MOCK_IDP_PORT = PORT + 99;
+export const authBaseURL = `http://localhost:${String(AUTH_PORT)}`;
+
+/** The production server most tests run against (no accounts configured, as in CI). */
+export const appServer = {
+  command: `pnpm exec next start --port ${String(PORT)}`,
+  url: baseURL,
+  reuseExistingServer: !process.env.CI,
+  timeout: 120_000,
+};
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -14,14 +28,36 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: "auth-flow.spec.ts" },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: "auth-flow.spec.ts" },
+    {
+      name: "auth-flow",
+      testMatch: "auth-flow.spec.ts",
+      use: { ...devices["Desktop Chrome"], baseURL: authBaseURL },
+    },
   ],
   // Runs against the production build (`pnpm build` runs first via Turborepo).
-  webServer: {
-    command: `pnpm exec next start --port ${String(PORT)}`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    appServer,
+    {
+      command: "node e2e/mock-idp/server.mjs",
+      url: `http://localhost:${String(MOCK_IDP_PORT)}/health`,
+      env: { MOCK_IDP_PORT: String(MOCK_IDP_PORT) },
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      command: `pnpm exec next start --port ${String(AUTH_PORT)}`,
+      url: authBaseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      // Test-only values for the mock provider; nothing here is a real credential.
+      env: {
+        NEXT_PUBLIC_ASGARDEO_BASE_URL: `http://localhost:${String(MOCK_IDP_PORT)}/t/gitdojo`,
+        NEXT_PUBLIC_ASGARDEO_CLIENT_ID: "gitdojo-e2e-client",
+        ASGARDEO_CLIENT_SECRET: "gitdojo-e2e-secret",
+        ASGARDEO_SECRET: "e2e-session-signing-secret-not-for-production-use",
+      },
+    },
+  ],
 });

@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogoMark } from "@/components/site/logo";
+import { AccountControls } from "@/features/auth/components/AccountControls";
 import { ConflictBanner } from "@/features/conflicts/components/ConflictBanner";
 import { ConflictEditorDialog } from "@/features/conflicts/components/ConflictEditorDialog";
 import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
@@ -105,7 +106,7 @@ export function PlaygroundWorkspace({ scenarios }: { scenarios: PlaygroundScenar
           </Link>
           <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border" />
           <div className="min-w-0">
-            <p className="text-caption text-fg-muted">Playground</p>
+            <h1 className="text-caption font-normal text-fg-muted">Playground</h1>
             <p
               className="flex items-center gap-2 truncate text-small font-semibold text-fg"
               data-testid="playground-scenario"
@@ -156,6 +157,8 @@ export function PlaygroundWorkspace({ scenarios }: { scenarios: PlaygroundScenar
             description={`The repository goes back to the start of "${scenario?.title ?? "New repository"}". Everything you changed is discarded.`}
             confirmLabel="Reset repository"
           />
+          <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
+          <AccountControls compact />
         </div>
       </header>
 
