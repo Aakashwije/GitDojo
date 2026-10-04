@@ -60,9 +60,11 @@ repositories; private repositories need the appropriate GitHub Code Security ent
 If those features are unavailable, configure repository access before requiring their checks.
 No workflow uses `pull_request_target` or production secrets when executing contributor code.
 
-Audit failures require examining the advisory and upgrading the affected dependency. pnpm's
-workspace production dependency graph also includes dependencies of the shared config package,
-so an advisory in its ESLint tooling can block this gate. No advisories are silently ignored. Registry
+Audit failures require examining the advisory and upgrading the affected dependency. The private
+`@gitdojo/config` package lists its lint/config tools as development dependencies, so they do not
+appear in the production dependency audit. Dependency review still covers development dependency
+changes; use `pnpm audit --dev` to inspect existing tooling advisories. No advisories are ignored
+through an allowlist. Registry
 failures also fail the audit job rather than hiding an incomplete security check. CodeQL analysis
 success means scanning completed; configure a repository ruleset to block selected code-scanning
 alert severities if alerts should block merges.
