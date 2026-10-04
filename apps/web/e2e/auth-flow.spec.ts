@@ -7,6 +7,33 @@ import { stat, waitForProgressSaved } from "./helpers";
 
 const PROVIDER = /^http:\/\/localhost:\d+\/t\/gitdojo\/oauth2\/authorize/;
 
+test("mock provider renders untrusted scopes as text and preserves callback parameters", async ({
+  page,
+}) => {
+  const port = Number(process.env.PORT ?? 3100) + 99;
+  const scope = "<img src=x onerror=\"document.body.dataset.xss=1\"> & 'quoted'";
+  const state = "state&\"<tag>'";
+  const callback = new URL("http://localhost:3101/auth/callback");
+  callback.searchParams.set("returnTo", '/learn?label="<tag>&value=1');
+  const authorize = new URL(`http://localhost:${String(port)}/t/gitdojo/oauth2/authorize`);
+  authorize.searchParams.set("client_id", "gitdojo-e2e-client");
+  authorize.searchParams.set("redirect_uri", callback.toString());
+  authorize.searchParams.set("scope", scope);
+  authorize.searchParams.set("state", state);
+  await page.goto(authorize.toString());
+  await expect(page.getByTestId("scopes")).toHaveText(scope);
+  await expect(page.locator("img")).toHaveCount(0);
+  await expect(page.locator("body")).not.toHaveAttribute("data-xss", "1");
+  for (const name of ["Sign in as Ada Lovelace", "Cancel", "Register"]) {
+    const href = await page.getByRole("link", { name, exact: true }).getAttribute("href");
+    expect(href).toBeTruthy();
+    if (!href) throw new Error(`Missing callback URL for ${name}`);
+    const target = new URL(href);
+    expect(target.searchParams.get("state")).toBe(state);
+    expect(target.searchParams.get("returnTo")).toBe(callback.searchParams.get("returnTo"));
+  }
+});
+
 async function accountMenu(page: Page) {
   const trigger = page.getByRole("button", { name: "Account menu for Ada Lovelace" });
   await expect(trigger).toBeVisible();
