@@ -1,0 +1,115 @@
+# Lesson: See What Changed with git diff
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-diff
+slug: git-diff
+title: See What Changed with git diff
+type: interactive
+
+goal: Read a diff to decide what belongs in the next commit, and commit only that.
+
+description: |
+  You fixed a bug in `src/price.js`, and while debugging you also flipped a flag in
+  `src/config.js`. Both files show up as modified, but only the fix should be committed.
+
+  `git status` says *which* files changed. `git diff` shows *what* changed in them.
+
+difficulty: beginner
+
+concepts:
+  - diff
+  - staging
+
+commands:
+  - git diff
+  - git diff --staged
+  - git add
+  - git commit
+
+content:
+  - type: example
+    title: Reading a diff
+    command: git diff
+    output: |
+      diff --git a/src/price.js b/src/price.js
+      index 3b18e51..8f1c2a0 100644
+      --- a/src/price.js
+      +++ b/src/price.js
+      @@ -1,3 +1,3 @@
+       export function total(items) {
+      -  return items.reduce((sum, item) => sum + item.price);
+      +  return items.reduce((sum, item) => sum + item.price, 0);
+       }
+    explanation: >-
+      `---` is the old version and `+++` the new one. `@@ -1,3 +1,3 @@` says the excerpt starts
+      at line 1 and spans 3 lines on each side. Lines starting with `-` were removed, lines
+      starting with `+` were added, and the rest are unchanged context.
+
+  - type: comparison
+    title: Which diff shows what
+    columns:
+      - title: git diff
+        items:
+          - Working tree compared with the staging area
+          - Changes you have not staged yet
+      - title: git diff --staged
+        items:
+          - Staging area compared with the last commit
+          - Exactly what `git commit` would record
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Checkout
+        src/price.js: |
+          export function total(items) {
+            return items.reduce((sum, item) => sum + item.price);
+          }
+        src/config.js: |
+          export const debug = false;
+          export const currency = "EUR";
+  files:
+    src/price.js: |
+      export function total(items) {
+        return items.reduce((sum, item) => sum + item.price, 0);
+      }
+    src/config.js: |
+      export const debug = true;
+      export const currency = "EUR";
+
+objectives:
+  - id: stage-fix
+    description: Stage the bug fix in `src/price.js`, and only that.
+    validator:
+      type: file_staged
+      file: src/price.js
+
+  - id: commit-fix
+    description: Commit the fix. `src/price.js` is then unchanged since the last commit.
+    validator:
+      type: file_committed
+      file: src/price.js
+
+  - id: debug-left
+    description: "`src/config.js` still has its debugging change, uncommitted and unstaged."
+    validator:
+      type: file_status
+      file: src/config.js
+      status: modified
+
+hints:
+  stage-fix:
+    - Two files are modified. Look inside them before deciding what to stage.
+    - "`git diff` shows every unstaged change, line by line."
+    - The fix adds `, 0` to the `reduce` call. Run `git add src/price.js`.
+  commit-fix:
+    - "`git diff --staged` shows exactly what the commit will contain."
+    - Run `git commit -m "Fix total for empty carts"`.
+  debug-left:
+    - If you staged `src/config.js` too, take it back out of the staging area.
+    - Run `git restore --staged src/config.js`, or reset the lesson and stage only the fix.
+
+completion:
+  xp: 75

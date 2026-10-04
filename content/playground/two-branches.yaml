@@ -1,0 +1,33 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: two-branches
+title: Two Branches
+description: >
+  main and feature/search have each moved on since they split. Compare them, switch between them,
+  and try merging one into the other.
+order: 3
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Bookshelf
+        src/books.js: |
+          export const books = ["Dune", "Emma"];
+    - message: Add search box
+      branch: feature/search
+      files:
+        src/search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.includes(term));
+          }
+    - message: Highlight results
+      branch: feature/search
+      files:
+        src/search.css: |
+          .match { background: gold; }
+    - message: Add more books
+      files:
+        src/books.js: |
+          export const books = ["Dune", "Emma", "Ulysses"];

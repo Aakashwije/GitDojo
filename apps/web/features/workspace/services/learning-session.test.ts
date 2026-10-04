@@ -7,6 +7,7 @@ import { createRepositoryStateReader } from "@gitdojo/repository-state";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { describe, expect, it } from "vitest";
 import { LearningSession } from "./learning-session";
+import { FileExistsError } from "./workspace-session";
 
 let counter = 0;
 function environment(): LessonEnvironment {
@@ -118,5 +119,30 @@ describe("LearningSession", () => {
     const done = await session.execute("git commit");
     expect(done.result.ok).toBe(true);
     expect(done.snapshot.progress.completed).toBe(true);
+  });
+
+  it("creates, edits and deletes files like an editor would", async () => {
+    const session = new LearningSession(
+      {
+        ...lesson,
+        setup: {
+          initializeGit: true,
+          commits: [{ message: "Initial", files: { "README.md": "# A\n" } }],
+        },
+      },
+      environment(),
+    );
+    await session.start();
+
+    const created = await session.createFile("src/notes.md");
+    expect(created.repository.files).toContainEqual({ path: "src/notes.md", status: "untracked" });
+    await expect(session.createFile("src/notes.md")).rejects.toBeInstanceOf(FileExistsError);
+    await expect(session.createFile("../escape.md")).rejects.toThrow(/path traversal/);
+
+    const edited = await session.writeFile("README.md", "# B\n");
+    expect(edited.repository.files).toContainEqual({ path: "README.md", status: "modified" });
+
+    const deleted = await session.deleteFile("README.md");
+    expect(deleted.repository.files).toContainEqual({ path: "README.md", status: "deleted" });
   });
 });

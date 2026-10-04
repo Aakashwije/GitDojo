@@ -1,0 +1,111 @@
+# Lesson: Safe Undo with git revert
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-revert
+slug: git-revert
+title: Safe Undo with git revert
+type: interactive
+
+goal: Undo a commit that others already have, without rewriting history.
+
+description: |
+  Yesterday's `Add dark mode` commit broke the site, and it is already on the shared `main`
+  branch: your teammates have pulled it. Resetting would rewrite history under their feet.
+
+  Undo the dark mode with a new commit instead, keeping everything after it.
+
+difficulty: intermediate
+
+concepts:
+  - revert
+  - history
+
+commands:
+  - git revert
+  - git log --oneline
+
+content:
+  - type: example
+    title: Reverting a commit
+    command: git revert HEAD~1
+    output: |
+      [main 4c2a9e1] Revert "Add dark mode"
+       1 file changed, 1 deletion(-)
+    explanation: >-
+      Git works out the opposite of that commit's changes and records them as a new commit.
+      The original stays in the history, so anyone can see what happened and why.
+
+  - type: demo
+    title: History only grows
+    steps:
+      - caption: The bad commit B is followed by C, which is fine.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add dark mode, parent: A }
+            - { id: C, message: Fix footer, parent: B }
+          branches: { main: C }
+          head: main
+      - caption: Reverting B adds R, which undoes B. C's work is untouched.
+        command: git revert HEAD~1
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add dark mode, parent: A }
+            - { id: C, message: Fix footer, parent: B }
+            - { id: R, message: Revert "Add dark mode", parent: C }
+          branches: { main: R }
+          head: main
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        index.html: |
+          <link rel="stylesheet" href="style.css">
+          <h1>Portfolio</h1>
+        style.css: |
+          body { color: black; }
+    - message: Add dark mode
+      files:
+        dark.css: |
+          body { color: #eee; background: #111; filter: invert(1); }
+    - message: Fix footer
+      files:
+        footer.html: |
+          <footer>© 2026</footer>
+
+objectives:
+  - id: reverted
+    description: "`main` has a commit reverting `Add dark mode`."
+    validator:
+      type: commit_reverted
+      message: Add dark mode
+      branch: main
+
+  - id: history-kept
+    description: The original `Add dark mode` commit is still in the history.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add dark mode
+
+  - id: footer-kept
+    description: "`Fix footer`, which came after it, is still there too."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Fix footer
+
+hints:
+  reverted:
+    - The fix should be a new commit that does the opposite of the bad one.
+    - "`git log --oneline` shows the bad commit's id; `HEAD~1` names it too."
+    - Run `git revert HEAD~1`.
+  history-kept:
+    - A revert never removes commits. If this fails, the history was reset; reset the lesson.
+  footer-kept:
+    - Only the dark mode should be undone.
+
+completion:
+  xp: 100

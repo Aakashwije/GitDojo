@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@gitdojo/ui";
-import { Database, GitCommitHorizontal } from "lucide-react";
+import { Archive, Database, GitCommitHorizontal } from "lucide-react";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { EmptyState } from "./EmptyState";
 import { FileAreaPanel } from "./FileAreaPanel";
@@ -54,6 +54,31 @@ export function RepositoryPanel({ className }: { className?: string }) {
           <p className="px-2 text-caption text-fg-muted">
             {tracked} tracked file{tracked === 1 ? "" : "s"}
           </p>
+          {repository.stashes.length > 0 ? (
+            <section
+              aria-label="Stash"
+              data-testid="stash-list"
+              className="border-t border-border-subtle pt-2"
+            >
+              <h3 className="flex items-center gap-1.5 px-2 text-micro font-semibold tracking-wider text-fg-muted uppercase">
+                <Archive className="size-3.5" aria-hidden="true" /> Stash
+              </h3>
+              <ol className="mt-1">
+                {repository.stashes.map((stash) => (
+                  <li
+                    key={stash.oid}
+                    className="flex animate-gd-enter items-baseline gap-2 px-2 py-1"
+                    title={stash.files.join(", ")}
+                  >
+                    <span className="shrink-0 font-mono text-caption text-accent">
+                      {stash.selector}
+                    </span>
+                    <span className="truncate text-small text-fg-secondary">{stash.message}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
         </div>
       )}
     </FileAreaPanel>

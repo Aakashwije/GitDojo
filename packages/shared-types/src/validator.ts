@@ -2,6 +2,16 @@ export type ValidatorDefinition =
   | { type: "repository_initialized" }
   | { type: "file_exists"; file: string }
   | { type: "file_staged"; file: string }
+  /** The file is in the last commit and unchanged since. */
+  | { type: "file_committed"; file: string }
+  /** The file is neither committed nor staged: untracked, ignored or absent. */
+  | { type: "file_not_tracked"; file: string }
+  /** The file's working-tree status is exactly `status` (as the Working Tree panel shows it). */
+  | {
+      type: "file_status";
+      file: string;
+      status: "untracked" | "modified" | "staged" | "committed" | "deleted" | "conflicted";
+    }
   | { type: "commit_exists"; message?: string }
   | { type: "commit_count"; count: number }
   | { type: "clean_worktree" }
@@ -18,6 +28,16 @@ export type ValidatorDefinition =
   | { type: "merge_commit_exists"; branch?: string; message?: string }
   /** A commit with `message` is reachable from `branch`. */
   | { type: "branch_contains_commit"; branch: string; message: string }
+  /** `branch` exists and no commit with `message` is reachable from it. */
+  | { type: "commit_not_on_branch"; branch: string; message: string }
+  /** A `Revert "<message>"` commit is in `branch`'s history (default: HEAD). */
+  | { type: "commit_reverted"; message: string; branch?: string }
+  /** `onto` is in `branch`'s history, and `branch`'s own commits form a line (no merges). */
+  | { type: "branch_rebased"; branch: string; onto: string }
+  /** HEAD points straight at a commit instead of a branch. */
+  | { type: "head_detached" }
+  /** `git stash list` has exactly `count` entries. */
+  | { type: "stash_count"; count: number }
   /** A merge is in progress with a conflict (in `file`, if given). */
   | { type: "conflict_exists"; file?: string }
   /** The conflict in `file` has been resolved and staged. */

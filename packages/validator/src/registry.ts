@@ -13,14 +13,26 @@ import { allConflictsResolved, conflictExists, conflictResolved } from "./valida
 import { currentBranch } from "./validators/current-branch";
 import { fileExists } from "./validators/file-exists";
 import { fileStaged } from "./validators/file-staged";
+import { fileCommitted, fileNotTracked } from "./validators/file-tracking";
 import { mergeCommitExists } from "./validators/merge-commit-exists";
 import { mergeCompleted } from "./validators/merge-completed";
+import {
+  branchRebased,
+  commitNotOnBranch,
+  commitReverted,
+  fileStatus,
+  headDetached,
+  stashCount,
+} from "./validators/recovery";
 import { repositoryInitialized } from "./validators/repository-initialized";
 
 export const validatorRegistry: ValidatorRegistry = {
   repository_initialized: repositoryInitialized,
   file_exists: fileExists,
   file_staged: fileStaged,
+  file_committed: fileCommitted,
+  file_not_tracked: fileNotTracked,
+  file_status: fileStatus,
   commit_exists: commitExists,
   commit_count: commitCount,
   clean_worktree: cleanWorktree,
@@ -32,6 +44,11 @@ export const validatorRegistry: ValidatorRegistry = {
   branches_merged: branchesMerged,
   merge_commit_exists: mergeCommitExists,
   branch_contains_commit: branchContainsCommit,
+  commit_not_on_branch: commitNotOnBranch,
+  commit_reverted: commitReverted,
+  branch_rebased: branchRebased,
+  head_detached: headDetached,
+  stash_count: stashCount,
   conflict_exists: conflictExists,
   conflict_resolved: conflictResolved,
   all_conflicts_resolved: allConflictsResolved,

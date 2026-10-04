@@ -1,0 +1,4 @@
+{
+  "extends": "@gitdojo/config/typescript/library.json",
+  "include": ["src"]
+}

@@ -4,6 +4,8 @@ import { create } from "zustand";
 interface RepositoryStore {
   workspaceId: string | null;
   repositoryState: RepositoryState;
+  /** Bumped on every new state, so views can re-read files a command may have changed. */
+  revision: number;
   selectedCommit: string | null;
   loading: boolean;
   error: string | null;
@@ -18,6 +20,7 @@ interface RepositoryStore {
 export const useRepositoryStore = create<RepositoryStore>()((set) => ({
   workspaceId: null,
   repositoryState: EMPTY_REPOSITORY_STATE,
+  revision: 0,
   selectedCommit: null,
   loading: true,
   error: null,
@@ -33,6 +36,7 @@ export const useRepositoryStore = create<RepositoryStore>()((set) => ({
   setRepositoryState: (repositoryState) => {
     set((current) => ({
       repositoryState,
+      revision: current.revision + 1,
       loading: false,
       error: null,
       // Drop a selection that no longer exists (e.g. after a lesson reset).

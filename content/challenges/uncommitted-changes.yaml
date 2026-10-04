@@ -1,0 +1,88 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: uncommitted-changes
+title: Uncommitted Changes
+category: branching
+difficulty: intermediate
+order: 3
+
+scenario: |
+  You are on `main`, in the middle of reworking the price formatting in `src/price.js`. It is
+  not ready to commit. Then: production is down, and the fix on `hotfix/rounding` has to be
+  merged into `release` right now. `release` has its own version of `src/price.js`.
+
+mission: >
+  Merge `hotfix/rounding` into `release`, then get back to `main` with your unfinished price
+  work exactly as it was, not committed, and nothing left stashed.
+
+concepts:
+  - stash
+  - branches
+  - merging
+
+requires:
+  - stash
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Storefront
+        src/price.js: |
+          export const price = (cents) => cents / 100;
+    - message: Prepare release
+      branch: release
+      files:
+        src/price.js: |
+          export const price = (cents) => (cents / 100).toFixed(2);
+    - message: Round prices correctly
+      branch: hotfix/rounding
+      files:
+        src/round.js: |
+          export const round = (value) => Math.round(value * 100) / 100;
+  files:
+    src/price.js: |
+      export const price = (cents, currency = "EUR") => `${cents / 100} ${currency}`;
+
+objectives:
+  - id: hotfix-merged
+    description: "`release` contains the rounding fix."
+    validator:
+      type: branches_merged
+      branch: hotfix/rounding
+      into: release
+
+  - id: back-on-main
+    description: You are back on `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: work-restored
+    description: "Your price rework is back in `src/price.js`, uncommitted."
+    validator:
+      type: file_status
+      file: src/price.js
+      status: modified
+
+  - id: nothing-stashed
+    description: Nothing is left in the stash.
+    validator:
+      type: stash_count
+      count: 0
+
+hints:
+  hotfix-merged:
+    - Try switching first, and read why Git refuses.
+    - Unfinished work can be put aside without a commit and brought back later.
+  back-on-main:
+    - The merge happens on the branch that receives the fix.
+  work-restored:
+    - Whatever you put aside is still waiting for you.
+  nothing-stashed:
+    - Bringing work back does not always remove it from the list.
+
+completion:
+  xp: 150

@@ -1,6 +1,11 @@
-import { MERGE_USAGE } from "@gitdojo/git-engine";
+import { MERGE_USAGE, REBASE_USAGE, type GitSequencerAction } from "@gitdojo/git-engine";
 import { type GitCommandResult } from "@gitdojo/shared-types";
-import { isBuiltinProgram, isSupportedGitCommand, type SupportedGitCommand } from "../commands";
+import {
+  GIT_COMMAND_SPECS,
+  isBuiltinProgram,
+  isSupportedGitCommand,
+  type SupportedGitCommand,
+} from "../commands";
 import { parseCommand, notAGitCommandMessage } from "../parser";
 import { type ParsedCommand } from "../types";
 import { helpText } from "./help";
@@ -19,19 +24,38 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
     const message = parsed.flags.m;
     return git.commit({ message: typeof message === "string" ? message : "" });
   },
-  log: (parsed, { git }) => git.log({ oneline: parsed.flags.oneline === true }),
+  log: (parsed, { git }) => {
+    const [revision] = parsed.args;
+    return git.log({
+      oneline: parsed.flags.oneline === true,
+      all: parsed.flags.all === true,
+      ...(revision === undefined ? {} : { revision }),
+    });
+  },
   branch: (parsed, { git }) => {
-    const [name] = parsed.args;
-    return name === undefined ? git.showBranches() : git.createBranch(name);
+    const [name, startPoint] = parsed.args;
+    const remove = parsed.flags.d === true || parsed.flags.D === true;
+    if (remove) {
+      if (startPoint !== undefined) {
+        return invalidArgument("fatal: GitDojo deletes one branch at a time");
+      }
+      return git.deleteBranch(name ?? "", { force: parsed.flags.D === true });
+    }
+    if (name === undefined) return git.showBranches();
+    return git.createBranch(name, startPoint);
   },
   switch: (parsed, { git }) => {
     const create = parsed.flags.c;
+    const [target] = parsed.args;
     if (typeof create === "string") {
-      return parsed.args.length > 0
-        ? invalidArgument(startPointUnsupported("git switch -c"))
-        : git.createAndSwitchBranch(create);
+      if (parsed.flags.detach === true) {
+        return invalidArgument("fatal: options '-c' and '--detach' cannot be used together");
+      }
+      return git.createAndSwitchBranch(create, target);
     }
-    return git.switchBranch(parsed.args[0] ?? "");
+    // `git switch --detach` alone detaches at the current commit, like Git.
+    if (parsed.flags.detach === true) return git.detachHead(target ?? "HEAD");
+    return git.switchBranch(target ?? "");
   },
   merge: (parsed, { git }) => {
     if (parsed.flags.abort === true) {
@@ -39,29 +63,147 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
         ? invalidArgument(`error: --abort takes no branch\n${MERGE_USAGE}`)
         : git.abortMerge();
     }
-    return git.merge(parsed.args[0] ?? "", { noFastForward: parsed.flags["no-ff"] === true });
-  },
-  // Kept for comparison with older tutorials. Only the branch-switching forms are supported.
-  checkout: async (parsed, { git }) => {
-    const create = parsed.flags.b;
-    if (typeof create === "string") {
-      return parsed.args.length > 0
-        ? invalidArgument(startPointUnsupported("git checkout -b"))
-        : git.createAndSwitchBranch(create);
+    if (parsed.flags["no-ff"] === true && parsed.flags["ff-only"] === true) {
+      return invalidArgument("fatal: options '--no-ff' and '--ff-only' cannot be used together");
     }
-    const [name] = parsed.args;
-    if (name === undefined) {
+    return git.merge(parsed.args[0] ?? "", {
+      noFastForward: parsed.flags["no-ff"] === true,
+      fastForwardOnly: parsed.flags["ff-only"] === true,
+    });
+  },
+  diff: (parsed, { git }) => git.diff({ staged: parsed.flags.staged === true, paths: parsed.args }),
+  restore: (parsed, { git }) => {
+    const source = parsed.flags.source;
+    return git.restore(parsed.args, {
+      staged: parsed.flags.staged === true,
+      worktree: parsed.flags.worktree === true || parsed.flags.staged !== true,
+      ...(typeof source === "string" ? { source } : {}),
+    });
+  },
+  rm: (parsed, { git }) =>
+    git.rm(parsed.args, {
+      cached: parsed.flags.cached === true,
+      recursive: parsed.flags.r === true,
+      force: parsed.flags.f === true,
+    }),
+  reset: (parsed, { git }) => {
+    const modes = (["soft", "mixed", "hard"] as const).filter(
+      (mode) => parsed.flags[mode] === true,
+    );
+    if (modes.length > 1) {
       return invalidArgument(
-        "fatal: GitDojo needs a branch to check out\nusage: git checkout [-b] <branch>",
+        `fatal: --${modes[0] ?? ""} and --${modes[1] ?? ""} cannot be used together`,
       );
     }
-    const result = await git.switchBranch(name);
-    if (result.error?.code !== "BRANCH_NOT_FOUND") return result;
-    // `git checkout` also restores files, so Git reports an unknown name as a pathspec.
+    // `git reset <commit> -- <paths>`: only words before `--` can be a commit.
+    const split = parsed.pathsFrom ?? parsed.args.length;
+    const [commit, ...rest] = parsed.args.slice(0, split);
+    const paths = [...rest, ...parsed.args.slice(split)];
+    return git.reset({
+      ...(modes[0] ? { mode: modes[0] } : {}),
+      ...(commit === undefined ? {} : { commit }),
+      ...(paths.length > 0 ? { paths } : {}),
+    });
+  },
+  revert: (parsed, { git }) => {
+    const action = sequencerAction(parsed);
+    if (action === "conflict")
+      return invalidArgument("fatal: choose one of --continue, --abort and --skip");
+    if (action) return git.sequencer("revert", action);
+    return git.revert(parsed.args[0] ?? "");
+  },
+  "cherry-pick": (parsed, { git }) => {
+    const action = sequencerAction(parsed);
+    if (action === "conflict")
+      return invalidArgument("fatal: choose one of --continue, --abort and --skip");
+    if (action) return git.sequencer("cherry-pick", action);
+    return git.cherryPick(parsed.args[0] ?? "");
+  },
+  stash: (parsed, { git }) => {
+    const [first, reference] = parsed.args;
+    const subcommand = first ?? "push";
+    const message = parsed.flags.m;
+    switch (subcommand) {
+      case "push":
+      case "save":
+        if (reference !== undefined) {
+          return invalidArgument("fatal: GitDojo stashes all changes; pathspecs are not supported");
+        }
+        return git.stashPush({
+          ...(typeof message === "string" ? { message } : {}),
+          includeUntracked: parsed.flags.u === true,
+        });
+      case "list":
+        return git.stashList();
+      case "apply":
+        return git.stashApply(reference);
+      case "pop":
+        return git.stashApply(reference, { pop: true });
+      case "drop":
+        return git.stashDrop(reference);
+      case "show":
+        return git.stashShow(reference);
+      default:
+        return invalidArgument(
+          `error: unknown subcommand: \`${subcommand}'\nusage: ${GIT_COMMAND_SPECS.stash.usage}`,
+        );
+    }
+  },
+  reflog: (parsed, { git }) => {
+    const [first, second] = parsed.args;
+    // `git reflog show main` and `git reflog main` mean the same.
+    const ref = first === "show" ? second : first;
+    if (first === "show" || second === undefined) return git.reflog(ref ?? "HEAD");
+    return invalidArgument(
+      `fatal: unexpected argument '${second}'\nusage: git reflog [show] [<branch>]`,
+    );
+  },
+  rebase: (parsed, { git }) => {
+    if (parsed.flags.i === true) {
+      return invalidArgument(
+        "fatal: GitDojo does not support interactive rebase yet.\nhint: To squash commits, try 'git reset --soft <commit>' and commit again.",
+      );
+    }
+    const action = sequencerAction(parsed);
+    if (action === "conflict")
+      return invalidArgument("fatal: choose one of --continue, --abort and --skip");
+    if (action) return git.rebaseControl(action);
+    return parsed.args[0] === undefined
+      ? invalidArgument(REBASE_USAGE)
+      : git.rebase(parsed.args[0]);
+  },
+  // Kept for comparison with older tutorials: switching branches and visiting commits.
+  checkout: async (parsed, { git }) => {
+    const create = parsed.flags.b;
+    const [name] = parsed.args;
+    if (typeof create === "string") return git.createAndSwitchBranch(create, name);
+    if (name === undefined) {
+      return invalidArgument(
+        "fatal: GitDojo needs a branch or commit to check out\nusage: git checkout [-b <new-branch>] <branch | commit>",
+      );
+    }
+    const isBranch = (await git.listBranches()).some(
+      (branch) => branch.name === name && branch.oid,
+    );
+    if (isBranch || name === "-") return git.switchBranch(name);
+    // Anything else that names a commit detaches HEAD there, with Git's long advice.
+    const result = await git.detachHead(name, { advice: true });
+    if (result.error?.code !== "INVALID_REVISION") return result;
+    // `git checkout` also restores files, so Git reports an unknown name as a pathspec. The
+    // learner almost always meant a branch, so that is the error code kept for explanations.
     const message = `error: pathspec '${name}' did not match any file(s) known to git`;
-    return { ...result, output: message, error: { ...result.error, message } };
+    return { ...result, output: message, error: { code: "BRANCH_NOT_FOUND", message } };
   },
 };
+
+/** `--continue`, `--abort` or `--skip`, if one (and only one) was given. */
+function sequencerAction(parsed: ParsedCommand): GitSequencerAction | "conflict" | null {
+  const actions = (["continue", "abort", "skip"] as const).filter(
+    (action) => parsed.flags[action] === true,
+  );
+  if (actions.length > 1) return "conflict";
+  return actions[0] ?? null;
+}
 
 function invalidArgument(message: string): Promise<GitCommandResult> {
   return Promise.resolve({
@@ -69,10 +211,6 @@ function invalidArgument(message: string): Promise<GitCommandResult> {
     output: message,
     error: { code: "INVALID_ARGUMENT", message },
   });
-}
-
-function startPointUnsupported(command: string): string {
-  return `fatal: GitDojo cannot create a branch at another commit yet.\nRun '${command} <name>' to branch from where you are.`;
 }
 
 function fromGitResult(result: GitCommandResult): CommandExecutionResult {

@@ -4,6 +4,11 @@ export interface ParsedCommand {
   args: string[];
   flags: Record<string, string | boolean>;
   raw: string;
+  /**
+   * Where `--` appeared, as an index into `args`: everything from there on is a path, never a
+   * revision (`git reset HEAD~1 -- README.md`). Absent when there was no `--`.
+   */
+  pathsFrom?: number;
 }
 
 export interface FlagSpec {

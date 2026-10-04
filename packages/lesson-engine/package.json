@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./node": "./src/node.ts"
+    "./node": "./src/node.ts",
+    "./testing": "./src/test-utils.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -14,7 +15,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@gitdojo/command-parser": "workspace:*",
     "@gitdojo/git-engine": "workspace:*",
+    "@gitdojo/hints": "workspace:*",
     "@gitdojo/repository-state": "workspace:*",
     "@gitdojo/shared-types": "workspace:*",
     "@gitdojo/validator": "workspace:*",
@@ -22,7 +25,6 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@gitdojo/command-parser": "workspace:*",
     "@gitdojo/config": "workspace:*",
     "@types/node": "24.19.0",
     "eslint": "9.39.5",

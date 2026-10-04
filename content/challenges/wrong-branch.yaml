@@ -1,0 +1,81 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: wrong-branch
+title: Wrong Branch
+category: branching
+difficulty: intermediate
+order: 1
+
+scenario: |
+  Deep in the zone, you made two commits for the new login page, then noticed the prompt: you
+  were on `main` the whole time. The team only merges finished features into `main`, and
+  nobody has pulled your commits yet.
+
+mission: >
+  Move both login commits onto a new branch called `feature/login`, and put `main` back where
+  it was before you started.
+
+concepts:
+  - branches
+  - reset
+
+requires:
+  - reset
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Members Area
+        index.html: |
+          <h1>Members</h1>
+    - message: Add login form
+      files:
+        login.html: |
+          <form><input name="email"><input name="password" type="password"></form>
+    - message: Validate login form
+      files:
+        login.js: |
+          export const valid = (email) => email.includes("@");
+
+objectives:
+  - id: form-moved
+    description: "`feature/login` has `Add login form`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/login
+      message: Add login form
+
+  - id: validation-moved
+    description: "`feature/login` has `Validate login form`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/login
+      message: Validate login form
+
+  - id: main-restored
+    description: "`main` points at `Initial commit` again."
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      message: Initial commit
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  form-moved:
+    - A new branch starts wherever HEAD is when you create it, commits included.
+  main-restored:
+    - Once the commits are safe on another branch, `main` can simply be moved back.
+    - Moving a branch back while keeping files untouched or not is a choice; here nothing
+      should be left over.
+  clean:
+    - Check the status for anything left over.
+
+completion:
+  xp: 150

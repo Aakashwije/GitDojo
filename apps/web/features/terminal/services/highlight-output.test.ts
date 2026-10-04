@@ -49,4 +49,38 @@ describe("highlightOutput", () => {
     expect(lines[1]).toContain("\x1b[");
     expect(highlightOutput(" login.js | 3 ++-", true)).toContain("\x1b[");
   });
+
+  it("colors unified diffs", () => {
+    const diff = [
+      "diff --git a/a.txt b/a.txt",
+      "index 1234567..89abcde 100644",
+      "--- a/a.txt",
+      "+++ b/a.txt",
+      "@@ -1,2 +1,2 @@ header",
+      " same",
+      "-old",
+      "+new",
+      "\\ No newline at end of file",
+    ].join("\n");
+    const lines = highlightOutput(diff, true).split("\n");
+    expect(lines[0]).toBe(ansi.bold("diff --git a/a.txt b/a.txt"));
+    expect(lines[3]).toBe(ansi.bold("+++ b/a.txt"));
+    expect(lines[4]).toBe(`${ansi.path("@@ -1,2 +1,2 @@")} header`);
+    expect(lines[5]).toBe(" same");
+    expect(lines[6]).toBe(ansi.error("-old"));
+    expect(lines[7]).toBe(ansi.success("+new"));
+    expect(lines[8]).toBe(ansi.muted("\\ No newline at end of file"));
+  });
+
+  it("colors reflog and stash lines", () => {
+    expect(highlightOutput("abc1234 (HEAD -> main) HEAD@{0}: commit: Add login", true)).toBe(
+      `${ansi.warning("abc1234")} ${ansi.warning("(")}${ansi.accent(ansi.bold("HEAD ->"))} ${ansi.branch(ansi.bold("main"))}${ansi.warning(")")} ${ansi.accent("HEAD@{0}")}: commit: Add login`,
+    );
+    expect(highlightOutput("stash@{1}: WIP on main: abc1234 Base", true)).toBe(
+      `${ansi.accent("stash@{1}")}: WIP on main: abc1234 Base`,
+    );
+    expect(highlightOutput("HEAD is now at abc1234 Base", true)).toBe(
+      ansi.success("HEAD is now at abc1234 Base"),
+    );
+  });
 });

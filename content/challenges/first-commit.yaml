@@ -1,0 +1,81 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: first-commit
+title: First Commit
+category: basics
+difficulty: beginner
+order: 1
+
+scenario: |
+  A friend sent you their portfolio site as a plain folder: a README, a page and a stylesheet.
+  It has never been under version control. There is also a `debug.log` their editor keeps
+  rewriting, which has no business in a repository.
+
+mission: >
+  Put the project under Git with a single commit holding the site, keep `debug.log` out of
+  history for good, and leave a clean working tree.
+
+concepts:
+  - git-init
+  - staging
+  - commits
+  - gitignore
+
+setup:
+  files:
+    README.md: |
+      # Portfolio
+
+      My work, my words.
+    index.html: |
+      <h1>Hi, I'm Sam</h1>
+      <p>I build small, fast websites.</p>
+    style.css: |
+      body { font-family: system-ui; max-width: 40rem; margin: auto; }
+    debug.log: |
+      [12:01:07] dev server started
+      [12:01:09] reload
+
+objectives:
+  - id: repository
+    description: The folder is a Git repository.
+    validator:
+      type: repository_initialized
+
+  - id: site-committed
+    description: "`index.html` is committed."
+    validator:
+      type: file_committed
+      file: index.html
+
+  - id: one-commit
+    description: History has exactly one commit.
+    validator:
+      type: commit_count
+      count: 1
+
+  - id: log-untracked
+    description: "`debug.log` is not tracked by Git."
+    validator:
+      type: file_not_tracked
+      file: debug.log
+
+  - id: clean
+    description: The working tree is clean, so `debug.log` is ignored rather than just left out.
+    validator:
+      type: clean_worktree
+
+hints:
+  site-committed:
+    - A commit records whatever is in the staging area at that moment.
+  one-commit:
+    - Stage everything that belongs to the site before you commit.
+  log-untracked:
+    - Staging a whole folder stages everything in it, wanted or not.
+  clean:
+    - Git can be told to stop reporting a file by listing it in a special file at the top of the
+      project.
+    - That special file is `.gitignore`, and it should be committed too. The editor can create it.
+
+completion:
+  xp: 100

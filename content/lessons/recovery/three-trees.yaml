@@ -1,0 +1,94 @@
+# Lesson: HEAD, Staging Area and Working Tree
+# Schema and authoring guide: docs/lesson-authoring.md
+id: three-trees
+slug: three-trees
+title: HEAD, Staging Area and Working Tree
+type: concept
+
+goal: Understand the three places a file lives, so `git reset` and `git revert` make sense.
+
+difficulty: intermediate
+
+concepts:
+  - reset
+  - head
+  - staging
+  - working-tree
+
+content:
+  - type: text
+    title: Three copies of every file
+    body: |
+      Git keeps up to three versions of each tracked file:
+
+      - **HEAD**: the version in the commit your branch points at.
+      - **Staging area** (the index): the version the next commit will record.
+      - **Working tree**: the file on disk, the one you edit.
+
+      `git status` is a report of where these three disagree. Undoing something in Git always
+      means choosing which of the three to move back.
+
+  - type: comparison
+    title: What git reset moves
+    columns:
+      - title: --soft
+        items:
+          - "HEAD: moves the branch back"
+          - "Staging area: unchanged, so the undone commit's changes are staged"
+          - "Working tree: unchanged"
+      - title: --mixed (default)
+        items:
+          - "HEAD: moves the branch back"
+          - "Staging area: matches the new HEAD"
+          - "Working tree: unchanged, so the changes are unstaged edits"
+      - title: --hard
+        items:
+          - "HEAD: moves the branch back"
+          - "Staging area: matches the new HEAD"
+          - "Working tree: matches too; uncommitted work is gone"
+
+  - type: demo
+    title: git reset --soft HEAD~1
+    steps:
+      - caption: "`main` points at C, which added `login.js`. Everything is clean."
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add homepage, parent: A }
+            - { id: C, message: Add login, parent: B }
+          branches: { main: C }
+          head: main
+      - caption: The branch moves back to B. C still exists, but no branch points at it.
+        command: git reset --soft HEAD~1
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add homepage, parent: A }
+          branches: { main: B }
+          head: main
+      - caption: C's changes are still staged, ready to be committed again, perhaps differently.
+        areas:
+          workingTree: []
+          staging: [{ path: login.js, status: staged }]
+          repository: [README.md, index.html]
+
+  - type: comparison
+    title: Reset or revert?
+    columns:
+      - title: git reset
+        items:
+          - Moves the branch back; later commits leave the history
+          - Rewrites history, so only use it on commits nobody else has
+          - Good for local mistakes
+      - title: git revert
+        items:
+          - Adds a new commit that undoes an old one
+          - History only grows, so it is safe on shared branches
+          - Good for undoing something already pushed
+
+  - type: callout
+    tone: tip
+    title: Commits are hard to lose
+    body: >-
+      A reset only moves a label. The commits it leaves behind still exist, and `git reflog`
+      remembers where HEAD has been, so even a `--hard` reset can usually be undone.

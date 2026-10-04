@@ -3,6 +3,7 @@
 import { Button } from "@gitdojo/ui";
 import { CircleCheck, FolderOpen } from "lucide-react";
 import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
+import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { EmptyState } from "./EmptyState";
 import { FileAreaPanel } from "./FileAreaPanel";
@@ -13,6 +14,7 @@ const UNSTAGED_STATUSES = new Set(["conflicted", "untracked", "modified", "delet
 export function WorkingTreePanel({ className }: { className?: string }) {
   const repository = useRepositoryStore((state) => state.repositoryState);
   const openConflict = useConflictEditorStore((state) => state.open);
+  const openFile = useEditorStore((state) => state.openFile);
   const changed = repository.files.filter((file) => UNSTAGED_STATUSES.has(file.status));
 
   return (
@@ -35,6 +37,7 @@ export function WorkingTreePanel({ className }: { className?: string }) {
               key={`${file.path}:${file.status}`}
               file={file}
               animation="enter"
+              onOpen={file.status === "deleted" ? undefined : openFile}
               action={
                 file.status === "conflicted" ? (
                   <Button

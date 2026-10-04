@@ -20,7 +20,16 @@ export {
   loadLesson,
   type LessonSource,
 } from "./loader";
-export { parseLesson, validateLessonDefinition } from "./parse";
+export { formatIssue, parseLesson, validateLessonDefinition } from "./parse";
 export { advanceProgress, createInitialProgress, type LessonProgress } from "./progress";
-export { lessonDefinitionSchema } from "./schema";
-export { resetLesson, setupLesson, type LessonEnvironment } from "./setup";
+export {
+  checkObjectives,
+  checkSetup,
+  hintsSchema,
+  identifier,
+  lessonDefinitionSchema,
+  objectiveSchema,
+  setupSchema,
+} from "./schema";
+export { applySetup, resetLesson, setupLesson, type LessonEnvironment } from "./setup";
+export { loadAllScenarios, parseScenario, playgroundScenarioSchema } from "./scenario";

@@ -1,0 +1,122 @@
+# Lesson: Copy a Commit with git cherry-pick
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-cherry-pick
+slug: git-cherry-pick
+title: Copy a Commit with git cherry-pick
+type: interactive
+
+goal: Bring one commit from another branch onto `main`, and nothing else.
+
+description: |
+  `feature/charts` is weeks from ready, but one of its commits, `Fix currency rounding`, fixes
+  a bug customers are hitting on `main` today. Merging the branch would also bring in the
+  unfinished charts.
+
+  Copy just the fix onto `main`.
+
+difficulty: intermediate
+
+concepts:
+  - cherry-pick
+  - branches
+
+commands:
+  - git cherry-pick
+  - git log --oneline
+
+content:
+  - type: example
+    title: Picking one commit
+    command: git cherry-pick 7d1e4a2
+    output: |
+      [main 9b3f0c8] Fix currency rounding
+       Date: Mon Oct 5 10:12:44 2026 +0200
+       1 file changed, 1 insertion(+), 1 deletion(-)
+    explanation: >-
+      Git applies the same change on top of your branch as a new commit, with the same message
+      and author. The original stays on its branch; the copy gets a new id.
+
+  - type: demo
+    title: A copy, not a move
+    steps:
+      - caption: "`main` needs F2, the fix, but not F1 or F3."
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: F1, message: Add charts, parent: A }
+            - { id: F2, message: Fix currency rounding, parent: F1 }
+            - { id: F3, message: Animate charts, parent: F2 }
+          branches: { main: A, feature/charts: F3 }
+          head: main
+      - caption: "F2' is a copy of F2 on `main`. The feature branch is unchanged."
+        command: git cherry-pick F2
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: F1, message: Add charts, parent: A }
+            - { id: F2, message: Fix currency rounding, parent: F1 }
+            - { id: F3, message: Animate charts, parent: F2 }
+            - { id: F2', message: Fix currency rounding, parent: A }
+          branches: { main: F2', feature/charts: F3 }
+          head: main
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Shop
+        src/money.js: |
+          export const format = (amount) => amount.toFixed(1) + " EUR";
+    - message: Add charts
+      branch: feature/charts
+      files:
+        src/charts.js: |
+          export function drawChart() {}
+    - message: Fix currency rounding
+      branch: feature/charts
+      files:
+        src/money.js: |
+          export const format = (amount) => amount.toFixed(2) + " EUR";
+    - message: Animate charts
+      branch: feature/charts
+      files:
+        src/charts.js: |
+          export function drawChart() { /* animated */ }
+
+objectives:
+  - id: fix-on-main
+    description: "`main` has the `Fix currency rounding` change."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Fix currency rounding
+
+  - id: no-charts
+    description: "`main` does not have `Add charts`."
+    validator:
+      type: commit_not_on_branch
+      branch: main
+      message: Add charts
+
+  - id: no-animation
+    description: "`main` does not have `Animate charts` either."
+    validator:
+      type: commit_not_on_branch
+      branch: main
+      message: Animate charts
+
+hints:
+  fix-on-main:
+    - Find the fix's commit id first; you can list another branch's history without leaving
+      `main`.
+    - "`git log --oneline feature/charts` lists the branch's commits, newest first."
+    - Run `git cherry-pick` with the fix's id (or `feature/charts~1`).
+  no-charts:
+    - Merging would bring every commit. If you merged, reset the lesson.
+  no-animation:
+    - Only one commit should come across.
+
+completion:
+  xp: 100

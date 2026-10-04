@@ -98,3 +98,53 @@ export function topologicalOrder(commits: readonly GitCommitInfo[]): GitCommitIn
   }
   return ordered;
 }
+
+/** True when `ancestor` is `oid` itself or one of its ancestors. */
+export async function isAncestor(ctx: GitContext, ancestor: string, oid: string): Promise<boolean> {
+  if (ancestor === oid) return true;
+  return git.isDescendent({ fs: ctx.fs, dir: ctx.dir, oid, ancestor, depth: -1 });
+}
+
+/** Every oid reachable from any branch. */
+async function reachableFromBranches(ctx: GitContext): Promise<Set<string>> {
+  const reached = new Set<string>();
+  for (const branch of await git.listBranches({ fs: ctx.fs, dir: ctx.dir })) {
+    const tip = await resolveRefOrNull(ctx, `refs/heads/${branch}`);
+    if (tip === null || reached.has(tip)) continue;
+    for (const commit of await readCommits(ctx, tip)) reached.add(commit.oid);
+  }
+  return reached;
+}
+
+/**
+ * Commits reachable from `oid` but from no branch, newest first. When HEAD leaves such a commit
+ * (a detached HEAD, or a branch reset away from it) only the reflog still remembers it.
+ */
+export async function unreachableFromBranches(
+  ctx: GitContext,
+  oid: string,
+): Promise<GitCommitInfo[]> {
+  const reached = await reachableFromBranches(ctx);
+  return (await readCommits(ctx, oid)).filter((commit) => !reached.has(commit.oid));
+}
+
+export function subject(message: string): string {
+  return message.split("\n")[0] ?? "";
+}
+
+/** `abc1234 Commit subject`, as Git prints a commit in one line. */
+export async function describeCommit(ctx: GitContext, oid: string): Promise<string> {
+  const { commit } = await git.readCommit({ fs: ctx.fs, dir: ctx.dir, oid });
+  return `${shortOid(oid)} ${subject(commit.message)}`;
+}
+
+/** Points the current branch (or a detached HEAD) at `oid`. HEAD itself stays attached. */
+export async function moveHead(ctx: GitContext, branch: string | null, oid: string): Promise<void> {
+  await git.writeRef({
+    fs: ctx.fs,
+    dir: ctx.dir,
+    ref: branch === null ? "HEAD" : `refs/heads/${branch}`,
+    value: oid,
+    force: true,
+  });
+}

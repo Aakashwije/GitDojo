@@ -1,3 +1,4 @@
+import { normalizeHints } from "@gitdojo/hints";
 import { type LessonObjective } from "@gitdojo/shared-types";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -34,18 +35,55 @@ describe("ObjectiveList", () => {
 });
 
 describe("HintPanel", () => {
-  it("reveals hints one at a time", async () => {
+  const hints = normalizeHints(["First.", "Second.", "Try `git init`."]);
+  const state = (revealedHints: number) => ({ objectiveId: "init", revealedHints, totalHints: 3 });
+
+  it("reveals hints one at a time, labelled by level", async () => {
     const onReveal = vi.fn();
-    const hints = ["First.", "Second.", "Try `git init`."];
-    const { rerender } = render(<HintPanel hints={hints} revealed={0} onReveal={onReveal} />);
+    const { rerender } = render(<HintPanel hints={hints} state={undefined} onReveal={onReveal} />);
     expect(screen.getByText("Need help?")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Reveal hint" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show a hint" }));
     expect(onReveal).toHaveBeenCalledOnce();
 
-    rerender(<HintPanel hints={hints} revealed={3} onReveal={onReveal} />);
-    expect(screen.getByText("Hint 3 of 3")).toBeInTheDocument();
+    rerender(<HintPanel hints={hints} state={state(2)} onReveal={onReveal} />);
+    expect(screen.getByText("Hint 2 of 3")).toBeInTheDocument();
+    expect(screen.getAllByTestId("hint").map((hint) => hint.dataset.level)).toEqual(["1", "2"]);
+    expect(screen.getByText("Concept")).toBeInTheDocument();
+    expect(screen.getByText("Command")).toBeInTheDocument();
+
+    rerender(<HintPanel hints={hints} state={state(3)} onReveal={onReveal} />);
+    expect(screen.getByText("Answer")).toBeInTheDocument();
     expect(screen.getByText("git init").tagName).toBe("CODE");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("asks before revealing the exact command", async () => {
+    const onReveal = vi.fn();
+    render(<HintPanel hints={hints} state={state(2)} onReveal={onReveal} />);
+    await userEvent.click(screen.getByRole("button", { name: "Show the answer" }));
+    expect(onReveal).not.toHaveBeenCalled();
+    expect(screen.getByRole("group", { name: "Show the answer?" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Not yet" }));
+    expect(screen.queryByRole("group", { name: "Show the answer?" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Show the answer" }));
+    await userEvent.click(screen.getByTestId("confirm-answer"));
+    expect(onReveal).toHaveBeenCalledOnce();
+  });
+
+  it("says what is still missing, even without hints", () => {
+    render(
+      <HintPanel
+        hints={[]}
+        state={undefined}
+        onReveal={vi.fn()}
+        missing="README.md is not staged."
+      />,
+    );
+    expect(screen.getByTestId("hint-missing")).toHaveTextContent(
+      "Not yet: README.md is not staged.",
+    );
   });
 });
 

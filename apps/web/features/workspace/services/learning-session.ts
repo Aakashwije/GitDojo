@@ -1,4 +1,3 @@
-import { runCommandLine, type CommandExecutionResult } from "@gitdojo/command-parser";
 import {
   advanceProgress,
   createInitialProgress,
@@ -13,6 +12,10 @@ import {
   type RepositoryState,
 } from "@gitdojo/shared-types";
 import { validateLesson } from "@gitdojo/validator";
+import {
+  WorkspaceSession,
+  type CommandOutcome as WorkspaceCommandOutcome,
+} from "./workspace-session";
 
 export interface SessionSnapshot {
   repository: RepositoryState;
@@ -20,10 +23,7 @@ export interface SessionSnapshot {
   progress: LessonProgress;
 }
 
-export interface CommandOutcome {
-  result: CommandExecutionResult;
-  snapshot: SessionSnapshot;
-}
+export type CommandOutcome = WorkspaceCommandOutcome<SessionSnapshot>;
 
 export function workspaceIdForLesson(lesson: LessonDefinition): string {
   return `lesson-${lesson.id}`;
@@ -32,21 +32,20 @@ export function workspaceIdForLesson(lesson: LessonDefinition): string {
 /**
  * One learner's attempt at one lesson. Implements the core loop:
  * command → Git engine → repository state → validation → progress.
- * Operations are queued so a reset can never interleave with a running command.
  */
-export class LearningSession {
-  readonly workspaceId: string;
+export class LearningSession extends WorkspaceSession<SessionSnapshot> {
   readonly lessonId: string;
   private progress: LessonProgress;
-  private queue: Promise<unknown> = Promise.resolve();
   private started: Promise<unknown> | null = null;
   private latest: SessionSnapshot | null = null;
 
   constructor(
     private readonly lesson: LessonDefinition,
-    private readonly env: LessonEnvironment,
+    env: LessonEnvironment,
+    /** Challenges use their own workspaces, so ids never clash with lessons. */
+    workspaceId: string = workspaceIdForLesson(lesson),
   ) {
-    this.workspaceId = workspaceIdForLesson(lesson);
+    super(workspaceId, env);
     this.lessonId = lesson.id;
     this.progress = createInitialProgress(lesson);
   }
@@ -64,34 +63,6 @@ export class LearningSession {
     return this.enqueue(() => Promise.resolve(this.requireLatest()));
   }
 
-  execute(input: string): Promise<CommandOutcome> {
-    return this.enqueue(async () => {
-      const result = await runCommandLine(input, {
-        workspaceId: this.workspaceId,
-        git: this.env.gitFor(this.workspaceId),
-      });
-      // Recompute from scratch after every command; the UI never patches state incrementally.
-      const repository = await this.env.stateReader.read(this.workspaceId);
-      return { result, snapshot: await this.evaluate(repository) };
-    });
-  }
-
-  /** Reads a working-tree file, e.g. to open it in the conflict editor. */
-  readFile(path: string): Promise<string> {
-    return this.enqueue(() => this.env.files.readFile(this.workspaceId, path));
-  }
-
-  /**
-   * Saves a working-tree file edited in the UI. Like a command, it is followed by a fresh read of
-   * the repository and a new evaluation (editing a file is not a Git command, so no output).
-   */
-  writeFile(path: string, content: string): Promise<SessionSnapshot> {
-    return this.enqueue(async () => {
-      await this.env.files.writeFile(this.workspaceId, path, content);
-      return this.evaluate(await this.env.stateReader.read(this.workspaceId));
-    });
-  }
-
   reset(): Promise<SessionSnapshot> {
     return this.enqueue(async () => {
       this.progress = createInitialProgress(this.lesson);
@@ -99,7 +70,7 @@ export class LearningSession {
     });
   }
 
-  private async evaluate(repository: RepositoryState): Promise<SessionSnapshot> {
+  protected async evaluate(repository: RepositoryState): Promise<SessionSnapshot> {
     const validation = await validateLesson(this.lesson, { repository });
     this.progress = advanceProgress(this.lesson, this.progress, validation);
     this.latest = { repository, validation, progress: this.progress };
@@ -109,12 +80,5 @@ export class LearningSession {
   private requireLatest(): SessionSnapshot {
     if (!this.latest) throw new Error("Learning session has not been set up");
     return this.latest;
-  }
-
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(task, task);
-    // Keep the queue alive after failures; callers still receive the rejection.
-    this.queue = run.catch(() => undefined);
-    return run;
   }
 }

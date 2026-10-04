@@ -1,0 +1,84 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: detached-head
+title: Detached HEAD
+category: branching
+difficulty: intermediate
+order: 2
+
+scenario: |
+  Yesterday you checked out an old commit to chase a rounding bug, found it, and committed a fix
+  and a test right there. Git warned you about a "detached HEAD", but it was late.
+
+  Today HEAD still points at your work, and no branch does.
+
+mission: >
+  Make sure both commits survive on a branch called `fix/rounding`, then get back to `main`.
+
+concepts:
+  - detached-head
+  - branches
+  - head
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Checkout
+        src/cart.js: |
+          export const total = (items) => items.reduce((sum, item) => sum + item.price, 0);
+    - message: Fix rounding of totals
+      branch: experiment
+      files:
+        src/cart.js: |
+          const round = (value) => Math.round(value * 100) / 100;
+          export const total = (items) => round(items.reduce((sum, item) => sum + item.price, 0));
+    - message: Add a test for rounding
+      branch: experiment
+      files:
+        test/cart.test.js: |
+          // total([{ price: 0.1 }, { price: 0.2 }]) === 0.3
+    - message: Add wishlist
+      files:
+        src/wishlist.js: |
+          export const wishlist = [];
+  commands:
+    # Leave HEAD on the last experiment commit, with no branch pointing there.
+    - git switch --detach experiment
+    - git branch -D experiment
+
+objectives:
+  - id: fix-kept
+    description: "`fix/rounding` contains the rounding fix."
+    validator:
+      type: branch_contains_commit
+      branch: fix/rounding
+      message: Fix rounding of totals
+
+  - id: test-kept
+    description: "`fix/rounding` contains the test too."
+    validator:
+      type: branch_contains_commit
+      branch: fix/rounding
+      message: Add a test for rounding
+
+  - id: on-main
+    description: You are back on `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+hints:
+  fix-kept:
+    - Commits made on a detached HEAD belong to no branch. Leave, and only the reflog remembers
+      them.
+    - A new branch starts wherever HEAD is when you create it.
+  test-kept:
+    - The newest commit is the one HEAD points at; its parent comes with it.
+  on-main:
+    - Once the work has a branch of its own, leaving is safe.
+
+completion:
+  xp: 150

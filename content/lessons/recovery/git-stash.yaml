@@ -1,0 +1,124 @@
+# Lesson: Shelve Work with git stash
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-stash
+slug: git-stash
+title: Shelve Work with git stash
+type: interactive
+
+goal: Put unfinished work aside, switch branches, and bring the work back later.
+
+description: |
+  You are halfway through a profile page on `feature/profile` when someone asks you to check
+  something on `main`. Your edit to `profile.js` is not ready to commit, and `main` has a
+  different version of that file, so Git will not let you switch.
+
+  Shelve the work, visit `main`, come back, and pick up exactly where you were.
+
+difficulty: intermediate
+
+concepts:
+  - stash
+  - branches
+
+commands:
+  - git stash
+  - git stash list
+  - git stash pop
+  - git switch
+
+content:
+  - type: example
+    title: Shelving work
+    command: git stash
+    output: |
+      Saved working directory and index state WIP on feature/profile: 1a2b3c4 Add profile page
+    explanation: >-
+      Your uncommitted changes are saved in a stash entry and the files go back to the last
+      commit, so switching branches is safe again. Untracked files stay put unless you add `-u`.
+
+  - type: comparison
+    title: Getting work back
+    columns:
+      - title: git stash pop
+        items:
+          - Reapplies the newest entry
+          - Removes it from the stash list
+      - title: git stash apply
+        items:
+          - Reapplies the newest entry
+          - Keeps it in the list (drop it later with `git stash drop`)
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Social App
+        profile.js: |
+          export const profile = {};
+    - message: Add profile page
+      branch: feature/profile
+      files:
+        profile.html: |
+          <h1>Profile</h1>
+    - message: Show user names
+      files:
+        profile.js: |
+          export const profile = { name: "" };
+  currentBranch: feature/profile
+  files:
+    profile.js: |
+      export const profile = { avatar: "" };
+
+objectives:
+  - id: stashed
+    description: Your unfinished work is in the stash.
+    validator:
+      type: stash_count
+      count: 1
+
+  - id: on-main
+    description: You are on `main`.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: back
+    description: You are back on `feature/profile`.
+    validator:
+      type: current_branch
+      branch: feature/profile
+
+  - id: restored
+    description: "`profile.js` has your unfinished edit again."
+    validator:
+      type: file_status
+      file: profile.js
+      status: modified
+
+  - id: stash-empty
+    description: The stash is empty again.
+    validator:
+      type: stash_count
+      count: 0
+
+hints:
+  stashed:
+    - Try `git switch main` first and read why Git refuses.
+    - You need to put the uncommitted change somewhere safe without committing it.
+    - Run `git stash`.
+  on-main:
+    - With the working tree clean, switching is safe again.
+    - Run `git switch main`.
+  back:
+    - Run `git switch feature/profile`.
+  restored:
+    - The stash still holds your edit. Bring the newest entry back.
+    - Run `git stash pop`.
+  stash-empty:
+    - "`git stash pop` removes the entry it applied; `git stash apply` keeps it."
+    - If you used `apply`, run `git stash drop`.
+
+completion:
+  xp: 100

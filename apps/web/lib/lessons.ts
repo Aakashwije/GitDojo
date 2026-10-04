@@ -12,9 +12,8 @@ import {
 } from "@gitdojo/lesson-engine/node";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import path from "node:path";
+import { CONTENT_DIR } from "./content";
 
-// Lessons are read and validated at build time; an invalid lesson fails `next build`.
-const CONTENT_DIR = path.join(process.cwd(), "..", "..", "content");
 const LESSONS_DIR = path.join(CONTENT_DIR, "lessons");
 const courses = createDirectoryCourseSource(path.join(CONTENT_DIR, "courses"));
 const lessonsFor = (course: string) => createDirectoryLessonSource(path.join(LESSONS_DIR, course));

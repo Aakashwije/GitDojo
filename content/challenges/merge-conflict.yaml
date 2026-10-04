@@ -1,0 +1,95 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: merge-conflict
+title: Merge Conflict
+category: conflicts
+difficulty: intermediate
+order: 1
+
+scenario: |
+  The `release/2.0` branch moved the API to a new host and updated the setup guide. Meanwhile
+  `main` raised the request timeout on the same line, and deleted the setup guide because the
+  README now covers it.
+
+  You are on `release/2.0`, about to ship it.
+
+mission: >
+  Bring `release/2.0` into `main` with a merge commit. Keep the new host and the longer timeout,
+  decide what happens to the setup guide, and finish on `main` with nothing left uncommitted.
+
+concepts:
+  - merge-conflicts
+  - merging
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Forecast API client
+        src/config.js: |
+          export const api = { host: "api.example.com", timeout: 5000 };
+          export const retries = 2;
+        docs/setup.md: |
+          1. Install dependencies.
+          2. Run the client.
+    - message: Move to the v2 API host
+      branch: release/2.0
+      files:
+        src/config.js: |
+          export const api = { host: "v2.api.example.com", timeout: 5000 };
+          export const retries = 2;
+        docs/setup.md: |
+          1. Install dependencies.
+          2. Set API_HOST=v2.api.example.com.
+          3. Run the client.
+    - message: Raise the request timeout
+      files:
+        src/config.js: |
+          export const api = { host: "api.example.com", timeout: 15000 };
+          export const retries = 2;
+        README.md: |
+          # Forecast API client
+
+          Install dependencies, then run the client.
+        docs/setup.md: null # the README covers setup now
+  currentBranch: release/2.0
+
+objectives:
+  - id: on-main
+    description: You are on `main`, the branch receiving the release.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: resolved
+    description: Every conflict is resolved, including what happens to `docs/setup.md`.
+    validator:
+      type: all_conflicts_resolved
+
+  - id: merged
+    description: "`main` has a merge commit bringing in `release/2.0`."
+    validator:
+      type: merge_completed
+      branch: release/2.0
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  on-main:
+    - A merge brings another branch into the one you are on.
+  resolved:
+    - "Not every conflict is about lines: one side changed a file the other side deleted."
+    - Whether you keep or delete the guide, Git needs you to record that decision in the staging
+      area.
+  merged:
+    - A merge that stopped for conflicts only finishes once it is committed.
+  clean:
+    - Check the status for anything left over.
+
+completion:
+  xp: 150

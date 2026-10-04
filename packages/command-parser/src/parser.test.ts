@@ -143,15 +143,31 @@ describe("parseCommand", () => {
     });
 
     it("explains that real but unsupported git commands are coming", () => {
-      expect(errorOf("git rebase main").message).toBe(
-        "git: 'rebase' is not available in GitDojo yet.",
+      expect(errorOf("git push origin main").message).toBe(
+        "git: 'push' is not available in GitDojo yet.",
       );
     });
 
+    it("records where `--` separates paths from revisions", () => {
+      expect(parsed("git reset HEAD~1 -- README.md")).toMatchObject({
+        args: ["HEAD~1", "README.md"],
+        pathsFrom: 1,
+      });
+      expect(parsed("git reset HEAD~1")).not.toHaveProperty("pathsFrom");
+    });
+
+    it("accepts bundled short flags", () => {
+      expect(parsed("git rm -rf docs").flags).toEqual({ r: true, f: true });
+      expect(parsed('git stash -um "wip"').flags).toEqual({ u: true, m: "wip" });
+      expect(errorOf("git rm -rx docs").code).toBe("UNKNOWN_FLAG");
+      expect(errorOf("git stash -um").code).toBe("MISSING_FLAG_VALUE");
+    });
+
     it("limits the number of arguments", () => {
-      expect(errorOf("git branch a b")).toEqual({
+      expect(errorOf("git branch a b c")).toEqual({
         code: "UNEXPECTED_ARGUMENT",
-        message: "error: unexpected argument 'b'\nusage: git branch [<name>]",
+        message:
+          "error: unexpected argument 'c'\nusage: git branch [-d | -D] [<name> [<start-point>]]",
       });
       expect(errorOf("git switch a b").code).toBe("UNEXPECTED_ARGUMENT");
     });

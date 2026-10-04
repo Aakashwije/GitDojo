@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeHints } from "@gitdojo/hints";
 import { lessonTypeOf, type LessonDefinition } from "@gitdojo/shared-types";
 import { Badge, cn, Panel, PanelBody, PanelFooter, PanelHeader, PanelTitle } from "@gitdojo/ui";
 import { BookOpen, Flag } from "lucide-react";
@@ -28,12 +29,22 @@ export function LessonPanel({ lesson, course, onPracticeAgain, className }: Less
   const progress = useLessonStore((state) =>
     state.progress?.lessonId === lesson.id ? state.progress : null,
   );
-  const revealedHints = useLessonStore((state) => state.revealedHints);
+  const hintStates = useLessonStore((state) => state.hintStates);
   const revealHint = useLessonStore((state) => state.revealHint);
+  const commandCount = useLessonStore((state) => state.commandCount);
+  const validation = useLessonStore((state) =>
+    state.validation?.lessonId === lesson.id ? state.validation : null,
+  );
 
   const currentId = progress?.currentObjectiveId ?? lesson.objectives[0]?.id ?? null;
-  const hints = currentId ? (lesson.hints?.[currentId] ?? []) : [];
   const challenge = lessonTypeOf(lesson) === "challenge";
+  const hints = currentId ? normalizeHints(lesson.hints?.[currentId], { challenge }) : [];
+  // What the current objective's validator says is missing, once the learner has started.
+  const missing =
+    commandCount > 0 && currentId
+      ? (validation?.objectives.find((o) => o.objectiveId === currentId && !o.passed)?.reason ??
+        null)
+      : null;
 
   return (
     <Panel aria-label="Lesson" className={cn("bg-surface", className)}>
@@ -52,15 +63,23 @@ export function LessonPanel({ lesson, course, onPracticeAgain, className }: Less
       <PanelBody className="space-y-6">
         <div>
           <h1 className="text-h3 font-semibold text-fg">{lesson.title}</h1>
+          {challenge && lesson.description ? (
+            <div className="mt-4">
+              <h2 className="text-micro font-semibold tracking-wider text-fg-muted uppercase">
+                Scenario
+              </h2>
+              <RichText text={lesson.description} className="mt-1 text-small text-fg-secondary" />
+            </div>
+          ) : null}
           {lesson.goal ? (
             <div className="mt-4">
               <h2 className="text-micro font-semibold tracking-wider text-fg-muted uppercase">
-                Goal
+                {challenge ? "Mission" : "Goal"}
               </h2>
               <p className="mt-1 text-body text-fg">{renderInline(lesson.goal)}</p>
             </div>
           ) : null}
-          {lesson.description ? (
+          {!challenge && lesson.description ? (
             <RichText text={lesson.description} className="mt-4 text-small text-fg-secondary" />
           ) : null}
         </div>
@@ -77,9 +96,10 @@ export function LessonPanel({ lesson, course, onPracticeAgain, className }: Less
           <HintPanel
             key={currentId}
             hints={hints}
-            revealed={revealedHints[currentId] ?? 0}
+            state={hintStates[currentId]}
+            missing={missing}
             onReveal={() => {
-              revealHint(currentId);
+              revealHint(currentId, hints.length);
             }}
           />
         ) : null}

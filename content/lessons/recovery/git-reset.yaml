@@ -1,0 +1,112 @@
+# Lesson: Undo Commits with git reset
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-reset
+slug: git-reset
+title: Undo Commits with git reset
+type: interactive
+
+goal: Take back a commit you just made, keep its changes, and commit them properly.
+
+description: |
+  You committed in a hurry: the last commit is called `WIP` and contains your login form
+  together with a stray `debug.log`. Nobody else has seen it yet, so you can rewrite it.
+
+  Undo the commit while keeping its changes, then commit the login form on its own, with a
+  real message.
+
+difficulty: intermediate
+
+concepts:
+  - reset
+  - head
+  - staging
+
+commands:
+  - git reset
+  - git reset --soft
+  - git log --oneline
+  - git commit
+
+content:
+  - type: example
+    title: Undo the last commit, keep the changes
+    command: git reset HEAD~1
+    output: |
+      Unstaged changes after reset:
+      M	src/app.js
+    explanation: >-
+      `HEAD~1` means "one commit before HEAD". The branch moves back there; the undone commit's
+      changes stay in your files as unstaged edits (new files become untracked again).
+
+  - type: example
+    title: The same, but keep them staged
+    command: git reset --soft HEAD~1
+    explanation: Nothing is printed. The changes are still staged, ready to commit again.
+
+  - type: callout
+    tone: warning
+    body: >-
+      `git reset --hard` also throws away the changes in your files. Use it only when you really
+      want to discard work.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Chat App
+        src/app.js: |
+          export const app = { name: "chat" };
+    - message: WIP
+      files:
+        src/login.js: |
+          export function login(user) {
+            return fetch("/login", { method: "POST", body: JSON.stringify(user) });
+          }
+        debug.log: |
+          [10:42:03] login failed: 401
+
+objectives:
+  - id: undo
+    description: The `WIP` commit is no longer on `main`.
+    validator:
+      type: commit_not_on_branch
+      branch: main
+      message: WIP
+
+  - id: kept
+    description: The login form is still in your working tree.
+    validator:
+      type: file_exists
+      file: src/login.js
+
+  - id: recommit
+    description: "`main` has a commit `Add login form`."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add login form
+
+  - id: log-not-committed
+    description: "`debug.log` is not part of any commit on `main`."
+    validator:
+      type: file_not_tracked
+      file: debug.log
+
+hints:
+  undo:
+    - Undoing a local commit means moving the branch back to the commit before it.
+    - "`git reset` moves the branch; `HEAD~1` names the commit before HEAD."
+    - Run `git reset HEAD~1`.
+  kept:
+    - A default (mixed) reset keeps your files. Only `--hard` would remove them.
+  recommit:
+    - Stage just the login form this time.
+    - Run `git add src/login.js`, then `git commit -m "Add login form"`.
+  log-not-committed:
+    - "`git status` should list `debug.log` as untracked, not staged."
+    - If you staged it, run `git restore --staged debug.log`.
+
+completion:
+  xp: 100

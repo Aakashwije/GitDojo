@@ -87,6 +87,47 @@ describe("validators", () => {
     });
   });
 
+  describe("file_committed / file_not_tracked", () => {
+    const repo = state({
+      files: [
+        { path: "README.md", status: "committed" },
+        { path: "app.js", status: "modified" },
+        { path: "debug.log", status: "untracked" },
+        { path: "new.js", status: "staged" },
+      ],
+      stagedFiles: [
+        { path: "new.js", status: "staged", change: "added" },
+        { path: "old.js", status: "staged", change: "deleted" },
+      ],
+    });
+
+    it("file_committed passes only for unchanged committed files", async () => {
+      expect((await check({ type: "file_committed", file: "README.md" }, repo)).passed).toBe(true);
+      expect(await check({ type: "file_committed", file: "app.js" }, repo)).toEqual({
+        passed: false,
+        reason: "app.js has changes that are not committed.",
+      });
+      expect((await check({ type: "file_committed", file: "debug.log" }, repo)).reason).toBe(
+        "debug.log has never been committed.",
+      );
+      expect((await check({ type: "file_committed", file: "nope" }, repo)).reason).toBe(
+        "nope is not in the repository.",
+      );
+    });
+
+    it("file_not_tracked passes for untracked, ignored, absent and removed files", async () => {
+      for (const file of ["debug.log", "ignored.tmp", "old.js"]) {
+        expect((await check({ type: "file_not_tracked", file }, repo)).passed).toBe(true);
+      }
+      for (const file of ["README.md", "app.js", "new.js"]) {
+        expect(await check({ type: "file_not_tracked", file }, repo)).toEqual({
+          passed: false,
+          reason: `Git is tracking ${file}.`,
+        });
+      }
+    });
+  });
+
   describe("commit_exists", () => {
     it("fails without commits", async () => {
       expect((await check({ type: "commit_exists" }, state())).passed).toBe(false);
@@ -352,7 +393,7 @@ describe("merge validators", () => {
 
   const conflicted = state({
     ...before,
-    merge: { branch: "feature/login", oid: C },
+    merge: { kind: "merge", branch: "feature/login", oid: C },
     conflicts: [
       { path: "src/auth.ts", ours: "a", theirs: "b", base: "c", resolved: true },
       { path: "src/config.ts", ours: "a", theirs: "b", base: "c", resolved: false },
@@ -502,6 +543,127 @@ describe("validatorDefinitionSchema", () => {
     { type: "branch_contains_commit", branch: "main" },
     { type: "conflict_resolved" },
     { type: "branches_merged" },
+  ])("rejects %j", (definition) => {
+    expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
+  });
+});
+
+describe("recovery validators", () => {
+  // main: A ← B ← R (reverts B);  feature: A ← F1 ← F2 (rebased onto A, linear)
+  const A = commit("Initial commit", "a".repeat(40));
+  const B = { ...commit("Add dark mode", "b".repeat(40)), parents: [A.oid] };
+  const R = {
+    ...commit(`Revert "Add dark mode"\n\nThis reverts commit ${B.oid}.`, "c".repeat(40)),
+    parents: [B.oid],
+  };
+  const F1 = { ...commit("Add search", "d".repeat(40)), parents: [B.oid] };
+  const F2 = { ...commit("Style search", "e".repeat(40)), parents: [F1.oid] };
+  const M = { ...commit("Merge main", "f".repeat(40)), parents: [F2.oid, R.oid] };
+  const repo = state({
+    head: R.oid,
+    branches: [
+      { name: "main", oid: R.oid, current: true },
+      { name: "feature", oid: F2.oid, current: false },
+      { name: "merged", oid: M.oid, current: false },
+    ],
+    commits: [R, B, A],
+    allCommits: [M, F2, F1, R, B, A],
+    files: [
+      { path: "app.js", status: "modified" },
+      { path: "README.md", status: "committed" },
+    ],
+    stashes: [
+      {
+        selector: "stash@{0}",
+        message: "WIP on main",
+        branch: "main",
+        oid: "9".repeat(40),
+        files: ["app.js"],
+      },
+    ],
+  });
+
+  it("file_status compares the exact working-tree status", async () => {
+    expect(
+      (await check({ type: "file_status", file: "app.js", status: "modified" }, repo)).passed,
+    ).toBe(true);
+    expect(
+      await check({ type: "file_status", file: "README.md", status: "modified" }, repo),
+    ).toEqual({
+      passed: false,
+      reason:
+        "README.md should be modified and not staged, but it is unchanged since the last commit.",
+    });
+    expect(
+      (await check({ type: "file_status", file: "gone.txt", status: "committed" }, repo)).reason,
+    ).toContain("not in the working tree");
+  });
+
+  it("commit_not_on_branch passes once a commit is gone from a branch", async () => {
+    expect(
+      (await check({ type: "commit_not_on_branch", branch: "main", message: "Add search" }, repo))
+        .passed,
+    ).toBe(true);
+    expect(
+      await check({ type: "commit_not_on_branch", branch: "main", message: "Add dark mode" }, repo),
+    ).toEqual({
+      passed: false,
+      reason: 'main still contains "Add dark mode".',
+    });
+    expect(
+      (await check({ type: "commit_not_on_branch", branch: "nope", message: "x" }, repo)).passed,
+    ).toBe(false);
+  });
+
+  it("commit_reverted finds git revert's commit message", async () => {
+    expect((await check({ type: "commit_reverted", message: "Add dark mode" }, repo)).passed).toBe(
+      true,
+    );
+    expect(
+      (await check({ type: "commit_reverted", message: "Add dark mode", branch: "feature" }, repo))
+        .reason,
+    ).toBe('There is no commit on feature reverting "Add dark mode".');
+  });
+
+  it("branch_rebased needs the new base and a straight line on top of it", async () => {
+    const rebased = state({
+      ...repo,
+      branches: [
+        { name: "main", oid: B.oid, current: true },
+        { name: "feature", oid: F2.oid, current: false },
+        { name: "merged", oid: M.oid, current: false },
+      ],
+    });
+    expect(
+      (await check({ type: "branch_rebased", branch: "feature", onto: "main" }, rebased)).passed,
+    ).toBe(true);
+    // main (R) is not in feature's history yet.
+    expect(
+      (await check({ type: "branch_rebased", branch: "feature", onto: "main" }, repo)).reason,
+    ).toBe("feature is not based on main yet.");
+    // Merging main in is not rebasing.
+    expect(
+      (await check({ type: "branch_rebased", branch: "merged", onto: "main" }, repo)).reason,
+    ).toContain("merge commit");
+  });
+
+  it("head_detached and stash_count", async () => {
+    expect((await check({ type: "head_detached" }, repo)).passed).toBe(false);
+    expect(
+      (await check({ type: "head_detached" }, state({ ...repo, currentBranch: null }))).passed,
+    ).toBe(true);
+    expect((await check({ type: "stash_count", count: 1 }, repo)).passed).toBe(true);
+    expect((await check({ type: "stash_count", count: 0 }, repo)).reason).toBe(
+      "Expected 0 stash entries, found 1.",
+    );
+  });
+
+  it.each([
+    { type: "file_status", file: "a", status: "weird" },
+    { type: "commit_not_on_branch", branch: "main" },
+    { type: "commit_reverted" },
+    { type: "branch_rebased", branch: "x" },
+    { type: "stash_count", count: -1 },
   ])("rejects %j", (definition) => {
     expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
   });

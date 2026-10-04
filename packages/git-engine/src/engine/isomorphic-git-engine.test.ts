@@ -283,6 +283,8 @@ describe("IsomorphicGitEngine", () => {
         commits: [],
         allCommits: [],
         merge: null,
+        reflog: [],
+        stashes: [],
         entries: [
           {
             path: "README.md",

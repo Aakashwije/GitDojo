@@ -1,0 +1,109 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: repository-recovery
+title: Repository Recovery
+category: advanced
+difficulty: advanced
+order: 1
+
+scenario: |
+  A colleague tried to "clean up" the repository before going on holiday. Their terminal
+  history shows they stashed someone's unfinished dark-mode work, deleted the `feature/reports`
+  branch, and ran `git reset --hard HEAD~1` on `main`, throwing away `Add invoice PDFs`.
+
+  The holiday has started. It is up to you.
+
+mission: >
+  Restore `main` with `Add invoice PDFs`, bring back `feature/reports` with its commit, commit
+  the stashed dark-mode work on `main` as `Add dark mode`, and leave the stash empty and the
+  working tree clean.
+
+concepts:
+  - reflog
+  - stash
+  - reset
+  - branches
+
+requires:
+  - reflog
+  - stash
+  - reset
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Accounting
+        src/theme.css: |
+          body { background: white; }
+    - message: Add monthly reports
+      branch: feature/reports
+      files:
+        src/reports.js: |
+          export const monthly = () => [];
+    - message: Add invoices
+      files:
+        src/invoices.js: |
+          export const invoices = [];
+    - message: Add invoice PDFs
+      files:
+        src/pdf.js: |
+          export const toPdf = (invoice) => new Blob([JSON.stringify(invoice)]);
+  files:
+    src/theme.css: |
+      body { background: #111; color: #eee; }
+  commands:
+    - git stash
+    - git branch -D feature/reports
+    - git reset --hard HEAD~1
+
+objectives:
+  - id: pdfs
+    description: "`main` contains `Add invoice PDFs` again."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add invoice PDFs
+
+  - id: reports
+    description: "`feature/reports` exists again with `Add monthly reports`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/reports
+      message: Add monthly reports
+
+  - id: dark-mode
+    description: "`main` has a commit `Add dark mode` with the stashed work."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add dark mode
+
+  - id: stash-empty
+    description: Nothing is left in the stash.
+    validator:
+      type: stash_count
+      count: 0
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  pdfs:
+    - Every place HEAD has been, including before the reset, is on record.
+  reports:
+    - A deleted branch's commits are still there; only the label is gone.
+    - HEAD was on that branch when its commit was made, so that moment is on record too.
+  dark-mode:
+    - Shelved work waits until you bring it back.
+  stash-empty:
+    - Bringing an entry back does not always remove it from the list.
+  clean:
+    - Check the status for anything left over.
+
+completion:
+  xp: 300

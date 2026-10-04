@@ -1,0 +1,27 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: simple
+title: Simple Repository
+description: >
+  A small project with three commits on main and a clean working tree. A good place to try
+  editing, staging, committing and reading history.
+order: 2
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+
+          Shows the forecast for your city.
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather App</h1>
+          <p id="forecast">Loading…</p>
+    - message: Add forecast script
+      files:
+        src/app.js: |
+          const forecast = document.querySelector("#forecast");
+          forecast.textContent = "Sunny, 24°C";

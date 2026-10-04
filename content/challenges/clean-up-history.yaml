@@ -1,0 +1,108 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: clean-up-history
+title: Clean Up History
+category: history
+difficulty: advanced
+order: 2
+
+scenario: |
+  `feature/search` works, but its history tells the story of an afternoon: `wip`, `more wip`,
+  `fix typo`, `actually works now`. Reviewers will read every one of them. Nobody else has the
+  branch yet.
+
+  You are on `feature/search`.
+
+mission: >
+  Replace the four messy commits with a single commit called `Add search`, keeping the final
+  code exactly as it is.
+
+concepts:
+  - reset
+  - history
+  - squash
+
+requires:
+  - reset
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Library
+        src/books.js: |
+          export const books = ["Dune", "Emma"];
+    - message: wip
+      branch: feature/search
+      files:
+        src/search.js: |
+          export function search() {}
+    - message: more wip
+      branch: feature/search
+      files:
+        src/search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.includs(term));
+          }
+    - message: fix typo
+      branch: feature/search
+      files:
+        src/search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.includes(term));
+          }
+    - message: actually works now
+      branch: feature/search
+      files:
+        src/search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.toLowerCase().includes(term.toLowerCase()));
+          }
+  currentBranch: feature/search
+
+objectives:
+  - id: squashed
+    description: "`feature/search` has a commit `Add search`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/search
+      message: Add search
+
+  - id: no-wip
+    description: "`wip` is gone from `feature/search`."
+    validator:
+      type: commit_not_on_branch
+      branch: feature/search
+      message: wip
+
+  - id: no-more-wip
+    description: "`more wip` is gone too."
+    validator:
+      type: commit_not_on_branch
+      branch: feature/search
+      message: more wip
+
+  - id: one-commit
+    description: The branch has exactly one commit on top of `Initial commit`.
+    validator:
+      type: commit_count
+      count: 2
+
+  - id: on-branch
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  squashed:
+    - The branch can be moved back to before the messy commits while keeping the final code.
+    - Keeping those changes staged makes the new commit a one-liner.
+  one-commit:
+    - Count the commits with a one-line log.
+  on-branch:
+    - Check the status for anything left over.
+
+completion:
+  xp: 200

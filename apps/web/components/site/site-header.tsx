@@ -6,6 +6,8 @@ import { Logo } from "./logo";
 
 const NAV_ITEMS = [
   { label: "Learn", href: "/learn", external: false },
+  { label: "Challenges", href: "/challenges", external: false },
+  { label: "Playground", href: "/playground", external: false },
   { label: "Docs", href: SITE.docsUrl, external: true },
 ] as const;
 

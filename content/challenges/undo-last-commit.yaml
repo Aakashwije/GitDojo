@@ -1,0 +1,75 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: undo-last-commit
+title: Undo Last Commit
+category: recovery
+difficulty: beginner
+order: 1
+
+scenario: |
+  Your last commit, `Add API config`, accidentally included `secrets.env`, which holds a real
+  API key. Luckily you have not pushed yet, so the commit can still disappear from history.
+
+mission: >
+  Rewrite the last commit so that `config.js` is committed but `secrets.env` never was, ignore
+  `secrets.env` from now on, and keep history to two commits.
+
+concepts:
+  - reset
+  - gitignore
+  - history
+
+requires:
+  - reset
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather API
+    - message: Add API config
+      files:
+        config.js: |
+          export const api = { url: "https://api.example.com", keyFrom: "secrets.env" };
+        secrets.env: |
+          API_KEY=sk_live_51H8xQ2abcDEF
+
+objectives:
+  - id: secret-untracked
+    description: "`secrets.env` is no longer tracked."
+    validator:
+      type: file_not_tracked
+      file: secrets.env
+
+  - id: config-committed
+    description: "`config.js` is committed."
+    validator:
+      type: file_committed
+      file: config.js
+
+  - id: clean
+    description: The working tree is clean, with `secrets.env` ignored.
+    validator:
+      type: clean_worktree
+
+  - id: two-commits
+    description: History still has exactly two commits, so the key is in none of them.
+    validator:
+      type: commit_count
+      count: 2
+
+hints:
+  secret-untracked:
+    - Deleting the file in a new commit would leave the key in the old one.
+    - The last commit can be taken back while keeping its files.
+  config-committed:
+    - Commit only what belongs in the repository.
+  clean:
+    - Git can be told to stop reporting a file.
+  two-commits:
+    - If history has three commits, the key is still in one of them.
+
+completion:
+  xp: 125

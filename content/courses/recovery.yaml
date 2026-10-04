@@ -1,0 +1,24 @@
+# Course: Undo and Recover
+# Lessons live in content/lessons/recovery/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: recovery
+slug: recovery
+title: Undo and Recover
+
+description: >
+  See exactly what changed, undo it at every level, shelve unfinished work, copy commits
+  between branches, find "lost" commits and replay a branch onto a new base.
+
+difficulty: intermediate
+order: 5
+
+lessons:
+  - git-diff
+  - git-restore
+  - three-trees
+  - git-reset
+  - git-revert
+  - git-stash
+  - git-cherry-pick
+  - git-reflog
+  - git-rebase
+  - recovery-challenge

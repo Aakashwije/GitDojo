@@ -1,0 +1,39 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: recovery-practice
+title: Recovery Practice
+description: >
+  Three things went wrong here: the experiment branch was deleted before it was merged, a hard
+  reset threw away the last commit on main, and someone's work is sitting in the stash. Use
+  `git reflog` and `git stash list` to put it all back.
+order: 6
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Chat App
+        src/chat.js: |
+          export function send(message) {}
+    - message: Add emoji support
+      branch: experiment
+      files:
+        src/emoji.js: |
+          export const emoji = { smile: "🙂" };
+    - message: Add reactions
+      branch: experiment
+      files:
+        src/reactions.js: |
+          export const reactions = ["👍", "🎉"];
+    - message: Add typing indicator
+      files:
+        src/typing.js: |
+          export const typing = new Set();
+  files:
+    src/chat.js: |
+      export function send(message, { silent = false } = {}) {}
+  commands:
+    - git stash
+    - git branch -D experiment
+    - git reset --hard HEAD~1

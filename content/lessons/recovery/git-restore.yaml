@@ -1,0 +1,110 @@
+# Lesson: Discard and Unstage with git restore
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-restore
+slug: git-restore
+title: Discard and Unstage with git restore
+type: interactive
+
+goal: Throw away an edit you do not want, and take a file back out of the staging area.
+
+description: |
+  Two things went wrong. An experiment broke `index.html`, and you want the committed version
+  back. And `notes.md`, your private to-do list, got staged by accident: it should stay in your
+  working tree, just not in the next commit.
+
+difficulty: beginner
+
+concepts:
+  - restore
+  - working-tree
+  - staging
+
+commands:
+  - git restore
+  - git restore --staged
+  - git status
+
+content:
+  - type: comparison
+    title: Two kinds of restore
+    columns:
+      - title: git restore <file>
+        items:
+          - Copies the staged version back over the file
+          - Throws away unstaged edits for good
+      - title: git restore --staged <file>
+        items:
+          - Copies the committed version into the staging area
+          - Unstages the file; your edits stay in the working tree
+
+  - type: demo
+    title: Unstaging keeps your work
+    steps:
+      - caption: "`notes.md` is staged by mistake."
+        areas:
+          workingTree: []
+          staging: [{ path: notes.md, status: staged }]
+          repository: [index.html]
+      - caption: Unstaging moves it back to the working tree, edits intact.
+        command: git restore --staged notes.md
+        areas:
+          workingTree: [{ path: notes.md, status: untracked }]
+          staging: []
+          repository: [index.html]
+
+  - type: callout
+    tone: warning
+    title: There is no undo for discarded edits
+    body: >-
+      `git restore <file>` overwrites the file with its staged version. Edits that were never
+      staged or committed are gone, so check `git diff` first.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        index.html: |
+          <h1>Weather</h1>
+          <p id="forecast">Loading…</p>
+  files:
+    index.html: |
+      <h1>Weather</h1>
+      <marquee>EXPERIMENT</marquee>
+    notes.md: |
+      - [ ] Ask about the API key
+  commands:
+    - git add notes.md
+
+objectives:
+  - id: unstage-notes
+    description: "`notes.md` is no longer staged."
+    validator:
+      type: file_not_tracked
+      file: notes.md
+
+  - id: notes-kept
+    description: "`notes.md` is still in your working tree."
+    validator:
+      type: file_exists
+      file: notes.md
+
+  - id: discard-experiment
+    description: "`index.html` is back to its committed version."
+    validator:
+      type: file_committed
+      file: index.html
+
+hints:
+  unstage-notes:
+    - '`git status` shows how to unstage a file, right under "Changes to be committed".'
+    - Unstaging is a restore of the staging area.
+    - Run `git restore --staged notes.md`.
+  notes-kept:
+    - Unstaging never deletes a file. If it is gone, reset the lesson.
+  discard-experiment:
+    - Restoring a file in the working tree replaces it with the staged version.
+    - Run `git restore index.html`.
+
+completion:
+  xp: 75

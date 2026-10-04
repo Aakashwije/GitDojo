@@ -1,0 +1,109 @@
+# Lesson: Recover Lost Commits with git reflog
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-reflog
+slug: git-reflog
+title: Recover Lost Commits with git reflog
+type: interactive
+
+goal: Use the reflog to find commits that no branch points to any more, and bring them back.
+
+description: |
+  Ouch. While cleaning up, someone ran `git reset --hard HEAD~2` on `main`. The last two
+  commits, the payment form and its validation, vanished from `git log` and from the graph.
+
+  They are not really gone: Git still has them, and the reflog remembers where HEAD has been.
+  Get them back onto `main`.
+
+difficulty: intermediate
+
+concepts:
+  - reflog
+  - reset
+  - recovery
+
+commands:
+  - git reflog
+  - git reset --hard
+  - git log --oneline
+
+content:
+  - type: example
+    title: Where HEAD has been
+    command: git reflog
+    output: |
+      1f0e6d2 (HEAD -> main) HEAD@{0}: reset: moving to HEAD~2
+      a83b7c4 HEAD@{1}: commit: Validate card numbers
+      52c9e10 HEAD@{2}: commit: Add payment form
+      1f0e6d2 (HEAD -> main) HEAD@{3}: commit: Add cart
+    explanation: >-
+      Newest first. Every commit, switch, merge and reset is listed with where HEAD pointed
+      afterwards. `HEAD@{1}` is where HEAD was one move ago, right before the reset.
+
+  - type: callout
+    tone: tip
+    body: >-
+      You can use any reflog entry as a commit: `git reset --hard HEAD@{1}`,
+      `git branch rescue HEAD@{1}`, or the short id shown on the left.
+
+  - type: callout
+    tone: note
+    body: >-
+      The reflog is local to your machine and Git eventually expires old entries, so recover
+      soon. GitDojo keeps every entry.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Shop
+    - message: Add cart
+      files:
+        src/cart.js: |
+          export const cart = [];
+    - message: Add payment form
+      files:
+        src/payment.js: |
+          export function pay(card) {}
+    - message: Validate card numbers
+      files:
+        src/payment.js: |
+          export function pay(card) {
+            if (!/^\d{16}$/.test(card)) throw new Error("Invalid card");
+          }
+  commands:
+    - git reset --hard HEAD~2
+
+objectives:
+  - id: payment
+    description: "`main` contains `Add payment form` again."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add payment form
+
+  - id: validation
+    description: "`main` contains `Validate card numbers` again."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Validate card numbers
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  payment:
+    - "`git log` only shows commits a branch can reach. Something else remembers more."
+    - "`git reflog` lists where HEAD has been, including right before the reset."
+    - Run `git reset --hard HEAD@{1}`, or reset to the short id next to `Validate card numbers`.
+  validation:
+    - Resetting to the newest lost commit brings back its parent too.
+  clean:
+    - "`git status` should say the working tree is clean."
+
+completion:
+  xp: 125

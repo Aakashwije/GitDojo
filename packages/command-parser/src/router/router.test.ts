@@ -67,8 +67,9 @@ describe("command router", () => {
       output: "fatal: invalid reference: nope",
       errorCode: "BRANCH_NOT_FOUND",
     });
+    // An existing name is refused before the start point is even looked at.
     expect((await runCommandLine("git switch -c feature main", context)).errorCode).toBe(
-      "INVALID_ARGUMENT",
+      "BRANCH_EXISTS",
     );
   });
 
@@ -181,5 +182,98 @@ describe("command router", () => {
       errorCode: "INTERNAL",
     });
     expect(result.output).not.toContain("internal detail");
+  });
+
+  describe("recovery commands", () => {
+    async function run(line: string) {
+      return runCommandLine(line, context);
+    }
+
+    beforeEach(async () => {
+      await run("git init");
+      await run("git add README.md");
+      await run('git commit -m "Initial commit"');
+      await files.writeFile(WORKSPACE, "README.md", "# GitDojo\n\nLearn Git.\n");
+    });
+
+    it("diffs, restores, stages and unstages", async () => {
+      expect((await run("git diff")).output).toContain("+Learn Git.");
+      expect((await run("git diff --cached")).output).toBe("");
+      await run("git add README.md");
+      expect((await run("git diff --staged")).output).toContain("+Learn Git.");
+      // `git reset <file>` unstages, like `git restore --staged <file>`.
+      expect((await run("git reset README.md")).output).toBe(
+        "Unstaged changes after reset:\nM\tREADME.md",
+      );
+      await run("git add README.md");
+      expect(await run("git restore --staged README.md")).toEqual({ ok: true, output: "" });
+      expect(await run("git restore README.md")).toEqual({ ok: true, output: "" });
+      expect(await files.readFile(WORKSPACE, "README.md")).toBe("# GitDojo\n");
+    });
+
+    it("resets, then finds the lost commit in the reflog", async () => {
+      await run("git add .");
+      await run('git commit -m "Second"');
+      expect((await run("git reset --hard HEAD~1")).output).toMatch(
+        /^HEAD is now at [0-9a-f]{7} Initial commit$/,
+      );
+      expect((await run("git reflog")).output.split("\n")[1]).toMatch(
+        /HEAD@\{1\}: commit: Second$/,
+      );
+      expect((await run("git reflog show main")).output).toMatch(
+        /main@\{0\}: reset: moving to HEAD~1/,
+      );
+      expect((await run("git reset --hard HEAD@{1}")).output).toMatch(/Second$/);
+      expect((await run("git reset --soft --hard")).errorCode).toBe("INVALID_ARGUMENT");
+    });
+
+    it("stashes with subcommands", async () => {
+      expect((await run('git stash push -m "docs"')).output).toBe(
+        "Saved working directory and index state On main: docs",
+      );
+      expect((await run("git stash list")).output).toBe("stash@{0}: On main: docs");
+      expect((await run("git stash show")).output).toContain("README.md | 2 ++");
+      expect((await run("git stash pop stash@{0}")).output).toMatch(/Dropped refs\/stash@\{0\}/);
+      expect((await run("git stash frobnicate")).output).toContain("unknown subcommand");
+      expect((await run("git stash drop")).output).toBe("No stash entries found.");
+    });
+
+    it("reverts and cherry-picks, with sequencer flags", async () => {
+      await run("git add .");
+      await run('git commit -m "Second"');
+      expect((await run("git revert --no-edit HEAD")).output).toMatch(/Revert "Second"/);
+      expect((await run("git revert --continue")).errorCode).toBe("NO_OPERATION");
+      expect((await run("git cherry-pick --abort --skip")).errorCode).toBe("INVALID_ARGUMENT");
+      expect((await run("git cherry-pick HEAD~1")).output).toMatch(/\] Second\n Date: /);
+    });
+
+    it("rebases, and refuses interactive rebases", async () => {
+      expect((await run("git rebase -i main")).output).toContain(
+        "does not support interactive rebase",
+      );
+      expect((await run("git rebase")).errorCode).toBe("INVALID_ARGUMENT");
+      expect((await run("git rebase --abort")).output).toBe("fatal: No rebase in progress?");
+      await run("git restore README.md");
+      expect((await run("git rebase main")).output).toBe("Current branch main is up to date.");
+    });
+
+    it("removes files with git rm", async () => {
+      expect((await run("git rm README.md")).errorCode).toBe("LOCAL_CHANGES");
+      expect((await run("git rm -f README.md")).output).toBe("rm 'README.md'");
+    });
+
+    it("refuses a merge that cannot fast-forward with --ff-only", async () => {
+      await run("git add .");
+      await run('git commit -m "Second"');
+      await run("git switch -c side HEAD~1");
+      await files.writeFile(WORKSPACE, "side.txt", "s\n");
+      await run("git add side.txt");
+      await run('git commit -m "Side"');
+      expect(await run("git merge --ff-only main")).toEqual({
+        ok: false,
+        output: "fatal: Not possible to fast-forward, aborting.",
+        errorCode: "NOT_FAST_FORWARD",
+      });
+    });
   });
 });

@@ -119,7 +119,68 @@ setup:
   currentBranch: main # optional; the branch the learner starts on (default main)
 ```
 
-Changing the same line on both branches gives a deterministic merge conflict.
+Changing the same line on both branches gives a deterministic merge conflict. A file mapped to
+`null` is deleted in that commit, which sets up modify/delete conflicts:
+
+```yaml
+- message: Drop the setup guide
+  files:
+    docs/setup.md: null # main deletes it while another branch edits it
+```
+
+### Setup commands
+
+Some starting states are easiest to describe as what happened to the repository. `commands` runs
+Git commands **last**, after the commits, branches and `files`, through the real parser and engine,
+exactly as if typed in the terminal. So a command can stage or stash a setup file. Each must
+succeed, or the lesson fails to load.
+
+```yaml
+setup:
+  initializeGit: true # required for commands
+  commits:
+    - message: Initial commit
+      files: { README.md: "# Shop\n" }
+    - message: Add checkout
+      files: { checkout.js: "pay();\n" }
+  files:
+    notes.md: "- [ ] todo\n"
+  commands:
+    - git add notes.md # notes.md starts staged
+    - git switch --detach HEAD~1 # and the learner starts with a detached HEAD
+```
+
+Only Git commands are allowed; anything else (or a command that does not parse) is rejected by
+the schema.
+
+### Hints
+
+Hints are a ladder per objective, from vague to explicit, and GitDojo reveals them one at a time.
+Each hint has a **level**:
+
+| Level | Label   | Gives away                      | Example                                                |
+| ----- | ------- | ------------------------------- | ------------------------------------------------------ |
+| 1     | Concept | The idea, not the command       | "Your changes only exist in the working tree."         |
+| 2     | Command | Which command (family) does it  | "You need the command that moves a file into staging." |
+| 3     | Answer  | The exact command, in backticks | "Run `git add README.md`."                             |
+
+Plain strings get their level from their position: the first is a concept, the last is the answer
+when it names a Git command in backticks, and anything between names the command. Set a level
+explicitly when position would be wrong:
+
+```yaml
+hints:
+  stage:
+    - Your changes only exist in the working tree. # level 1
+    - { level: 2, text: "`git add` moves files into the staging area." }
+    - Run `git add README.md`. # level 3: last, and names a command
+```
+
+The schema rejects ladders whose levels go down, and level-3 hints that do not name a command.
+In the lesson, an answer needs a second, deliberate click, and once the learner has tried a
+command the panel also shows what the current objective's validator says is missing
+("Not yet: README.md is not staged."). Every guided lesson must let learners reach an answer for
+at least one objective (the content tests check this).
 
 ### Content blocks
 
@@ -204,6 +265,28 @@ exist.
 - Setup paths must stay inside the workspace (no `..`) and must not point into `.git`.
 - `commit_count.count` is a non-negative integer, and file paths are non-empty.
 
+## Playground scenarios
+
+The playground's ready-made repositories live in `content/playground/<id>.yaml`. A scenario is a
+title, a short description and a `setup` block with exactly the same fields as a lesson's:
+
+```yaml
+id: two-branches # must match the file name
+title: Two Branches
+description: main and feature/search have each moved on since they split.
+order: 3 # optional; position in the scenario picker
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files: { README.md: "# Bookshelf\n" }
+    - message: Add search box
+      branch: feature/search
+      files: { src/search.js: "export {};\n" }
+```
+
+`src/content.test.ts` sets up every scenario, so a broken one fails CI.
+
 ## Writing good lessons
 
 - **One concept per lesson.** Three to five objectives is usually right.
@@ -217,7 +300,7 @@ exist.
 - **Never let a lesson start completed.** The content test fails if any objective passes before the
   learner has typed a command.
 - **Write hints as a ladder.** Start with the concept, then point at the tool, and end with the exact
-  command in backticks.
+  command in backticks (see [Hints](#hints)).
 - **Accept every valid solution.** Prefer validators that pass for any reasonable command sequence.
 
 ## How lessons are loaded

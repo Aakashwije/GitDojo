@@ -235,6 +235,17 @@ describe("setup history", () => {
     ).toContain('"nope" is not created by this setup');
   });
 
+  it("accepts deletions of files the branch has, and only those", () => {
+    const deletion = WITH_HISTORY.replace(
+      '        index.html: "<h1>Hi</h1>\\n"\n',
+      '        index.html: "<h1>Hi</h1>\\n"\n        README.md: null\n',
+    );
+    expect(parseLesson(deletion).setup.commits?.[1]?.files).toMatchObject({ "README.md": null });
+    expect(issuesFor(deletion.replace("README.md: null", "nope.md: null")).join("\n")).toContain(
+      'cannot delete "nope.md": main does not have it at this point',
+    );
+  });
+
   it("rejects commits that change nothing and invalid or duplicate branches", () => {
     const noop = WITH_HISTORY.replace('index.html: "<h1>Hi</h1>\\n"', 'README.md: "# Hi\\n"');
     expect(issuesFor(noop).join("\n")).toContain("this commit does not change any file");
@@ -244,6 +255,38 @@ describe("setup history", () => {
     expect(issuesFor(WITH_HISTORY.replace("[feature/login]", "[main]")).join("\n")).toContain(
       'branch "main" already exists',
     );
+  });
+});
+
+describe("setup commands", () => {
+  const withCommands = (commands: string) =>
+    WITH_HISTORY.replace(
+      "  branches: [feature/login]\n",
+      `  branches: [feature/login]\n  commands: ${commands}\n`,
+    );
+
+  it("accepts Git commands", () => {
+    expect(parseLesson(withCommands('["git switch --detach HEAD~1"]')).setup.commands).toEqual([
+      "git switch --detach HEAD~1",
+    ]);
+  });
+
+  it("rejects commands that are not Git or do not parse", () => {
+    expect(issuesFor(withCommands('["help"]')).join("\n")).toContain(
+      "setup commands must be Git commands",
+    );
+    expect(issuesFor(withCommands('["rm -rf ."]')).join("\n")).toContain("rm: command not found");
+    expect(issuesFor(withCommands('["git commit --amend"]')).join("\n")).toContain(
+      "unknown option '--amend'",
+    );
+  });
+
+  it("require initializeGit", () => {
+    expect(
+      issuesFor(
+        withCommands('["git branch x"]').replace("initializeGit: true", "initializeGit: false"),
+      ).join("\n"),
+    ).toContain("setup commands require `initializeGit: true`");
   });
 });
 

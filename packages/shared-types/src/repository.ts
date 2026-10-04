@@ -47,12 +47,45 @@ export interface ConflictState {
   resolved: boolean;
 }
 
-/** A merge that stopped for conflicts and has not been committed or aborted yet. */
+/** Operations that can stop for conflicts, to be continued or aborted. */
+export type OperationKind = "merge" | "revert" | "cherry-pick" | "rebase";
+
+/**
+ * An operation that stopped for conflicts and has not been finished or aborted yet: a merge, or a
+ * revert, cherry-pick or rebase step.
+ */
 export interface MergeState {
-  /** The branch being merged in, as the learner typed it. */
+  kind: OperationKind;
+  /** Merges: the branch being merged in, as typed. Otherwise the commit, `abc1234 (subject)`. */
   branch: string;
-  /** Its commit (MERGE_HEAD). */
+  /** The incoming commit (MERGE_HEAD, CHERRY_PICK_HEAD, ...). */
   oid: string;
+  /** Rebases: the branch being rebased, its new base, and commits left after this one. */
+  rebase?: { branch: string; onto: string; remaining: number };
+}
+
+/** One `git stash` entry, newest first. */
+export interface StashState {
+  /** `stash@{n}` */
+  selector: string;
+  /** `WIP on main: abc1234 Subject` or `On main: <message>` */
+  message: string;
+  branch: string | null;
+  oid: string;
+  /** Files the entry holds changes for. */
+  files: string[];
+}
+
+/** One HEAD movement recorded in the reflog, newest first. */
+export interface ReflogEntryState {
+  /** `HEAD@{n}` */
+  selector: string;
+  oid: string;
+  shortOid: string;
+  /** e.g. `commit: Add login`, `checkout: moving from main to feature`, `reset: moving to HEAD~1`. */
+  message: string;
+  /** Seconds since the Unix epoch. */
+  timestamp: number;
 }
 
 export interface RepositoryState {
@@ -71,9 +104,14 @@ export interface RepositoryState {
   files: FileState[];
   /** Index view: one entry per path whose staged content differs from HEAD. */
   stagedFiles: FileState[];
-  /** Conflicts of the merge in progress; empty when no merge is in progress. */
+  /** Conflicts of the operation in progress; empty when nothing is in progress. */
   conflicts: ConflictState[];
+  /** The merge, revert, cherry-pick or rebase stopped for conflicts, if any. */
   merge: MergeState | null;
+  /** `git stash list`, newest first. */
+  stashes: StashState[];
+  /** Where HEAD has been, newest first (what `git reflog` shows). */
+  reflog: ReflogEntryState[];
 }
 
 export const EMPTY_REPOSITORY_STATE: RepositoryState = {
@@ -87,4 +125,6 @@ export const EMPTY_REPOSITORY_STATE: RepositoryState = {
   stagedFiles: [],
   conflicts: [],
   merge: null,
+  stashes: [],
+  reflog: [],
 };

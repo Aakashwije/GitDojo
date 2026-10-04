@@ -28,8 +28,10 @@ After **every** command the web app recomputes repository state from scratch, va
 lesson, and pushes the results into Zustand stores. Nothing patches state incrementally, so the
 UI can never drift from what is actually in the repository.
 
-The orchestration lives in one small class, `LearningSession`
-(`apps/web/features/workspace/services/learning-session.ts`):
+The orchestration lives in `WorkspaceSession`
+(`apps/web/features/workspace/services/workspace-session.ts`) and its subclasses: `LearningSession`
+validates a lesson or challenge after every step, `PlaygroundSession` (see
+[Playground](#playground)) just publishes state.
 
 ```text
 execute(input)
@@ -42,10 +44,100 @@ execute(input)
 
 Operations on a session are queued, so a lesson reset can never interleave with a running command.
 
-The terminal is not the only input: resolving a merge conflict means editing a file. The conflict
-editor saves through `LearningSession.writeFile`, which goes through the same queue and is followed
-by the same state read, validation and progress update as a command. It writes the working tree
-only; marking a conflict resolved is still `git add`, so nothing is ever resolved automatically.
+The terminal is not the only input: learners also edit files. The code editor and the conflict
+editor save through `WorkspaceSession.writeFile` (and `createFile` / `deleteFile`), which go
+through the same queue and are followed by the same state read, validation and progress update as
+a command. They write the working tree only; staging is still `git add`, and marking a conflict
+resolved is too, so nothing is ever staged or resolved automatically.
+
+## Code editor
+
+`apps/web/features/editor` is a deliberately small editor built for learning Git, not a VS Code
+clone:
+
+```text
+Monaco edit
+   ↓  EditorController: draft → debounced save (400 ms), Ctrl/Cmd+S or blur saves at once
+WorkspaceSession.writeFile
+   ↓  virtual filesystem (new inode, so Git sees the change)
+Repository State refresh
+   ↓
+Explorer shows "M", Working Tree lists the file as modified
+```
+
+- **FileExplorer** shows the working tree as a folder tree with Git's one-letter statuses
+  (`U` untracked, `M` modified, `A` staged new file, `D` deleted, `C` conflict), and can create
+  and delete files.
+- **EditorTabs** show open files with an unsaved-changes dot; **CodeEditor** wraps Monaco with
+  line numbers and syntax highlighting, and nothing that distracts (no minimap or IntelliSense).
+- After every command the store's `revision` changes and clean tabs are re-read, so
+  `git restore`, `git switch` or `git reset --hard` show up in open files. Tabs with unsaved
+  typing are never overwritten.
+- Lessons can set `editor: { readOnly: true }`.
+- Monaco is **served by GitDojo itself**: `scripts/copy-monaco.mjs` copies its prebuilt bundle to
+  `public/monaco` before `next dev` / `next build`. No editor code is loaded from a CDN.
+
+## Playground
+
+`/playground` is a workspace with no lesson: editor, terminal, graph and Git's three areas.
+`PlaygroundSession` (`apps/web/features/playground`) is a `WorkspaceSession` that validates nothing
+and is **not rebuilt on load**. Its repository lives in IndexedDB like every workspace, so a
+refresh continues where the learner was. LightningFS saves its directory tree half a second after
+the last write, so the playground flushes after every command and edit (`VirtualFileSystem.flush`)
+and a reload never loses work.
+
+- **Scenarios** are content: `content/playground/<id>.yaml`, each a `setup` block exactly like a
+  lesson's (see [lesson-authoring.md](./lesson-authoring.md#playground-scenarios)). The scenario
+  a repository came from is remembered in `localStorage`, so **Reset** can rebuild it.
+- **New repository** starts a blank folder with a README and no `.git`.
+- **Export** downloads a JSON snapshot: the working-tree files plus the normalized
+  `RepositoryState` (commits, branches, reflog...).
+
+## Challenges
+
+`/challenges` lists real-world problems by category; `/challenges/<id>` runs one. Challenges are
+YAML in `content/challenges/` (see [challenge-authoring.md](./challenge-authoring.md)), loaded and
+validated by `@gitdojo/challenge-engine`, which turns each into a lesson of type `challenge` so the
+same workspace, setup, validation and progress code runs it. A challenge whose `requires` names a
+command GitDojo cannot run yet is shown as locked. Challenge workspaces are `challenge-<id>`, and
+solved challenges are saved alongside completed lessons in `localStorage`.
+
+## Error explanations
+
+The terminal always prints Git's real message. Next to it, `@gitdojo/error-engine` explains what
+happened for learners: after every command, `explainCommand({ command, ok, output, errorCode,
+repository })` maps the engine's or parser's error code to a `GitEducationalError`
+(`shared-types`): a title, a plain-words explanation, likely causes, hints and a lesson to
+learn more from.
+
+```text
+$ git switch feature/logn
+fatal: invalid reference: feature/logn          ← terminal: unchanged Git output
+
+Why did this happen?                             ← explanation panel under the terminal
+  There is no branch with that name
+  Likely causes: Did you mean `feature/login`? This repository's branches are ...
+```
+
+- Explanations use the repository state **after** the command, so causes can name the learner's
+  own files and branches, and suggest the closest match for a typo (edit distance).
+- Some successful commands get a **notice** instead of an error: entering a detached HEAD, or
+  leaving commits behind when leaving one.
+- About thirty educational codes cover every engine and parser error (`NOT_A_REPOSITORY`,
+  `NOTHING_TO_COMMIT`, `UNKNOWN_BRANCH`, `UNSTAGED_CHANGES`, `MERGE_CONFLICT`, `DETACHED_HEAD`,
+  `NON_FAST_FORWARD`, `INVALID_COMMIT`, `BRANCH_ALREADY_EXISTS`, `PATH_NOT_FOUND`, ...).
+- In challenges, suggestions and lesson links are hidden: they would name the solution.
+
+## Progressive hints
+
+`@gitdojo/hints` settles each hint's level (1 concept, 2 command, 3 answer; see
+[lesson-authoring.md](./lesson-authoring.md#hints)), validates hint ladders for the lesson and
+challenge schemas, and provides pure state functions (`createHintState`, `revealNext`,
+`visibleHints`, `nextHint`, `hintsUsed`). The lesson store keeps one `HintState`
+(`{ objectiveId, revealedHints, totalHints }`) per objective for the current attempt; the hint
+panel labels each hint's level, asks before showing an answer, and shows the current
+objective's validator `reason` as "Not yet: ...". The completion card reports how many hints were
+used.
 
 ## Packages
 
@@ -56,7 +148,10 @@ only; marking a conflict resolved is still `git add`, so nothing is ever resolve
 | `@gitdojo/command-parser`   | Tokenizer, parser, command specs, router                                | git-engine (types), shared-types                   |
 | `@gitdojo/repository-state` | `RepositoryStateReader`: engine snapshot → `RepositoryState`            | git-engine, shared-types                           |
 | `@gitdojo/validator`        | Validator registry, `validateObjective`, `validateLesson`, Zod schema   | shared-types, zod                                  |
-| `@gitdojo/lesson-engine`    | Lesson schema, YAML loader, setup/reset, progress                       | validator, git-engine, repository-state, yaml, zod |
+| `@gitdojo/lesson-engine`    | Lesson schema, YAML loader, setup/reset, progress, playground scenarios | validator, git-engine, repository-state, yaml, zod |
+| `@gitdojo/challenge-engine` | Challenge schema, loader, categories, availability                      | lesson-engine, command-parser, yaml, zod           |
+| `@gitdojo/error-engine`     | Educational explanations for command outcomes                           | command-parser, shared-types                       |
+| `@gitdojo/hints`            | Hint levels, ladder validation, hint state                              | shared-types                                       |
 | `@gitdojo/ui`               | Design tokens (from `UI.md`) and shadcn/ui-style components             | radix-ui, tailwind-merge                           |
 | `@gitdojo/config`           | Shared TypeScript, ESLint and Prettier configuration                    | –                                                  |
 | `@gitdojo/web`              | Next.js app: landing page, courses and the lesson workspace             | everything above                                   |
@@ -123,15 +218,20 @@ concept lesson when the learner marks it complete.
 
 ```text
 apps/web/
-├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo
+├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo,
+│                               /playground, /challenges, /challenges/[slug]
 ├── components/                 site chrome and landing page
 ├── features/
 │   ├── terminal/               xterm host, line editor, history, output highlighting
 │   ├── repository/             graph (React Flow), working tree / staging / repository panels
+│   ├── challenges/             challenge browser, cards, navigation
 │   ├── conflicts/              conflict banner and the conflict editor
+│   ├── editor/                 Monaco editor, file explorer, tabs, EditorController
+│   ├── errors/                 "Why did this happen?" explanation panel
 │   ├── course/                 course outline, navigation, progress (localStorage)
 │   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
-│   └── workspace/              LearningSession, browser environment, layout
+│   ├── playground/             PlaygroundSession, scenario picker, playground layout
+│   └── workspace/              WorkspaceSession, LearningSession, browser environment, layout
 └── e2e/                        Playwright tests
 ```
 

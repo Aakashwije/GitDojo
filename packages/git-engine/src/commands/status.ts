@@ -5,8 +5,8 @@ import {
   type GitStatusEntry,
   type GitStatusResult,
 } from "../engine/git-engine";
-import { currentBranch, isRepository, resolveRefOrNull } from "../engine/repository";
-import { readMergeState, unresolvedConflicts } from "../engine/merge-state";
+import { currentBranch, isRepository, resolveRefOrNull, shortOid } from "../engine/repository";
+import { operationKind, readMergeState, unresolvedConflicts } from "../engine/merge-state";
 import { readStatusEntries } from "../engine/status-matrix";
 import { conflictKind } from "./merge";
 
@@ -19,15 +19,61 @@ export async function readStatusData(ctx: GitContext): Promise<GitStatusData> {
   ]);
   return {
     branch,
+    head,
     hasCommits: head !== null,
     entries,
     merge: merge && {
+      kind: operationKind(merge),
+      commit: merge.theirs,
       unresolved: unresolvedConflicts(merge).map((conflict) => ({
         path: conflict.path,
         kind: conflictKind(conflict),
       })),
+      ...(merge.rebase ? { rebase: { branch: merge.rebase.branch, onto: merge.rebase.onto } } : {}),
     },
   };
+}
+
+/** The lines Git prints under "On branch ..." while an operation is stopped for conflicts. */
+function operationNotice(merge: NonNullable<GitStatusData["merge"]>): string[] {
+  const done = merge.unresolved.length === 0;
+  const short = shortOid(merge.commit);
+  switch (merge.kind) {
+    case "merge":
+      return done
+        ? [
+            "All conflicts fixed but you are still merging.",
+            '  (use "git commit" to conclude merge)',
+          ]
+        : [
+            "You have unmerged paths.",
+            '  (fix conflicts and run "git commit")',
+            '  (use "git merge --abort" to abort the merge)',
+          ];
+    case "cherry-pick":
+    case "revert": {
+      const verb = merge.kind === "revert" ? "reverting" : "cherry-picking";
+      return [
+        `You are currently ${verb} commit ${short}.`,
+        done
+          ? `  (all conflicts fixed: run "git ${merge.kind} --continue")`
+          : `  (fix conflicts and run "git ${merge.kind} --continue")`,
+        `  (use "git ${merge.kind} --abort" to cancel the ${merge.kind === "revert" ? "revert" : "cherry-pick"} operation)`,
+      ];
+    }
+    case "rebase": {
+      const branch = merge.rebase?.branch ?? "HEAD";
+      const onto = shortOid(merge.rebase?.onto ?? merge.commit);
+      return [
+        `You are currently rebasing branch '${branch}' on '${onto}'.`,
+        done
+          ? '  (all conflicts fixed: run "git rebase --continue")'
+          : '  (fix conflicts and then run "git rebase --continue")',
+        '  (use "git rebase --skip" to skip this patch)',
+        '  (use "git rebase --abort" to check out the original branch)',
+      ];
+    }
+  }
 }
 
 export async function runStatus(ctx: GitContext): Promise<GitStatusResult> {
@@ -46,6 +92,7 @@ function labelled(label: string, path: string): string {
 /** Renders long-format `git status` output, mirroring real Git's wording and hints. */
 export function formatStatus({
   branch,
+  head,
   hasCommits,
   entries: allEntries,
   merge,
@@ -63,20 +110,8 @@ export function formatStatus({
 
   const sections: string[] = [];
   if (!hasCommits) sections.push("No commits yet");
-  // Git prints the merge notice directly under "On branch", not as a separate section.
-  const mergeNotice =
-    merge === null
-      ? []
-      : unmerged.length > 0
-        ? [
-            "You have unmerged paths.",
-            '  (fix conflicts and run "git commit")',
-            '  (use "git merge --abort" to abort the merge)',
-          ]
-        : [
-            "All conflicts fixed but you are still merging.",
-            '  (use "git commit" to conclude merge)',
-          ];
+  // Git prints the operation notice directly under "On branch", not as a separate section.
+  const mergeNotice = merge === null ? [] : operationNotice(merge);
 
   if (staged.length > 0) {
     const unstageHint = hasCommits
@@ -121,7 +156,13 @@ export function formatStatus({
     );
   }
 
-  const header = [`On branch ${branch ?? "HEAD"}`, ...mergeNotice].join("\n");
+  const where =
+    merge?.kind === "rebase"
+      ? `rebase in progress; onto ${shortOid(merge.rebase?.onto ?? merge.commit)}`
+      : branch === null && head !== null
+        ? `HEAD detached at ${shortOid(head)}`
+        : `On branch ${branch ?? "HEAD"}`;
+  const header = [where, ...mergeNotice].join("\n");
   const summary =
     unmerged.length > 0 && staged.length === 0
       ? 'no changes added to commit (use "git add" and/or "git commit -a")'

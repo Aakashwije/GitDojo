@@ -1,0 +1,90 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: cherry-pick-fix
+title: Cherry-Pick One Fix
+category: history
+difficulty: intermediate
+order: 1
+
+scenario: |
+  `release/1.4` is frozen: only bug fixes go in. On `main`, among a dozen feature commits, there
+  is one that fixes a crash on empty orders, and customers on 1.4 keep hitting it.
+
+  You are on `release/1.4`.
+
+mission: >
+  Get the crash fix into `release/1.4` without bringing any of `main`'s new features along.
+
+concepts:
+  - cherry-pick
+  - branches
+
+requires:
+  - cherry-pick
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Orders
+        src/orders.js: |
+          export const total = (order) => order.items.reduce((sum, item) => sum + item);
+    - message: Release 1.4
+      branch: release/1.4
+      files:
+        VERSION: |
+          1.4.0
+    - message: Add gift wrapping
+      files:
+        src/gifts.js: |
+          export const wrap = (item) => ({ ...item, wrapped: true });
+    - message: Fix crash on empty orders
+      files:
+        src/orders.js: |
+          export const total = (order) => order.items.reduce((sum, item) => sum + item, 0);
+    - message: Add loyalty points
+      files:
+        src/loyalty.js: |
+          export const points = (total) => Math.floor(total / 10);
+  currentBranch: release/1.4
+
+objectives:
+  - id: fix
+    description: "`release/1.4` has the crash fix."
+    validator:
+      type: branch_contains_commit
+      branch: release/1.4
+      message: Fix crash on empty orders
+
+  - id: no-gifts
+    description: "`release/1.4` does not have `Add gift wrapping`."
+    validator:
+      type: commit_not_on_branch
+      branch: release/1.4
+      message: Add gift wrapping
+
+  - id: no-loyalty
+    description: "`release/1.4` does not have `Add loyalty points`."
+    validator:
+      type: commit_not_on_branch
+      branch: release/1.4
+      message: Add loyalty points
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  fix:
+    - Merging `main` would bring every commit with it. You need a copy of just one.
+    - Another branch's history can be listed without switching to it.
+  no-gifts:
+    - If features came along, start over and copy only the fix.
+  clean:
+    - Check the status for anything left over.
+
+completion:
+  xp: 150

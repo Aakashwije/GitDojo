@@ -1,0 +1,126 @@
+# Lesson: Replay Work with git rebase
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-rebase
+slug: git-rebase
+title: Replay Work with git rebase
+type: interactive
+
+goal: Move a feature branch onto the latest `main`, so its history is a straight line.
+
+description: |
+  You started `feature/search` a while ago. Since then `main` has moved on with a security fix.
+  Instead of merging `main` into your branch (and adding a merge commit), replay your two
+  commits on top of the new `main`.
+
+difficulty: advanced
+
+concepts:
+  - rebase
+  - history
+
+commands:
+  - git rebase
+  - git log --oneline
+
+content:
+  - type: demo
+    title: What rebase does
+    steps:
+      - caption: "`feature/search` branched off at B. `main` has since gained C."
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add homepage, parent: A }
+            - { id: S1, message: Add search box, parent: B }
+            - { id: S2, message: Search as you type, parent: S1 }
+            - { id: C, message: Fix XSS in comments, parent: B }
+          branches: { main: C, feature/search: S2 }
+          head: feature/search
+      - caption: >-
+          Rebasing replays S1 and S2 on top of C as new commits, S1' and S2'. The branch moves to
+          the copies; the originals are left behind (the reflog still has them).
+        command: git rebase main
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, message: Add homepage, parent: A }
+            - { id: C, message: Fix XSS in comments, parent: B }
+            - { id: S1', message: Add search box, parent: C }
+            - { id: S2', message: Search as you type, parent: S1' }
+          branches: { main: C, feature/search: S2' }
+          head: feature/search
+
+  - type: comparison
+    title: Merge or rebase?
+    columns:
+      - title: git merge main
+        items:
+          - Keeps history exactly as it happened
+          - Adds a merge commit
+          - Safe on shared branches
+      - title: git rebase main
+        items:
+          - A straight, easy-to-read history
+          - Rewrites your branch's commits (new ids)
+          - Only for commits nobody else has built on
+
+  - type: callout
+    tone: tip
+    body: >-
+      If a replayed commit conflicts, Git stops. Fix the files, `git add` them and run
+      `git rebase --continue`, or `git rebase --abort` to go back to how things were.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Forum
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Forum</h1>
+    - message: Add search box
+      branch: feature/search
+      files:
+        search.js: |
+          export function search(term) {}
+    - message: Search as you type
+      branch: feature/search
+      files:
+        search.js: |
+          export function search(term) {
+            return fetch(`/search?q=${encodeURIComponent(term)}`);
+          }
+    - message: Fix XSS in comments
+      files:
+        comments.js: |
+          export const escape = (text) => text.replace(/</g, "&lt;");
+  currentBranch: feature/search
+
+objectives:
+  - id: rebased
+    description: "`feature/search` sits on top of the latest `main`, in a straight line."
+    validator:
+      type: branch_rebased
+      branch: feature/search
+      onto: main
+
+  - id: work-kept
+    description: Both search commits are still on `feature/search`.
+    validator:
+      type: branch_contains_commit
+      branch: feature/search
+      message: Search as you type
+
+hints:
+  rebased:
+    - You want your commits to start from where `main` is now, without a merge commit.
+    - "`git rebase` replays the current branch on top of the branch you name."
+    - Run `git rebase main`.
+  work-kept:
+    - A rebase copies your commits; check them with `git log --oneline`.
+
+completion:
+  xp: 150

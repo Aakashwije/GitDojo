@@ -1,6 +1,7 @@
 "use client";
 
 import { Inbox, Layers } from "lucide-react";
+import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { EmptyState } from "./EmptyState";
 import { FileAreaPanel } from "./FileAreaPanel";
@@ -8,6 +9,7 @@ import { FileRow } from "./FileRow";
 
 export function StagingAreaPanel({ className }: { className?: string }) {
   const staged = useRepositoryStore((state) => state.repositoryState.stagedFiles);
+  const openFile = useEditorStore((state) => state.openFile);
 
   return (
     <FileAreaPanel
@@ -25,7 +27,12 @@ export function StagingAreaPanel({ className }: { className?: string }) {
       ) : (
         <ul aria-label="Staged files">
           {staged.map((file) => (
-            <FileRow key={`${file.path}:${file.change ?? ""}`} file={file} animation="move-in" />
+            <FileRow
+              key={`${file.path}:${file.change ?? ""}`}
+              file={file}
+              animation="move-in"
+              onOpen={file.change === "deleted" ? undefined : openFile}
+            />
           ))}
         </ul>
       )}

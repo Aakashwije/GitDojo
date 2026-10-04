@@ -1,0 +1,35 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: merge-conflict
+title: Merge Conflict
+description: >
+  main and feature/theme both changed the same line of the stylesheet. Run
+  `git merge feature/theme` to see the conflict, then resolve it your way.
+order: 4
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Portfolio
+        style.css: |
+          body {
+            color: black;
+            background: white;
+          }
+    - message: Switch to a dark theme
+      branch: feature/theme
+      files:
+        style.css: |
+          body {
+            color: white;
+            background: #111;
+          }
+    - message: Use a warmer background
+      files:
+        style.css: |
+          body {
+            color: black;
+            background: ivory;
+          }

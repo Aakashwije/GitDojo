@@ -75,6 +75,25 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
       ...(conflict.base === null ? {} : { base: conflict.base }),
       resolved: conflict.resolved,
     })),
-    merge: snapshot.merge && { branch: snapshot.merge.branch, oid: snapshot.merge.theirs },
+    merge: snapshot.merge && {
+      kind: snapshot.merge.kind,
+      branch: snapshot.merge.branch,
+      oid: snapshot.merge.theirs,
+      ...(snapshot.merge.rebase ? { rebase: snapshot.merge.rebase } : {}),
+    },
+    stashes: snapshot.stashes.map((stash) => ({
+      selector: `stash@{${String(stash.index)}}`,
+      message: stash.message,
+      branch: stash.branch,
+      oid: stash.oid,
+      files: stash.paths,
+    })),
+    reflog: snapshot.reflog.map((entry) => ({
+      selector: `HEAD@{${String(entry.index)}}`,
+      oid: entry.oid,
+      shortOid: entry.oid.slice(0, 7),
+      message: entry.message,
+      timestamp: entry.timestamp,
+    })),
   };
 }

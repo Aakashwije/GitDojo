@@ -39,6 +39,11 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # Every lesson, course, challenge and playground scenario: schema, references, and a
+      # reference solution played through the real Git engine.
+      - name: Content validation
+        run: pnpm validate:content
+
       - name: Build
         run: pnpm build
 

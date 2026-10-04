@@ -59,7 +59,7 @@ export function parseCommand(raw: string): ParseResult {
   const parsedOptions = parseOptions(spec, commandTokens);
   if (!parsedOptions.ok) return fail(raw, parsedOptions.error);
 
-  const { args, flags } = parsedOptions;
+  const { args, flags, pathsFrom } = parsedOptions;
   const maxArguments = spec.acceptsArguments ? (spec.maxArguments ?? Infinity) : 0;
   if (args.length > maxArguments) {
     return fail(
@@ -76,20 +76,42 @@ export function parseCommand(raw: string): ParseResult {
     }
   }
 
-  return { ok: true, command: { program, command, args, flags, raw } };
+  return {
+    ok: true,
+    command: {
+      program,
+      command,
+      args,
+      flags,
+      raw,
+      ...(pathsFrom === undefined ? {} : { pathsFrom }),
+    },
+  };
 }
 
 type OptionsResult =
-  { ok: true; args: string[]; flags: ParsedCommand["flags"] } | { ok: false; error: ParseError };
+  | { ok: true; args: string[]; flags: ParsedCommand["flags"]; pathsFrom?: number }
+  | { ok: false; error: ParseError };
 
 function findFlag(spec: GitCommandSpec, name: string): FlagSpec | undefined {
   return spec.flags.find((flag) => flag.name === name || flag.aliases?.includes(name));
+}
+
+/** The flags of a bundle such as `rf` in `-rf`, or `null` when any letter is not a known flag. */
+function bundledFlags(spec: GitCommandSpec, letters: string): FlagSpec[] | null {
+  // Flag names are ASCII letters, so splitting by UTF-16 unit is safe here.
+  const flags = Array.from(letters, (letter) => findFlag(spec, letter));
+  if (flags.some((flag) => flag === undefined)) return null;
+  const known = flags as FlagSpec[];
+  // Only the last flag of a bundle may take a value (from the next word).
+  return known.slice(0, -1).some((flag) => flag.takesValue) ? null : known;
 }
 
 function parseOptions(spec: GitCommandSpec, tokens: string[]): OptionsResult {
   const args: string[] = [];
   const flags: ParsedCommand["flags"] = {};
   let optionsEnded = false;
+  let pathsFrom: number | undefined;
 
   const setFlag = (flag: FlagSpec, value: string | boolean) => {
     const previous = flags[flag.name];
@@ -108,6 +130,7 @@ function parseOptions(spec: GitCommandSpec, tokens: string[]): OptionsResult {
     }
     if (token === "--") {
       optionsEnded = true;
+      pathsFrom = args.length;
       continue;
     }
 
@@ -138,10 +161,34 @@ function parseOptions(spec: GitCommandSpec, tokens: string[]): OptionsResult {
 
     if (!flag.takesValue) {
       if (attached !== undefined) {
-        return {
-          ok: false,
-          error: parseError("UNKNOWN_FLAG", `error: option '${name}' takes no value`),
-        };
+        // Bundled short flags, e.g. `-rf` for `-r -f`. The last one may take a value (`-um msg`).
+        const bundle = isLong ? null : bundledFlags(spec, attached);
+        if (!bundle) {
+          return {
+            ok: false,
+            error: parseError("UNKNOWN_FLAG", `error: option '${name}' takes no value`),
+          };
+        }
+        setFlag(flag, true);
+        for (const [position, bundled] of bundle.entries()) {
+          if (!bundled.takesValue) {
+            setFlag(bundled, true);
+            continue;
+          }
+          const value = position === bundle.length - 1 ? tokens[index + 1] : undefined;
+          if (value === undefined) {
+            return {
+              ok: false,
+              error: parseError(
+                "MISSING_FLAG_VALUE",
+                `error: switch '${bundled.name}' requires a value`,
+              ),
+            };
+          }
+          index += 1;
+          setFlag(bundled, value);
+        }
+        continue;
       }
       setFlag(flag, true);
       continue;
@@ -158,5 +205,5 @@ function parseOptions(spec: GitCommandSpec, tokens: string[]): OptionsResult {
     setFlag(flag, value);
   }
 
-  return { ok: true, args, flags };
+  return { ok: true, args, flags, ...(pathsFrom === undefined ? {} : { pathsFrom }) };
 }

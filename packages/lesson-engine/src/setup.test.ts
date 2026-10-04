@@ -130,3 +130,65 @@ describe("resetLesson", () => {
     expect(await env.files.exists(WS, ".git")).toBe(false);
   });
 });
+
+describe("setup commands", () => {
+  it("run after the history, through the real parser", async () => {
+    const env = createTestEnvironment();
+    const state = await setupLesson(
+      {
+        ...lesson,
+        setup: {
+          initializeGit: true,
+          commits: [
+            { message: "A", files: { "a.txt": "a\n" } },
+            { message: "B", files: { "a.txt": "b\n" } },
+          ],
+          commands: ["git switch --detach HEAD~1"],
+        },
+      },
+      WS,
+      env,
+    );
+    expect(state.currentBranch).toBeNull();
+    expect(state.commits.map((commit) => commit.message)).toEqual(["A"]);
+    expect(await env.files.readFile(WS, "a.txt")).toBe("a\n");
+  });
+
+  it("fail the setup when a command fails", async () => {
+    const env = createTestEnvironment();
+    await expect(
+      setupLesson(
+        {
+          ...lesson,
+          setup: {
+            initializeGit: true,
+            commits: [{ message: "A", files: { "a.txt": "a\n" } }],
+            commands: ["git switch nope"],
+          },
+        },
+        WS,
+        env,
+      ),
+    ).rejects.toThrow(/`git switch nope` failed: fatal: invalid reference: nope/);
+  });
+
+  it("delete files when a setup commit maps them to null", async () => {
+    const env = createTestEnvironment();
+    const state = await setupLesson(
+      {
+        ...lesson,
+        setup: {
+          initializeGit: true,
+          commits: [
+            { message: "A", files: { "a.txt": "a\n", "docs/b.md": "b\n" } },
+            { message: "Remove docs", files: { "docs/b.md": null } },
+          ],
+        },
+      },
+      WS,
+      env,
+    );
+    expect(state.commits.map((commit) => commit.message)).toEqual(["Remove docs", "A"]);
+    expect(state.files).toEqual([{ path: "a.txt", status: "committed" }]);
+  });
+});

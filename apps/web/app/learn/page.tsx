@@ -30,6 +30,14 @@ export default async function LearnPage() {
           <Link href="/learn/demo" className="text-fg-secondary underline hover:text-fg">
             Try the five-minute demo lesson
           </Link>
+          . Ready for real problems? Take on the{" "}
+          <Link href="/challenges" className="text-fg-secondary underline hover:text-fg">
+            challenges
+          </Link>
+          , or experiment freely in the{" "}
+          <Link href="/playground" className="text-fg-secondary underline hover:text-fg">
+            playground
+          </Link>
           .
         </p>
       </main>

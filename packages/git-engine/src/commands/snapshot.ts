@@ -9,7 +9,9 @@ import {
   resolveRefOrNull,
 } from "../engine/repository";
 import { readBranches } from "./branch";
-import { readMergeState } from "../engine/merge-state";
+import { operationKind, readMergeState } from "../engine/merge-state";
+import { readStashes, toStashEntry } from "../engine/stash-store";
+import { readReflog, ZERO_OID } from "../engine/reflog";
 import { readStatusEntries } from "../engine/status-matrix";
 
 export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapshot> {
@@ -25,6 +27,8 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       commits: [],
       allCommits: [],
       merge: null,
+      reflog: [],
+      stashes: [],
       entries: files
         .filter((file) => file.type === "file")
         .map((file) => ({
@@ -38,13 +42,15 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     };
   }
 
-  const [branch, head, entries, branchStates, merge] = await Promise.all([
+  const [branch, head, entries, branchStates, merge, reflog, stashes] = await Promise.all([
     currentBranch(ctx),
     resolveRefOrNull(ctx, "HEAD"),
     readStatusEntries(ctx),
     // Includes an unborn current branch: it has no ref yet, but learners still expect to see it.
     readBranches(ctx),
     readMergeState(ctx),
+    readReflog(ctx, "HEAD"),
+    readStashes(ctx),
   ]);
   const branches: GitBranchInfo[] = branchStates.map(({ name, oid }) => ({ name, oid }));
   const tips = [head, ...branches.map((info) => info.oid)].filter((oid) => oid !== null);
@@ -57,7 +63,25 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     commits: head === null ? [] : await readCommitsFromHead(ctx),
     allCommits: await readCommitsFrom(ctx, tips),
     entries,
+    reflog: reflog.map((entry, index) => ({
+      index,
+      oid: entry.newOid,
+      previousOid: entry.oldOid === ZERO_OID ? null : entry.oldOid,
+      message: entry.message,
+      timestamp: entry.timestamp,
+    })),
+    stashes: stashes.map(toStashEntry),
     merge: merge && {
+      kind: operationKind(merge),
+      ...(merge.rebase
+        ? {
+            rebase: {
+              branch: merge.rebase.branch,
+              onto: merge.rebase.onto,
+              remaining: merge.rebase.todo.length,
+            },
+          }
+        : {}),
       branch: merge.branch,
       theirs: merge.theirs,
       conflicts: merge.conflicts.map(({ path, base, ours, theirs, resolved }) => ({

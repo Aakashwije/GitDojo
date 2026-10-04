@@ -1,0 +1,89 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: lost-commit
+title: Lost Commit
+category: recovery
+difficulty: intermediate
+order: 2
+
+scenario: |
+  Cleaning up branches before a release, you ran `git branch -D` on `feature/payments`. Only
+  afterwards did you remember it had two commits nobody had merged yet: the checkout flow and
+  its receipt emails. `git log` no longer shows them anywhere.
+
+mission: >
+  Bring `feature/payments` back with both of its commits, without touching `main`.
+
+concepts:
+  - reflog
+  - branches
+  - recovery
+
+requires:
+  - reflog
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Bakery Shop
+        src/menu.js: |
+          export const menu = ["bread", "croissant"];
+    - message: Add checkout flow
+      branch: feature/payments
+      files:
+        src/checkout.js: |
+          export function checkout(cart) {}
+    - message: Send receipt emails
+      branch: feature/payments
+      files:
+        src/receipt.js: |
+          export function sendReceipt(order) {}
+    - message: Add opening hours
+      files:
+        hours.md: |
+          Mon–Sat 7:00–18:00
+  commands:
+    - git branch -D feature/payments
+
+objectives:
+  - id: branch-back
+    description: "`feature/payments` exists again."
+    validator:
+      type: branch_exists
+      branch: feature/payments
+
+  - id: checkout
+    description: It contains `Add checkout flow`.
+    validator:
+      type: branch_contains_commit
+      branch: feature/payments
+      message: Add checkout flow
+
+  - id: receipts
+    description: It contains `Send receipt emails`.
+    validator:
+      type: branch_contains_commit
+      branch: feature/payments
+      message: Send receipt emails
+
+  - id: main-untouched
+    description: "`main` still points at `Add opening hours`."
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      message: Add opening hours
+
+hints:
+  branch-back:
+    - Deleting a branch deletes a label, not the commits it pointed at.
+    - HEAD visited those commits once. Something keeps a record of every place HEAD has been.
+  receipts:
+    - The newest of the two commits brings its parent along.
+  main-untouched:
+    - The recovery should not move `main`.
+
+completion:
+  xp: 150

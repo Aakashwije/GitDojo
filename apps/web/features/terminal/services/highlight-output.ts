@@ -35,7 +35,24 @@ function highlightLine(line: string, section: StatusSection, ok: boolean): strin
   if (line.startsWith("CONFLICT (") || line.startsWith("Automatic merge failed")) {
     return ansi.error(line);
   }
-  if (line === "Fast-forward" || line.startsWith("Merge made by")) return ansi.success(line);
+  if (
+    line === "Fast-forward" ||
+    line.startsWith("Merge made by") ||
+    line.startsWith("Successfully rebased") ||
+    line.startsWith("Saved working directory") ||
+    line.startsWith("HEAD is now at")
+  ) {
+    return ansi.success(line);
+  }
+  if (line.startsWith("Could not apply") || line.startsWith("Warning: you are leaving")) {
+    return ansi.error(line);
+  }
+  if (line.startsWith("Dropped refs/stash")) return ansi.muted(line);
+  // `git stash list`: stash@{0}: WIP on main: ...
+  const stash = /^(stash@\{\d+\}): (.*)$/.exec(line);
+  if (stash && ok) return `${ansi.accent(stash[1] ?? "")}: ${stash[2] ?? ""}`;
+  const reflog = ok ? highlightReflogLine(line) : null;
+  if (reflog) return reflog;
   // Diffstat bars: " login.js | 5 +++--"
   const stat = /^( .+ \| +\d+ )(\+*)(-*)$/.exec(line);
   if (stat) {
@@ -68,8 +85,34 @@ function highlightLine(line: string, section: StatusSection, ok: boolean): strin
   return line;
 }
 
+/** `git diff`: file headers bold, hunk headers blue, additions green, removals red. */
+function highlightDiffLine(line: string): string {
+  if (/^(diff --git |index |new file mode |deleted file mode |--- |\+\+\+ )/.test(line)) {
+    return ansi.bold(line);
+  }
+  if (line.startsWith("@@")) {
+    const match = /^(@@ [^@]+ @@)(.*)$/.exec(line);
+    return match ? `${ansi.path(match[1] ?? "")}${match[2] ?? ""}` : ansi.path(line);
+  }
+  if (line.startsWith("+")) return ansi.success(line);
+  if (line.startsWith("-")) return ansi.error(line);
+  if (line.startsWith("\\ ")) return ansi.muted(line);
+  return line;
+}
+
+/** `git reflog`: `abc1234 (HEAD -> main) HEAD@{0}: commit: message`. */
+function highlightReflogLine(line: string): string | null {
+  const match = /^([0-9a-f]{7})( \([^)]+\))? (\S+@\{\d+\}): (.*)$/.exec(line);
+  if (!match) return null;
+  const [, short = "", decoration, selector = "", message = ""] = match;
+  return `${ansi.warning(short)}${decoration ? ` ${highlightDecoration(decoration.trim())}` : ""} ${ansi.accent(selector)}: ${message}`;
+}
+
 /** Adds Git-like colors to plain command output. Output text itself is never changed. */
 export function highlightOutput(output: string, ok: boolean): string {
+  if (/^diff --git /m.test(output)) {
+    return output.split("\n").map(highlightDiffLine).join("\n");
+  }
   let section: StatusSection = null;
   return output
     .split("\n")

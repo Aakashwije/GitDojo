@@ -1,4 +1,5 @@
 # Challenges
 
-Challenges are real-world Git scenarios without step-by-step guidance. They arrive in a later
-phase and will reuse the lesson schema and validator engine (see `docs/lesson-authoring.md`).
+Real-world Git problems without step-by-step guidance: a scenario, a mission and success
+conditions. One YAML file per challenge, named after its `id`. See
+[docs/challenge-authoring.md](../../docs/challenge-authoring.md).

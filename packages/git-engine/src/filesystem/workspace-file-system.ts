@@ -78,6 +78,10 @@ export class WorkspaceFileSystem implements VirtualFileSystem {
     await emptyDirectory(this.fs, root);
   }
 
+  async flush(): Promise<void> {
+    await this.fs.flush();
+  }
+
   private async walk(
     workspaceId: string,
     relativeDir: string,

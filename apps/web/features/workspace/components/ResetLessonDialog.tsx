@@ -16,9 +16,20 @@ export interface ResetLessonButtonProps {
   confirm: boolean;
   onReset: () => Promise<void>;
   disabled?: boolean;
+  /** Confirmation wording; defaults describe resetting a lesson. */
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
 }
 
-export function ResetLessonButton({ confirm, onReset, disabled }: ResetLessonButtonProps) {
+export function ResetLessonButton({
+  confirm,
+  onReset,
+  disabled,
+  title = "Reset this lesson?",
+  description = "The repository goes back to its starting state and your progress on this lesson is cleared.",
+  confirmLabel = "Reset lesson",
+}: ResetLessonButtonProps) {
   const [open, setOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -47,11 +58,8 @@ export function ResetLessonButton({ confirm, onReset, disabled }: ResetLessonBut
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogTitle>Reset this lesson?</DialogTitle>
-          <DialogDescription>
-            The repository goes back to its starting state and your progress on this lesson is
-            cleared.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
           <DialogFooter>
             <Button
               variant="secondary"
@@ -62,7 +70,7 @@ export function ResetLessonButton({ confirm, onReset, disabled }: ResetLessonBut
               Cancel
             </Button>
             <Button variant="danger" disabled={resetting} onClick={() => void reset()}>
-              <RotateCcw /> Reset lesson
+              <RotateCcw /> {confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

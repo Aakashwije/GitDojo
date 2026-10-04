@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from "@gitdojo/ui";
 import { Check, Copy, Eraser, SquareTerminal } from "lucide-react";
-import { useState, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { type TerminalHandle } from "../hooks/use-terminal";
 import { type TerminalExecutor } from "../services/terminal-executor";
 import { Terminal } from "./Terminal";
@@ -21,16 +21,13 @@ export interface TerminalPanelProps {
   ready: boolean;
   banner?: string;
   handleRef: RefObject<TerminalHandle | null>;
+  /** Shown under the terminal, e.g. the error explanation. */
+  footer?: ReactNode;
   className?: string;
 }
 
-export function TerminalPanel({
-  executor,
-  ready,
-  banner,
-  handleRef,
-  className,
-}: TerminalPanelProps) {
+/** Copy and clear buttons for a terminal's header. */
+export function TerminalActions({ handleRef }: { handleRef: RefObject<TerminalHandle | null> }) {
   const [copied, setCopied] = useState(false);
 
   const copyOutput = async () => {
@@ -47,6 +44,30 @@ export function TerminalPanel({
   };
 
   return (
+    <PanelActions>
+      <Tooltip content={copied ? "Copied" : "Copy output"}>
+        <IconButton aria-label="Copy terminal output" onClick={() => void copyOutput()}>
+          {copied ? <Check className="text-success" /> : <Copy />}
+        </IconButton>
+      </Tooltip>
+      <Tooltip content="Clear (Ctrl+L)">
+        <IconButton aria-label="Clear terminal" onClick={() => handleRef.current?.clear()}>
+          <Eraser />
+        </IconButton>
+      </Tooltip>
+    </PanelActions>
+  );
+}
+
+export function TerminalPanel({
+  executor,
+  ready,
+  banner,
+  handleRef,
+  footer,
+  className,
+}: TerminalPanelProps) {
+  return (
     <Panel aria-label="Terminal" className={cn("border-border-subtle", className)}>
       <PanelHeader className="bg-panel">
         <div className="min-w-0">
@@ -58,22 +79,12 @@ export function TerminalPanel({
             Git sandbox · Safe browser environment
           </PanelDescription>
         </div>
-        <PanelActions>
-          <Tooltip content={copied ? "Copied" : "Copy output"}>
-            <IconButton aria-label="Copy terminal output" onClick={() => void copyOutput()}>
-              {copied ? <Check className="text-success" /> : <Copy />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip content="Clear (Ctrl+L)">
-            <IconButton aria-label="Clear terminal" onClick={() => handleRef.current?.clear()}>
-              <Eraser />
-            </IconButton>
-          </Tooltip>
-        </PanelActions>
+        <TerminalActions handleRef={handleRef} />
       </PanelHeader>
       <div className="min-h-0 flex-1">
         <Terminal executor={executor} ready={ready} banner={banner} handleRef={handleRef} />
       </div>
+      {footer}
     </Panel>
   );
 }

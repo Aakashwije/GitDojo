@@ -1,17 +1,19 @@
+import { createHintState, revealNext } from "@gitdojo/hints";
 import { type LessonProgress } from "@gitdojo/lesson-engine";
-import { type LessonValidationResult } from "@gitdojo/shared-types";
+import { type HintState, type LessonValidationResult } from "@gitdojo/shared-types";
 import { create } from "zustand";
 
 interface LessonStore {
   progress: LessonProgress | null;
   validation: LessonValidationResult | null;
-  /** Objective id → number of hints revealed. */
-  revealedHints: Record<string, number>;
+  /** Objective id → how far down its hint ladder the learner has gone. */
+  hintStates: Record<string, HintState>;
   commandCount: number;
   completionDismissed: boolean;
   applyEvaluation: (validation: LessonValidationResult, progress: LessonProgress) => void;
   recordCommand: () => void;
-  revealHint: (objectiveId: string) => void;
+  /** Shows the next of `totalHints` hints for an objective. */
+  revealHint: (objectiveId: string, totalHints: number) => void;
   dismissCompletion: () => void;
   resetAttempt: () => void;
   /** Forget everything about the previous lesson before another one loads. */
@@ -22,7 +24,7 @@ interface LessonStore {
 export const useLessonStore = create<LessonStore>()((set) => ({
   progress: null,
   validation: null,
-  revealedHints: {},
+  hintStates: {},
   commandCount: 0,
   completionDismissed: false,
   applyEvaluation: (validation, progress) => {
@@ -31,25 +33,26 @@ export const useLessonStore = create<LessonStore>()((set) => ({
   recordCommand: () => {
     set((state) => ({ commandCount: state.commandCount + 1 }));
   },
-  revealHint: (objectiveId) => {
-    set((state) => ({
-      revealedHints: {
-        ...state.revealedHints,
-        [objectiveId]: (state.revealedHints[objectiveId] ?? 0) + 1,
-      },
-    }));
+  revealHint: (objectiveId, totalHints) => {
+    set((state) => {
+      const current = state.hintStates[objectiveId] ?? {
+        ...createHintState(objectiveId, []),
+        totalHints,
+      };
+      return { hintStates: { ...state.hintStates, [objectiveId]: revealNext(current) } };
+    });
   },
   dismissCompletion: () => {
     set({ completionDismissed: true });
   },
   resetAttempt: () => {
-    set({ revealedHints: {}, commandCount: 0, completionDismissed: false });
+    set({ hintStates: {}, commandCount: 0, completionDismissed: false });
   },
   startLesson: () => {
     set({
       progress: null,
       validation: null,
-      revealedHints: {},
+      hintStates: {},
       commandCount: 0,
       completionDismissed: false,
     });

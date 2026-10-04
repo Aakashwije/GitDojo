@@ -1,0 +1,91 @@
+# Challenge: Undo and Recover
+# Schema and authoring guide: docs/lesson-authoring.md
+# Challenges describe the end state and never prescribe commands, including in hints.
+id: recovery-challenge
+slug: recovery-challenge
+title: Recovery Challenge
+type: challenge
+
+goal: Undo a bad morning on `main` without losing anyone's work.
+
+description: |
+  Before lunch you stashed your half-finished export button to look at a bug. Then a
+  `git reset --hard HEAD~1` went wrong and the `Add invoices` commit disappeared from `main`.
+
+  Bring `Add invoices` back, bring your export work back and commit it as `Add export button`,
+  and leave nothing stashed or uncommitted.
+
+difficulty: advanced
+
+concepts:
+  - reflog
+  - stash
+  - reset
+
+commands:
+  - git reflog
+  - git stash
+  - git reset
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Billing
+        src/app.js: |
+          export const routes = ["/customers"];
+    - message: Add customers
+      files:
+        src/customers.js: |
+          export const customers = [];
+    - message: Add invoices
+      files:
+        src/invoices.js: |
+          export const invoices = [];
+  files:
+    src/app.js: |
+      export const routes = ["/customers", "/export"];
+  commands:
+    - git stash
+    - git reset --hard HEAD~1
+
+objectives:
+  - id: invoices
+    description: "`main` contains `Add invoices` again."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add invoices
+
+  - id: export
+    description: "`main` has a commit `Add export button` with your stashed work."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add export button
+
+  - id: stash-empty
+    description: Nothing is left in the stash.
+    validator:
+      type: stash_count
+      count: 0
+
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  invoices:
+    - A commit no branch points to is not deleted. Something still remembers where HEAD was.
+  export:
+    - Shelved work waits in the stash until you bring it back.
+  stash-empty:
+    - Bringing an entry back does not always remove it from the list.
+  clean:
+    - Check the status for anything left over.
+
+completion:
+  xp: 250

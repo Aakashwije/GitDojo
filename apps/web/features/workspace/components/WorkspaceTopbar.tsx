@@ -5,6 +5,7 @@ import { SegmentedProgress } from "@gitdojo/ui";
 import Link from "next/link";
 import { LogoMark } from "@/components/site/logo";
 import { CourseNavigationDialog } from "@/features/course/components/CourseNavigationDialog";
+import { type ChallengeContext } from "@/features/challenges/services/challenge-navigation";
 import { lessonNeighbors } from "@/features/course/services/course-navigation";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
 import { HelpDialog } from "./HelpDialog";
@@ -14,6 +15,8 @@ export interface WorkspaceTopbarProps {
   lesson: LessonDefinition;
   /** The course this lesson belongs to; standalone lessons (the demo) have none. */
   course?: CourseOutline;
+  /** Set for challenges from /challenges. */
+  challenge?: ChallengeContext;
   /** Hands-on lessons only: terminal controls. */
   terminal?: {
     ready: boolean;
@@ -21,7 +24,7 @@ export interface WorkspaceTopbarProps {
   };
 }
 
-export function WorkspaceTopbar({ lesson, course, terminal }: WorkspaceTopbarProps) {
+export function WorkspaceTopbar({ lesson, course, challenge, terminal }: WorkspaceTopbarProps) {
   const completed = useLessonStore((state) =>
     state.progress?.lessonId === lesson.id ? state.progress.completedObjectiveIds.length : 0,
   );
@@ -33,14 +36,24 @@ export function WorkspaceTopbar({ lesson, course, terminal }: WorkspaceTopbarPro
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-app px-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Link
-          href={course ? "/learn" : "/"}
-          aria-label={course ? "All courses" : "GitDojo home"}
+          href={challenge ? "/challenges" : course ? "/learn" : "/"}
+          aria-label={challenge ? "All challenges" : course ? "All courses" : "GitDojo home"}
           className="shrink-0 rounded-md p-1 text-fg transition-colors hover:bg-hover"
         >
           <LogoMark />
         </Link>
         <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border" />
-        {course && position ? (
+        {challenge ? (
+          <div className="min-w-0" data-testid="challenge-context">
+            <p className="text-caption text-fg-muted">
+              <Link href="/challenges" className="hover:text-fg">
+                Challenges
+              </Link>{" "}
+              · {challenge.categoryTitle}
+            </p>
+            <p className="truncate text-small font-semibold text-fg">{lesson.title}</p>
+          </div>
+        ) : course && position ? (
           <CourseNavigationDialog course={course} position={position} />
         ) : (
           <div className="min-w-0">

@@ -151,3 +151,48 @@ export function overwriteError(
   }
   return null;
 }
+
+/** Blob oid for every path in the index (the staging area). */
+export async function readIndexFiles(ctx: GitContext): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  await git.walk({
+    fs: ctx.fs,
+    dir: ctx.dir,
+    trees: [git.STAGE()],
+    map: async (path, [entry]) => {
+      if (path !== "." && entry && (await entry.type()) === "blob") {
+        files.set(path, await entry.oid());
+      }
+      return undefined;
+    },
+  });
+  return files;
+}
+
+/**
+ * Makes the index entries for `paths` match `tree` (removing paths it lacks) without touching
+ * the working tree, like `git reset -- <paths>`.
+ */
+export async function resetIndexPaths(
+  ctx: GitContext,
+  paths: Iterable<string>,
+  tree: ReadonlyMap<string, string>,
+  commit: string | null,
+): Promise<void> {
+  const index = await readIndexFiles(ctx);
+  for (const path of paths) {
+    const target = tree.get(path);
+    if (target === index.get(path)) continue;
+    if (target === undefined || commit === null) {
+      await git.remove({ fs: ctx.fs, dir: ctx.dir, filepath: path });
+    } else {
+      await git.resetIndex({ fs: ctx.fs, dir: ctx.dir, filepath: path, ref: commit });
+    }
+  }
+}
+
+/** Blob oid of some text, as Git would store it (used to print `index a..b` diff headers). */
+export async function hashText(text: string): Promise<string> {
+  const { oid } = await git.hashBlob({ object: new TextEncoder().encode(text) });
+  return oid;
+}

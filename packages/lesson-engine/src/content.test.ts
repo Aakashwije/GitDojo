@@ -1,6 +1,6 @@
 import { runCommandLine } from "@gitdojo/command-parser";
+import { normalizeHints } from "@gitdojo/hints";
 import { lessonTypeOf, type LessonDefinition } from "@gitdojo/shared-types";
-import { validateLesson } from "@gitdojo/validator";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,9 +8,10 @@ import { describe, expect, it } from "vitest";
 import { loadAllCourses, loadCourse, toCourseOutline } from "./course";
 import { loadAllLessons, loadLesson } from "./loader";
 import { createDirectoryCourseSource, createDirectoryLessonSource } from "./node";
-import { advanceProgress, createInitialProgress, type LessonProgress } from "./progress";
-import { setupLesson } from "./setup";
-import { createTestEnvironment } from "./test-utils";
+import { type LessonProgress } from "./progress";
+import { loadAllScenarios } from "./scenario";
+import { applySetup } from "./setup";
+import { createTestEnvironment, play as playSteps, type PlayStep } from "./test-utils";
 
 const CONTENT_DIR = fileURLToPath(new URL("../../../content", import.meta.url));
 const LESSONS_DIR = join(CONTENT_DIR, "lessons");
@@ -57,6 +58,7 @@ describe("courses", () => {
       "branching",
       "merging",
       "merge-conflicts",
+      "recovery",
     ]);
   });
 
@@ -98,39 +100,79 @@ describe("courses", () => {
   });
 });
 
-/**
- * Plays commands through the real parser, Git engine and validators, exactly like a learner's
- * session, and returns the progress after each step.
- */
-/** A command typed in the terminal, or a file edited in the UI (e.g. resolving a conflict). */
-type Step = string | { write: string; content: string };
-
-async function play(lesson: LessonDefinition, steps: Step[]): Promise<LessonProgress> {
-  const env = createTestEnvironment();
-  const workspaceId = `curriculum-${lesson.id}`;
-  let repository = await setupLesson(lesson, workspaceId, env);
-  let progress = advanceProgress(
-    lesson,
-    createInitialProgress(lesson),
-    await validateLesson(lesson, { repository }),
-  );
-  expect(progress.completedObjectiveIds, `${lesson.id} starts with objectives done`).toEqual([]);
-
-  for (const step of steps) {
-    if (typeof step !== "string") {
-      await env.files.writeFile(workspaceId, step.write, step.content);
-    } else {
-      const result = await runCommandLine(step, { workspaceId, git: env.gitFor(workspaceId) });
-      // `git merge` reports a conflict as a failure; that is the expected outcome in these lessons.
-      const expectedFailure = result.errorCode === "MERGE_CONFLICT";
-      expect(
-        result.ok || expectedFailure,
-        `${lesson.id}: \`${step}\` failed:\n${result.output}`,
-      ).toBe(true);
+describe("hints", () => {
+  it("climb from concept to answer, and challenges never give the answer", async () => {
+    const lessons = (await loadAllCourses(courses, lessonsFor))
+      .flatMap(({ lessons: list }) => list)
+      .filter((lesson) => lessonTypeOf(lesson) !== "concept");
+    for (const lesson of lessons) {
+      const challenge = lessonTypeOf(lesson) === "challenge";
+      const ladders = lesson.objectives.map((objective) =>
+        normalizeHints(lesson.hints?.[objective.id], { challenge }),
+      );
+      for (const ladder of ladders) {
+        const levels = ladder.map((hint) => hint.level);
+        expect(levels, lesson.id).toEqual([...levels].sort());
+      }
+      const answers = ladders.flat().filter((hint) => hint.level === 3);
+      if (challenge) expect(answers, `${lesson.id} gives away a command`).toEqual([]);
+      // Nobody is ever stuck in a guided lesson: some objective ends with the exact command.
+      else expect(answers.length, `${lesson.id} never shows a command`).toBeGreaterThan(0);
     }
-    repository = await env.stateReader.read(workspaceId);
-    progress = advanceProgress(lesson, progress, await validateLesson(lesson, { repository }));
-  }
+  });
+});
+
+describe("playground scenarios", () => {
+  const scenarios = createDirectoryLessonSource(join(CONTENT_DIR, "playground"));
+
+  it("load in order", async () => {
+    expect((await loadAllScenarios(scenarios)).map((scenario) => scenario.id)).toEqual([
+      "empty",
+      "simple",
+      "two-branches",
+      "merge-conflict",
+      "detached-head",
+      "recovery-practice",
+    ]);
+  });
+
+  it("all set up cleanly into the state they describe", async () => {
+    const env = createTestEnvironment();
+    const states = new Map<string, Awaited<ReturnType<typeof applySetup>>>();
+    for (const scenario of await loadAllScenarios(scenarios)) {
+      states.set(
+        scenario.id,
+        await applySetup(scenario.setup, `scenario-${scenario.id}`, env, scenario.id),
+      );
+    }
+    expect(states.get("empty")?.commits).toEqual([]);
+    expect(states.get("detached-head")).toMatchObject({ currentBranch: null });
+    expect(states.get("two-branches")?.branches.map((branch) => branch.name)).toEqual([
+      "feature/search",
+      "main",
+    ]);
+    // The deleted branch's and the reset commit are on no branch, but HEAD's reflog still lists
+    // them, and the stash holds the uncommitted work.
+    const recovery = states.get("recovery-practice");
+    expect(recovery?.branches.map((branch) => branch.name)).toEqual(["main"]);
+    expect(recovery?.commits.map((commit) => commit.message)).toEqual(["Initial commit"]);
+    expect(recovery?.reflog.map((entry) => entry.message)).toEqual(
+      expect.arrayContaining(["commit: Add reactions", "commit: Add typing indicator"]),
+    );
+    expect(recovery?.stashes).toHaveLength(1);
+
+    const conflict = await runCommandLine("git merge feature/theme", {
+      workspaceId: "scenario-merge-conflict",
+      git: env.gitFor("scenario-merge-conflict"),
+    });
+    expect(conflict.errorCode).toBe("MERGE_CONFLICT");
+  });
+});
+
+/** Plays a solution and checks the lesson did not start with objectives already done. */
+async function play(lesson: LessonDefinition, steps: PlayStep[]): Promise<LessonProgress> {
+  const { initial, progress } = await playSteps(lesson, steps);
+  expect(initial.completedObjectiveIds, `${lesson.id} starts with objectives done`).toEqual([]);
   return progress;
 }
 
@@ -143,7 +185,7 @@ const AUTH_RESOLVED = [
   "",
 ].join("\n");
 
-const SOLUTIONS: Record<string, Step[]> = {
+const SOLUTIONS: Record<string, PlayStep[]> = {
   "git-init": ["git init"],
   "git-status": [
     "git status",
@@ -227,6 +269,26 @@ const SOLUTIONS: Record<string, Step[]> = {
     "git add .",
     'git commit -m "Merge feature/tax"',
   ],
+  "git-diff": [
+    "git diff",
+    "git add src/price.js",
+    "git diff --staged",
+    'git commit -m "Fix total for empty carts"',
+  ],
+  "git-restore": ["git restore --staged notes.md", "git restore index.html"],
+  "git-reset": ["git reset HEAD~1", "git add src/login.js", 'git commit -m "Add login form"'],
+  "git-revert": ["git log --oneline", "git revert HEAD~1"],
+  "git-stash": ["git stash", "git switch main", "git switch feature/profile", "git stash pop"],
+  "git-cherry-pick": ["git log --oneline feature/charts", "git cherry-pick feature/charts~1"],
+  "git-reflog": ["git reflog", "git reset --hard HEAD@{1}"],
+  "git-rebase": ["git rebase main"],
+  "recovery-challenge": [
+    "git reflog",
+    "git reset --hard HEAD@{1}",
+    "git stash pop",
+    "git add src/app.js",
+    'git commit -m "Add export button"',
+  ],
 };
 
 describe("curriculum walkthroughs", async () => {
@@ -295,6 +357,39 @@ describe("curriculum walkthroughs", async () => {
     // Merging main into the feature branch is the wrong direction.
     const wrongDirection = await play(byId("three-way-merge"), ["git merge main"]);
     expect(wrongDirection.currentObjectiveId).toBe("on-main");
+  });
+
+  it("accepts other ways to undo and recover", async () => {
+    // A soft reset keeps the work staged; unstaging the log is part of the job then.
+    const soft = await play(byId("git-reset"), [
+      "git reset --soft HEAD~1",
+      "git restore --staged debug.log",
+      'git commit -m "Add login form"',
+    ]);
+    expect(soft.completed).toBe(true);
+    // Recovering with a new branch and a merge works as well as a reset.
+    const viaBranch = await play(byId("git-reflog"), [
+      "git branch rescue HEAD@{1}",
+      "git merge rescue",
+    ]);
+    expect(viaBranch.completed).toBe(true);
+    // Committing the export before recovering the invoices works too.
+    const otherOrder = await play(byId("recovery-challenge"), [
+      "git stash pop",
+      "git add src/app.js",
+      'git commit -m "Add export button"',
+      "git cherry-pick HEAD@{2}",
+    ]);
+    expect(otherOrder.completed).toBe(true);
+  });
+
+  it("rejects undoing shared history with a reset, or merging instead of rebasing", async () => {
+    const reset = await play(byId("git-revert"), ["git reset --hard HEAD~2"]);
+    expect(reset.currentObjectiveId).toBe("reverted");
+    const merged = await play(byId("git-rebase"), ["git merge main"]);
+    expect(merged.currentObjectiveId).toBe("rebased");
+    const wholeBranch = await play(byId("git-cherry-pick"), ["git merge feature/charts"]);
+    expect(wholeBranch.currentObjectiveId).toBe("no-charts");
   });
 
   it("does not accept a conflict staged with its markers", async () => {

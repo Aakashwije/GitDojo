@@ -12,8 +12,11 @@ export type LessonType = "concept" | "interactive" | "challenge";
 /** A commit created while setting up a lesson, before the learner types anything. */
 export interface LessonSetupCommit {
   message: string;
-  /** Files written and staged for this commit (workspace-relative path → content). */
-  files: Record<string, string>;
+  /**
+   * Files written and staged for this commit (workspace-relative path → content). `null` deletes
+   * a file the branch has, e.g. to set up a modify/delete conflict.
+   */
+  files: Record<string, string | null>;
   /**
    * Branch to commit on (default: `main`). A branch that does not exist yet is created at `main`'s
    * tip at that point in the list.
@@ -22,7 +25,7 @@ export interface LessonSetupCommit {
 }
 
 export interface LessonSetup {
-  /** Workspace-relative path → file content. Written last, so they are uncommitted changes. */
+  /** Workspace-relative path → file content. Written after the history, as uncommitted changes. */
   files?: Record<string, string>;
   /** Extra (possibly empty) directories to create. */
   directories?: string[];
@@ -33,6 +36,41 @@ export interface LessonSetup {
   branches?: string[];
   /** Branch the learner starts on (default: `main`). */
   currentBranch?: string;
+  /**
+   * Git commands run last (after the commits, branches and files), exactly as if typed in the
+   * terminal, e.g. `git reset --hard HEAD~1` to leave a commit only the reflog remembers,
+   * `git switch --detach HEAD~1`, or `git add notes.md` to stage a setup file. Each must succeed.
+   */
+  commands?: string[];
+}
+
+/**
+ * How much a hint gives away:
+ * 1. a conceptual clue ("Your changes only exist in the working tree."),
+ * 2. the command family ("You need the command that moves a file into staging."),
+ * 3. the specific command ("`git add README.md`").
+ */
+export type HintLevel = 1 | 2 | 3;
+
+/** A hint as authored: plain text (its level is inferred from its position) or with a level. */
+export type LessonHintInput = string | { level: HintLevel; text: string };
+
+/** A hint with its level settled. */
+export interface Hint {
+  level: HintLevel;
+  text: string;
+}
+
+/** How far a learner has gone down one objective's hint ladder. */
+export interface HintState {
+  objectiveId: string;
+  revealedHints: number;
+  totalHints: number;
+}
+
+export interface LessonEditorSettings {
+  /** Files can be opened and read but not changed (default false). */
+  readOnly?: boolean;
 }
 
 export interface LessonObjective {
@@ -118,8 +156,10 @@ export interface LessonDefinition {
   setup: LessonSetup;
   /** Empty for concept lessons; at least one for interactive lessons and challenges. */
   objectives: LessonObjective[];
-  /** Objective id → hints ordered from vague to explicit. */
-  hints?: Record<string, string[]>;
+  /** Objective id → hints ordered from vague to explicit (see {@link HintLevel}). */
+  hints?: Record<string, LessonHintInput[]>;
+  /** Code editor settings for hands-on lessons. */
+  editor?: LessonEditorSettings;
   completion?: {
     xp?: number;
   };
@@ -176,4 +216,66 @@ export interface CourseOutline {
   description: string;
   difficulty: LessonDifficulty;
   lessons: CourseLessonSummary[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Playground
+// ---------------------------------------------------------------------------------------------
+
+/** A ready-made repository to experiment with, as authored in `content/playground/<id>.yaml`. */
+export interface PlaygroundScenario {
+  id: string;
+  title: string;
+  description: string;
+  /** Position in the scenario picker; lower comes first. */
+  order?: number;
+  setup: LessonSetup;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Challenges
+// ---------------------------------------------------------------------------------------------
+
+export type ChallengeCategory =
+  "basics" | "branching" | "merging" | "conflicts" | "recovery" | "history" | "advanced";
+
+/**
+ * A real-world Git problem, as authored in `content/challenges/<id>.yaml`: a scenario, a mission
+ * and success conditions, but no step-by-step instructions.
+ */
+export interface ChallengeDefinition {
+  /** Also the URL slug and file name. */
+  id: string;
+  title: string;
+  category: ChallengeCategory;
+  difficulty: LessonDifficulty;
+  /** Position within its category; lower comes first. */
+  order?: number;
+  /** What happened: the situation the learner walks into. */
+  scenario: string;
+  /** What to achieve, without saying how. */
+  mission: string;
+  concepts: string[];
+  /** Git commands (e.g. `reset`, `stash`) the challenge needs. It stays locked until all exist. */
+  requires?: string[];
+  setup: LessonSetup;
+  /** The success conditions, checked against repository state like lesson objectives. */
+  objectives: LessonObjective[];
+  /** Objective id → hints, vague first. Never the exact command (no level 3). */
+  hints?: Record<string, LessonHintInput[]>;
+  completion?: { xp?: number };
+}
+
+/** What the challenge browser needs, without setup or objectives. */
+export interface ChallengeSummary {
+  id: string;
+  title: string;
+  category: ChallengeCategory;
+  difficulty: LessonDifficulty;
+  mission: string;
+  concepts: string[];
+  /** 1-based position across all challenges. */
+  number: number;
+  /** Commands from `requires` that GitDojo cannot run yet; empty when playable. */
+  missingCommands: string[];
 }

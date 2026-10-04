@@ -4,6 +4,8 @@ import { type CommandExecutionResult } from "@gitdojo/command-parser";
 import { type LessonEnvironment } from "@gitdojo/lesson-engine";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { explainOutcome } from "@/features/errors/services/explain-outcome";
+import { useExplanationStore } from "@/features/errors/state/use-explanation-store";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
 import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
 import { createBrowserLessonEnvironment } from "../services/browser-environment";
@@ -17,6 +19,8 @@ export interface LearningSessionControls {
   execute: (input: string) => Promise<CommandExecutionResult>;
   readFile: (path: string) => Promise<string>;
   saveFile: (path: string, content: string) => Promise<void>;
+  createFile: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
   reset: () => Promise<void>;
   retry: () => void;
 }
@@ -33,7 +37,14 @@ function describe(error: unknown): string {
 /** Binds a {@link LearningSession} to the view stores. */
 export function useLearningSession(
   lesson: LessonDefinition,
-  createEnvironment: () => LessonEnvironment = createBrowserLessonEnvironment,
+  {
+    workspaceId,
+    createEnvironment = createBrowserLessonEnvironment,
+  }: {
+    /** Defaults to the lesson's own workspace; challenges pass theirs. */
+    workspaceId?: string;
+    createEnvironment?: () => LessonEnvironment;
+  } = {},
 ): LearningSessionControls {
   const sessionRef = useRef<LearningSession | null>(null);
   // Server-provided props can be re-created with a new identity on re-render; the effect keys
@@ -45,6 +56,7 @@ export function useLearningSession(
     environmentRef.current = createEnvironment;
   });
   const lessonId = lesson.id;
+  const workspaceRef = useRef(workspaceId);
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -53,11 +65,16 @@ export function useLearningSession(
     let cancelled = false;
     // Created in an effect because the environment needs IndexedDB, which only exists in browsers.
     if (sessionRef.current?.lessonId !== lessonId) {
-      sessionRef.current = new LearningSession(lessonRef.current, environmentRef.current());
+      sessionRef.current = new LearningSession(
+        lessonRef.current,
+        environmentRef.current(),
+        workspaceRef.current,
+      );
     }
     const session = sessionRef.current;
     useRepositoryStore.getState().setWorkspace(session.workspaceId);
     useLessonStore.getState().startLesson();
+    useExplanationStore.getState().dismiss();
 
     session.start().then(
       (snapshot) => {
@@ -86,6 +103,7 @@ export function useLearningSession(
     try {
       const { result, snapshot } = await session.execute(input);
       publish(snapshot);
+      explainOutcome(input, result, snapshot.repository);
       return result;
     } catch (error) {
       console.error("[gitdojo] command failed", error);
@@ -110,11 +128,26 @@ export function useLearningSession(
     publish(await session.writeFile(path, content));
   }, []);
 
+  const createFile = useCallback(async (path: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("The workspace is still loading.");
+    useLessonStore.getState().recordCommand();
+    publish(await session.createFile(path));
+  }, []);
+
+  const deleteFile = useCallback(async (path: string) => {
+    const session = sessionRef.current;
+    if (!session) throw new Error("The workspace is still loading.");
+    useLessonStore.getState().recordCommand();
+    publish(await session.deleteFile(path));
+  }, []);
+
   const reset = useCallback(async () => {
     const session = sessionRef.current;
     if (!session) return;
     useLessonStore.getState().resetAttempt();
     useRepositoryStore.getState().selectCommit(null);
+    useExplanationStore.getState().dismiss();
     publish(await session.reset());
   }, []);
 
@@ -126,5 +159,15 @@ export function useLearningSession(
     setAttempt((value) => value + 1);
   }, []);
 
-  return { status, errorDetails, execute, readFile, saveFile, reset, retry };
+  return {
+    status,
+    errorDetails,
+    execute,
+    readFile,
+    saveFile,
+    createFile,
+    deleteFile,
+    reset,
+    retry,
+  };
 }

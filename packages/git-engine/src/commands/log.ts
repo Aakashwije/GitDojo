@@ -5,9 +5,11 @@ import { type GitCommitInfo, type GitLogOptions, type GitLogResult } from "../en
 import {
   currentBranch,
   isRepository,
+  readCommitsFrom,
   readCommitsFromHead,
   resolveRefOrNull,
 } from "../engine/repository";
+import { resolveRevision, unknownRevisionMessage } from "../engine/revisions";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -23,10 +25,13 @@ export function formatGitDate(timestamp: number, timezoneOffset: number): string
   return `${WEEKDAYS[local.getUTCDay()] ?? ""} ${MONTHS[local.getUTCMonth()] ?? ""} ${String(local.getUTCDate())} ${time} ${String(local.getUTCFullYear())} ${zone}`;
 }
 
-async function branchDecorations(ctx: GitContext): Promise<Map<string, string[]>> {
+export async function branchDecorations(ctx: GitContext): Promise<Map<string, string[]>> {
   const decorations = new Map<string, string[]>();
   const head = await currentBranch(ctx);
   const branches = await git.listBranches({ fs: ctx.fs, dir: ctx.dir });
+  // A detached HEAD is its own label, listed before any branch at the same commit.
+  const detached = head === null ? await resolveRefOrNull(ctx, "HEAD") : null;
+  if (detached !== null) decorations.set(detached, ["HEAD"]);
   // HEAD's branch is listed first, as Git does.
   const ordered = head ? [head, ...branches.filter((name) => name !== head)] : branches;
   for (const name of ordered) {
@@ -68,7 +73,27 @@ export async function runLog(ctx: GitContext, options: GitLogOptions = {}): Prom
     );
   }
 
-  const commits = await readCommitsFromHead(ctx);
+  let commits: GitCommitInfo[];
+  if (options.all) {
+    const tips = await Promise.all(
+      (await git.listBranches({ fs: ctx.fs, dir: ctx.dir })).map((name) =>
+        resolveRefOrNull(ctx, `refs/heads/${name}`),
+      ),
+    );
+    const head = await resolveRefOrNull(ctx, "HEAD");
+    commits = await readCommitsFrom(
+      ctx,
+      [head, ...tips].filter((oid) => oid !== null),
+    );
+  } else if (options.revision !== undefined) {
+    const start = await resolveRevision(ctx, options.revision);
+    if (start === null) {
+      return failure(gitError("INVALID_REVISION", unknownRevisionMessage(options.revision)));
+    }
+    commits = await readCommitsFrom(ctx, [start]);
+  } else {
+    commits = await readCommitsFromHead(ctx);
+  }
   const decorations = await branchDecorations(ctx);
   const oneline = options.oneline ?? false;
   const output = commits

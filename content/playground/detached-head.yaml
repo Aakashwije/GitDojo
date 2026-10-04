@@ -1,0 +1,25 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: detached-head
+title: Detached HEAD
+description: >
+  HEAD points straight at an older commit instead of a branch. Look around, commit an
+  experiment, and decide whether to keep it with `git switch -c` or leave it behind.
+order: 5
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Recipes
+    - message: Add pancakes
+      files:
+        pancakes.md: |
+          Flour, milk, eggs.
+    - message: Add waffles
+      files:
+        waffles.md: |
+          Flour, milk, eggs, butter.
+  commands:
+    - git switch --detach HEAD~1

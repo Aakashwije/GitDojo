@@ -2,8 +2,20 @@ import { type BranchState, type GitEngineError } from "@gitdojo/shared-types";
 import git from "isomorphic-git";
 import { type GitContext } from "../engine/context";
 import { failure, gitError, notARepository, success } from "../engine/errors";
-import { type GitBranchCreateResult, type GitBranchListResult } from "../engine/git-engine";
-import { currentBranch, isRepository, resolveRefOrNull } from "../engine/repository";
+import {
+  type GitBranchCreateResult,
+  type GitBranchDeleteResult,
+  type GitBranchListResult,
+} from "../engine/git-engine";
+import { deleteReflog, logBranchMove } from "../engine/reflog";
+import {
+  currentBranch,
+  isAncestor,
+  isRepository,
+  resolveRefOrNull,
+  shortOid,
+} from "../engine/repository";
+import { resolveRevision } from "../engine/revisions";
 
 // Git's check-ref-format rules, applied to a branch name.
 const FORBIDDEN_CHARACTERS = /[\s~^:?*[\\]/;
@@ -56,11 +68,14 @@ export async function runShowBranches(ctx: GitContext): Promise<GitBranchListRes
   if (!(await isRepository(ctx))) return notARepository();
   const branches = await readBranches(ctx);
   // Like Git, an unborn branch is not listed: it does not exist until its first commit.
-  const output = branches
+  const lines = branches
     .filter((branch) => branch.oid !== null)
-    .map((branch) => `${branch.current ? "*" : " "} ${branch.name}`)
-    .join("\n");
-  return success(output, { branches });
+    .map((branch) => `${branch.current ? "*" : " "} ${branch.name}`);
+  const head = await resolveRefOrNull(ctx, "HEAD");
+  if (head !== null && !branches.some((branch) => branch.current)) {
+    lines.unshift(`* (HEAD detached at ${shortOid(head)})`);
+  }
+  return success(lines.join("\n"), { branches });
 }
 
 /** Why a new branch called `name` cannot be created, or `null` when the name is free. */
@@ -91,19 +106,68 @@ export async function newBranchNameError(
 export async function runCreateBranch(
   ctx: GitContext,
   name: string,
+  startPoint?: string,
 ): Promise<GitBranchCreateResult> {
   if (!(await isRepository(ctx))) return notARepository();
   const nameError = await newBranchNameError(ctx, name);
   if (nameError) return failure(nameError);
 
-  const head = await resolveRefOrNull(ctx, "HEAD");
-  if (head === null) {
+  const start =
+    startPoint === undefined
+      ? await resolveRefOrNull(ctx, "HEAD")
+      : await resolveRevision(ctx, startPoint);
+  if (start === null) {
+    if (startPoint !== undefined) {
+      return failure(
+        gitError("INVALID_REVISION", `fatal: not a valid object name: '${startPoint}'`),
+      );
+    }
     // A branch has to point at a commit, and an unborn branch has none yet.
     const branch = (await currentBranch(ctx)) ?? "HEAD";
     return failure(gitError("NO_COMMITS", `fatal: not a valid object name: '${branch}'`));
   }
 
-  await git.branch({ fs: ctx.fs, dir: ctx.dir, ref: name, object: head });
+  await git.branch({ fs: ctx.fs, dir: ctx.dir, ref: name, object: start });
+  await logBranchMove(ctx, name, {
+    from: null,
+    to: start,
+    message: `branch: Created from ${startPoint ?? "HEAD"}`,
+  });
   // Real `git branch <name>` is silent on success.
-  return success("", { name, oid: head });
+  return success("", { name, oid: start });
+}
+
+/** `git branch -d <name>` and, with `force`, `git branch -D <name>`. */
+export async function runDeleteBranch(
+  ctx: GitContext,
+  name: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<GitBranchDeleteResult> {
+  if (name === "") return failure(gitError("INVALID_ARGUMENT", "fatal: branch name required"));
+  if (!(await isRepository(ctx))) return notARepository();
+  const oid = isValidBranchName(name) ? await resolveRefOrNull(ctx, `refs/heads/${name}`) : null;
+  if (oid === null) {
+    return failure(gitError("BRANCH_NOT_FOUND", `error: branch '${name}' not found`));
+  }
+  if ((await currentBranch(ctx)) === name) {
+    return failure(
+      gitError(
+        "BRANCH_CHECKED_OUT",
+        `error: cannot delete branch '${name}' used by worktree at '${ctx.displayDir}'`,
+      ),
+    );
+  }
+  const head = await resolveRefOrNull(ctx, "HEAD");
+  // -d protects work: the branch's commits must already be part of HEAD.
+  if (!force && (head === null || !(await isAncestor(ctx, oid, head)))) {
+    return failure(
+      gitError(
+        "BRANCH_NOT_MERGED",
+        `error: the branch '${name}' is not fully merged.\nIf you are sure you want to delete it, run 'git branch -D ${name}'.`,
+      ),
+    );
+  }
+  await git.deleteBranch({ fs: ctx.fs, dir: ctx.dir, ref: name });
+  await deleteReflog(ctx, name);
+  return success(`Deleted branch ${name} (was ${shortOid(oid)}).`, { name, oid });
 }

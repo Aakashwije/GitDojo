@@ -15,3 +15,6 @@ apps/web/test-results
 apps/web/playwright-report
 apps/web/blob-report
 apps/web/playwright/.cache
+
+# Monaco editor assets, copied from node_modules at build time
+apps/web/public/monaco

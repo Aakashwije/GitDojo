@@ -181,6 +181,7 @@ describe("merge conflicts", () => {
     const snapshot = await ws.git.snapshot();
     expect(snapshot.head).toBe(head);
     expect(snapshot.merge).toEqual({
+      kind: "merge",
       branch: "feature/login",
       theirs: snapshot.branches.find((b) => b.name === "feature/login")?.oid,
       conflicts: [
@@ -285,5 +286,28 @@ describe("merge conflicts", () => {
     );
     expect(await ws.files.readFile(ws.workspaceId, "README.md")).toBe("# App v2\n");
     expect((await ws.git.status()).output).toContain("\tdeleted by them: README.md");
+  });
+
+  it("resolves a modify/delete conflict by deleting the file and adding the path", async () => {
+    const ws = await setup();
+    await commit(ws, "Edit README", { "README.md": "# App v2\n" });
+    await ws.git.switchBranch("feature/login");
+    await ws.files.removeFile(ws.workspaceId, "README.md");
+    await ws.git.add(["README.md"]);
+    await ws.git.commit({ message: "Remove README" });
+
+    // On feature/login, main's edit conflicts with our deletion: the edited file is left in place.
+    expect((await ws.git.merge("main")).error?.code).toBe("MERGE_CONFLICT");
+    expect((await ws.git.status()).output).toContain("\tdeleted by us:   README.md");
+
+    // Deciding to delete it after all: the path still matches the conflict.
+    await ws.files.removeFile(ws.workspaceId, "README.md");
+    expect(await ws.git.add(["README.md"])).toMatchObject({
+      ok: true,
+      data: { resolved: ["README.md"] },
+    });
+    expect((await ws.git.commit({ message: "" })).ok).toBe(true);
+    expect(await ws.files.exists(ws.workspaceId, "README.md")).toBe(false);
+    expect((await ws.git.status()).output).toContain("nothing to commit, working tree clean");
   });
 });

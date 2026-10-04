@@ -1,0 +1,15 @@
+# Playground scenario. Schema: docs/lesson-authoring.md ("Playground scenarios")
+id: empty
+title: Empty Repository
+description: >
+  A freshly initialized repository with one untracked README and no commits yet. Make the first
+  commit, then build whatever history you like.
+order: 1
+
+setup:
+  initializeGit: true
+  files:
+    README.md: |
+      # Playground
+
+      Edit me, stage me, commit me.

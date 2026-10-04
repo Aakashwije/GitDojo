@@ -37,6 +37,8 @@ describe("RepositoryStateReader", () => {
       stagedFiles: [],
       conflicts: [],
       merge: null,
+      stashes: [],
+      reflog: [],
     });
   });
 
@@ -53,6 +55,8 @@ describe("RepositoryStateReader", () => {
       stagedFiles: [],
       conflicts: [],
       merge: null,
+      stashes: [],
+      reflog: [],
     });
   });
 
@@ -177,7 +181,7 @@ describe("RepositoryStateReader", () => {
     await git.merge("feature");
 
     const state = await reader.read(WS);
-    expect(state.merge).toEqual({ branch: "feature", oid: theirs.data?.oid });
+    expect(state.merge).toEqual({ kind: "merge", branch: "feature", oid: theirs.data?.oid });
     expect(state.conflicts).toEqual([
       { path: "a.txt", base: "base\n", ours: "ours\n", theirs: "theirs\n", resolved: false },
     ]);

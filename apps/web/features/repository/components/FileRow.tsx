@@ -12,11 +12,14 @@ export function FileRow({
   file,
   animation,
   action,
+  onOpen,
 }: {
   file: FileState;
   animation: "enter" | "move-in";
   /** Optional control shown next to the status, e.g. "Resolve" for a conflict. */
   action?: ReactNode;
+  /** Opens the file in the editor; the path becomes a button when set. */
+  onOpen?: (path: string) => void;
 }) {
   return (
     <li
@@ -30,7 +33,20 @@ export function FileRow({
     >
       <span className="flex min-w-0 items-center gap-2">
         <FileText className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />
-        <span className="truncate font-mono text-small text-fg">{file.path}</span>
+        {onOpen ? (
+          <button
+            type="button"
+            title={`Open ${file.path} in the editor`}
+            onClick={() => {
+              onOpen(file.path);
+            }}
+            className="truncate font-mono text-small text-fg hover:underline"
+          >
+            {file.path}
+          </button>
+        ) : (
+          <span className="truncate font-mono text-small text-fg">{file.path}</span>
+        )}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
         {action}

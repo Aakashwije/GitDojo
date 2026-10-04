@@ -1,0 +1,32 @@
+{
+  "name": "@gitdojo/challenge-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Challenge schema, loader and catalog for GitDojo's challenge mode.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gitdojo/command-parser": "workspace:*",
+    "@gitdojo/hints": "workspace:*",
+    "@gitdojo/lesson-engine": "workspace:*",
+    "@gitdojo/shared-types": "workspace:*",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@gitdojo/config": "workspace:*",
+    "@gitdojo/validator": "workspace:*",
+    "@types/node": "24.19.0",
+    "eslint": "9.39.5",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

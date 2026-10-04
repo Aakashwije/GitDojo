@@ -11,7 +11,13 @@ import {
 
 export type WorkspaceTab = "lesson" | "terminal" | "graph" | "files";
 
-const TABS: { id: WorkspaceTab; label: string; icon: LucideIcon }[] = [
+export interface MobileTab<T extends string> {
+  id: T;
+  label: string;
+  icon: LucideIcon;
+}
+
+export const LESSON_TABS: MobileTab<WorkspaceTab>[] = [
   { id: "lesson", label: "Lesson", icon: BookOpen },
   { id: "terminal", label: "Terminal", icon: SquareTerminal },
   { id: "graph", label: "Graph", icon: GitCommitHorizontal },
@@ -19,20 +25,22 @@ const TABS: { id: WorkspaceTab; label: string; icon: LucideIcon }[] = [
 ];
 
 /** Bottom navigation for phones; tablets and desktops show every panel at once. */
-export function MobileTabs({
+export function MobileTabs<T extends string>({
   active,
   onChange,
+  tabs,
 }: {
-  active: WorkspaceTab;
-  onChange: (tab: WorkspaceTab) => void;
+  active: T;
+  onChange: (tab: T) => void;
+  tabs: MobileTab<T>[];
 }) {
   return (
     <nav
       aria-label="Workspace panels"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-border-subtle bg-app/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
     >
-      <ul className="grid grid-cols-4">
-        {TABS.map(({ id, label, icon: Icon }) => (
+      <ul className="grid" style={{ gridTemplateColumns: `repeat(${String(tabs.length)}, 1fr)` }}>
+        {tabs.map(({ id, label, icon: Icon }) => (
           <li key={id}>
             <button
               type="button"

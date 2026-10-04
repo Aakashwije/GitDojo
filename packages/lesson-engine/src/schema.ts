@@ -1,4 +1,6 @@
+import { parseCommand } from "@gitdojo/command-parser";
 import { isGitInternalPath, isValidBranchName, normalizeWorkspacePath } from "@gitdojo/git-engine";
+import { hintIssues } from "@gitdojo/hints";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { validatorDefinitionSchema } from "@gitdojo/validator";
 import { z } from "zod";
@@ -27,7 +29,7 @@ const workspacePath = z.string().superRefine((path, ctx) => {
   if (reason !== null) ctx.addIssue({ code: "custom", message: reason });
 });
 
-const objectiveSchema = z.strictObject({
+export const objectiveSchema = z.strictObject({
   id: identifier,
   description: z.string().trim().min(1),
   validator: validatorDefinitionSchema,
@@ -39,7 +41,7 @@ const branchName = z
   .string()
   .refine(isValidBranchName, { message: "must be a valid Git branch name" });
 
-const setupSchema = z.strictObject({
+export const setupSchema = z.strictObject({
   // Keys are checked below: Zod reports record-key failures only as "Invalid key in record".
   files: fileMap.optional(),
   directories: z.array(workspacePath).optional(),
@@ -48,21 +50,35 @@ const setupSchema = z.strictObject({
     .array(
       z.strictObject({
         message: z.string().trim().min(1),
-        files: fileMap.refine((files) => Object.keys(files).length > 0, {
-          message: "a setup commit needs at least one file",
-        }),
+        files: z
+          .record(z.string(), z.string().nullable())
+          .refine((files) => Object.keys(files).length > 0, {
+            message: "a setup commit needs at least one file",
+          }),
         branch: branchName.optional(),
       }),
     )
     .optional(),
   branches: z.array(branchName).optional(),
   currentBranch: branchName.optional(),
+  commands: z
+    .array(
+      z.string().superRefine((command, ctx) => {
+        const parsed = parseCommand(command);
+        if (!parsed.ok) {
+          ctx.addIssue({ code: "custom", message: parsed.error.message.split("\n")[0] ?? "" });
+        } else if (parsed.command.program !== "git") {
+          ctx.addIssue({ code: "custom", message: "setup commands must be Git commands" });
+        }
+      }),
+    )
+    .optional(),
 });
 
 type Setup = z.infer<typeof setupSchema>;
 
-function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
-  const checkPaths = (files: Record<string, string>, path: (string | number)[]) => {
+export function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
+  const checkPaths = (files: Record<string, unknown>, path: (string | number)[]) => {
     for (const file of Object.keys(files)) {
       const reason = unsafePathReason(file);
       if (reason !== null) ctx.addIssue({ code: "custom", path: [...path, file], message: reason });
@@ -97,7 +113,7 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
       trees.set(branch, committed);
     }
     const changes = Object.entries(commit.files).filter(
-      ([path, content]) => committed.get(normalizeSafely(path)) !== content,
+      ([path, content]) => (committed.get(normalizeSafely(path)) ?? null) !== content,
     );
     if (changes.length === 0) {
       ctx.addIssue({
@@ -106,7 +122,19 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
         message: "this commit does not change any file",
       });
     }
-    for (const [path, content] of changes) committed.set(normalizeSafely(path), content);
+    for (const [path, content] of Object.entries(commit.files)) {
+      if (content === null && !committed.has(normalizeSafely(path))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["setup", "commits", index, "files", path],
+          message: `cannot delete "${path}": ${branch} does not have it at this point`,
+        });
+      }
+    }
+    for (const [path, content] of changes) {
+      if (content === null) committed.delete(normalizeSafely(path));
+      else committed.set(normalizeSafely(path), content);
+    }
   }
 
   const branches = setup.branches ?? [];
@@ -128,6 +156,13 @@ function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
     }
     seen.add(branch);
   }
+  if ((setup.commands ?? []).length > 0 && setup.initializeGit !== true) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["setup", "commands"],
+      message: "setup commands require `initializeGit: true`",
+    });
+  }
   if (setup.currentBranch !== undefined && !seen.has(setup.currentBranch)) {
     ctx.addIssue({
       code: "custom",
@@ -142,6 +177,61 @@ function normalizeSafely(path: string): string {
     return normalizeWorkspacePath(path);
   } catch {
     return path;
+  }
+}
+
+const hintText = z.string().trim().min(1);
+
+/** A hint is plain text (level inferred) or `{ level: 1 | 2 | 3, text }`. */
+export const hintsSchema = z.record(
+  z.string(),
+  z
+    .array(
+      z.union([
+        hintText,
+        z.strictObject({
+          level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+          text: hintText,
+        }),
+      ]),
+    )
+    .min(1),
+);
+
+/**
+ * Objective ids are unique, every `hints` key names one of them, and every hint ladder is valid
+ * (levels never go down; challenges never give the exact command).
+ */
+export function checkObjectives(
+  content: {
+    objectives: readonly { id: string }[];
+    hints?: Record<string, z.infer<typeof hintsSchema>[string]>;
+  },
+  ctx: z.RefinementCtx,
+  { challenge = false }: { challenge?: boolean } = {},
+): void {
+  const seen = new Set<string>();
+  for (const [index, objective] of content.objectives.entries()) {
+    if (seen.has(objective.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["objectives", index, "id"],
+        message: `duplicate objective id "${objective.id}"`,
+      });
+    }
+    seen.add(objective.id);
+  }
+  for (const [hintKey, hints] of Object.entries(content.hints ?? {})) {
+    if (!seen.has(hintKey)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["hints", hintKey],
+        message: `hints refer to unknown objective "${hintKey}"`,
+      });
+    }
+    for (const { index, message } of hintIssues(hints, { challenge })) {
+      ctx.addIssue({ code: "custom", path: ["hints", hintKey, index], message });
+    }
   }
 }
 
@@ -160,7 +250,8 @@ export const lessonDefinitionSchema = z
     content: z.array(lessonContentBlockSchema).optional(),
     setup: setupSchema.default({}),
     objectives: z.array(objectiveSchema).default([]),
-    hints: z.record(z.string(), z.array(z.string().trim().min(1)).min(1)).optional(),
+    hints: hintsSchema.optional(),
+    editor: z.strictObject({ readOnly: z.boolean().optional() }).optional(),
     completion: z.strictObject({ xp: z.number().int().nonnegative().optional() }).optional(),
   })
   .superRefine((lesson, ctx) => {
@@ -189,24 +280,5 @@ export const lessonDefinitionSchema = z
       });
     }
 
-    const seen = new Set<string>();
-    for (const [index, objective] of lesson.objectives.entries()) {
-      if (seen.has(objective.id)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["objectives", index, "id"],
-          message: `duplicate objective id "${objective.id}"`,
-        });
-      }
-      seen.add(objective.id);
-    }
-    for (const hintKey of Object.keys(lesson.hints ?? {})) {
-      if (!seen.has(hintKey)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["hints", hintKey],
-          message: `hints refer to unknown objective "${hintKey}"`,
-        });
-      }
-    }
+    checkObjectives(lesson, ctx, { challenge: lesson.type === "challenge" });
   }) satisfies z.ZodType<LessonDefinition>;

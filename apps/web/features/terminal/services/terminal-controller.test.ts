@@ -49,6 +49,27 @@ describe("TerminalController", () => {
     expect(output()).toMatch(/Welcome/);
   });
 
+  it("drops buffered input when the terminal restarts", async () => {
+    let finish: () => void = () => undefined;
+    const run = vi.fn<TerminalExecutor>(
+      () =>
+        new Promise((resolve) => {
+          finish = () => {
+            resolve({ text: "", plainText: "", clearScreen: false });
+          };
+        }),
+    );
+    const { controller, type } = setup(run);
+    controller.start();
+    await type("one");
+    const first = controller.handleData("\r");
+    await type("two\r");
+    controller.restart();
+    finish();
+    await first;
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it("does not execute blank lines", async () => {
     const { controller, run, type } = setup();
     controller.start();
@@ -85,25 +106,39 @@ describe("TerminalController", () => {
     expect(clear).toHaveBeenCalled();
   });
 
-  it("ignores input while a command is running", async () => {
+  it("buffers input typed while a command runs and replays it in order", async () => {
     let finish: () => void = () => undefined;
-    const executor = vi.fn<TerminalExecutor>(
-      () =>
-        new Promise((resolve) => {
-          finish = () => {
-            resolve({ text: "", plainText: "", clearScreen: false });
-          };
-        }),
+    const executor = vi.fn<TerminalExecutor>((input) =>
+      input === "git init"
+        ? new Promise((resolve) => {
+            finish = () => {
+              resolve({ text: "init done", plainText: "init done", clearScreen: false });
+            };
+          })
+        : Promise.resolve({ text: `ran ${input}`, plainText: `ran ${input}`, clearScreen: false }),
     );
-    const { controller, type } = setup(executor);
+    const { controller, type, output } = setup(executor);
     controller.start();
     await type("git init");
     const pending = controller.handleData("\r");
     expect(controller.isBusy).toBe(true);
+    // Typed while `git init` runs: nothing executes or echoes yet...
+    await type("git add .\r");
     await type("git status\r");
+    expect(executor).toHaveBeenCalledTimes(1);
+    expect(output()).not.toContain("git add");
+
+    // ...and once it finishes, the typeahead runs in order.
     finish();
     await pending;
-    expect(executor).toHaveBeenCalledTimes(1);
+    expect(executor.mock.calls.map(([input]) => input)).toEqual([
+      "git init",
+      "git add .",
+      "git status",
+    ]);
+    const text = output();
+    expect(text.indexOf("init done")).toBeLessThan(text.indexOf("ran git add ."));
+    expect(text.indexOf("ran git add .")).toBeLessThan(text.indexOf("ran git status"));
   });
 
   it("stays usable if the executor rejects", async () => {

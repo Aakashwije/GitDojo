@@ -21,4 +21,9 @@ export interface VirtualFileSystem {
   exists(workspaceId: string, path: string): Promise<boolean>;
   /** Removes everything in the workspace, including any Git repository. */
   resetWorkspace(workspaceId: string): Promise<void>;
+  /**
+   * Persists pending changes now. LightningFS saves its directory tree to IndexedDB half a second
+   * after the last write, so a reload right after a command could otherwise lose it.
+   */
+  flush(): Promise<void>;
 }

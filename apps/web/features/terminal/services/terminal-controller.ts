@@ -25,8 +25,9 @@ export interface TerminalControllerOptions {
 }
 
 /**
- * Owns prompt, line editing, history and command dispatch. Commands run one at a time;
- * input received while a command runs is ignored so output never interleaves.
+ * Owns prompt, line editing, history and command dispatch. Commands run one at a time. Like a
+ * real terminal's typeahead, input received while a command runs is buffered and replayed once
+ * it finishes, so output never interleaves and fast typing is never lost.
  */
 export class TerminalController {
   private line: LineState = EMPTY_LINE;
@@ -34,6 +35,8 @@ export class TerminalController {
   private historyCursor: HistoryCursor = INITIAL_HISTORY_CURSOR;
   private busy = false;
   private active = false;
+  /** Input typed while a command was running, replayed in order afterwards. */
+  private typeahead: string[] = [];
 
   constructor(
     private readonly surface: TerminalSurface,
@@ -53,6 +56,7 @@ export class TerminalController {
 
   /** Clears the screen and starts over (used when the lesson is reset). */
   restart(banner?: string): void {
+    this.typeahead = [];
     this.surface.clear();
     this.surface.write("\r\x1b[2K");
     this.historyCursor = INITIAL_HISTORY_CURSOR;
@@ -67,7 +71,11 @@ export class TerminalController {
   }
 
   async handleData(data: string): Promise<void> {
-    if (!this.active || this.busy) return;
+    if (!this.active) return;
+    if (this.busy) {
+      this.typeahead.push(data);
+      return;
+    }
     const event = interpretInput(this.line, data);
 
     switch (event.type) {
@@ -122,6 +130,8 @@ export class TerminalController {
       this.busy = false;
       this.writePrompt();
     }
+    // Replay what was typed meanwhile; a replayed Enter may run (and buffer) the next command.
+    for (const data of this.typeahead.splice(0)) await this.handleData(data);
   }
 
   private navigateHistory(direction: "previous" | "next"): void {

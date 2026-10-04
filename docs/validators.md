@@ -11,9 +11,20 @@ all satisfy "README.md is staged".
 | `repository_initialized` | –          | The workspace is a Git repository.                                             |
 | `file_exists`            | `file`     | The file exists in the working tree (works before `git init` too).             |
 | `file_staged`            | `file`     | The file has staged changes (added, modified or deleted in the index).         |
+| `file_committed`         | `file`     | The file is in the last commit and unchanged since.                            |
+| `file_not_tracked`       | `file`     | Git does not track the file: untracked, ignored or absent.                     |
 | `commit_exists`          | `message?` | At least one commit exists; with `message`, a commit has exactly that message. |
 | `commit_count`           | `count`    | HEAD's history has exactly `count` commits.                                    |
 | `clean_worktree`         | –          | Initialized, nothing staged, and every file is committed and unmodified.       |
+
+| Type          | Fields           | Passes when                                                                        |
+| ------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `file_status` | `file`, `status` | The file's working-tree status is exactly `status` (`untracked`, `modified`, ...). |
+
+`file_not_tracked` followed by `clean_worktree` requires that a file is **ignored** (listed in
+`.gitignore`) rather than committed or merely left untracked. `file_status` with
+`status: modified` checks that an edit is still there, uncommitted and unstaged (after
+`git stash pop`, `git restore --staged`, ...).
 
 ### Branch validators
 
@@ -50,9 +61,25 @@ validator:
 
 `branches_merged` passes for fast-forwards and merge commits alike; pair it with
 `branch_points_to_commit` (`sameAs`) or `merge_commit_exists` to require one or the other.
-`merge_completed` needs a merge commit, so a fast-forward does not count. Conflict validators only
-describe the merge in progress: once it is committed they stop passing, which is fine because
-progress is sticky. `clean_worktree` fails while a merge is in progress.
+`merge_completed` needs a merge commit, so a fast-forward does not count. Conflict validators
+describe the operation in progress (a merge, or a revert, cherry-pick or rebase step stopped for
+conflicts): once it is committed they stop passing, which is fine because progress is sticky.
+`clean_worktree` fails while any such operation is in progress.
+
+### Recovery validators
+
+| Type                   | Fields               | Passes when                                                                    |
+| ---------------------- | -------------------- | ------------------------------------------------------------------------------ |
+| `commit_not_on_branch` | `branch`, `message`  | `branch` exists and no commit with exactly `message` is in its history.        |
+| `commit_reverted`      | `message`, `branch?` | A `Revert "<message>"` commit (as `git revert` writes it) is in the history.   |
+| `branch_rebased`       | `branch`, `onto`     | `onto`'s tip is in `branch`'s history and the branch's own commits are linear. |
+| `head_detached`        | –                    | HEAD points at a commit, not a branch.                                         |
+| `stash_count`          | `count`              | `git stash list` has exactly `count` entries.                                  |
+
+`commit_not_on_branch` is how a lesson checks that `git reset` really took a commit off a
+branch, or that a cherry-pick did not bring unwanted commits along. Because progress is sticky,
+put checks that are already true at the start (like "history has two commits") after a check
+that only passes at the end, so they are judged on the final state.
 
 File paths may be written as `README.md` or `./README.md`.
 
