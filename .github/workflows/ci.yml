@@ -16,6 +16,21 @@ jobs:
     name: Lint, typecheck, test, build, e2e
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # A throwaway PostgreSQL for the account progress integration tests (test-only credentials).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gitdojo
+          POSTGRES_PASSWORD: gitdojo
+          POSTGRES_DB: gitdojo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gitdojo -d gitdojo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v5
 
@@ -43,6 +58,13 @@ jobs:
       # command → engine → validators → progress flow in the web app.
       - name: Unit and integration tests
         run: pnpm test
+
+      # The migrations, constraints and account progress API against real PostgreSQL, including
+      # concurrent duplicate completions.
+      - name: Database tests
+        run: pnpm --filter @gitdojo/web test:db
+        env:
+          TEST_DATABASE_URL: postgres://gitdojo:gitdojo@localhost:5432/gitdojo_test
 
       # Every lesson, course, challenge and playground scenario: schema, references, and a
       # reference solution played through the real Git engine.

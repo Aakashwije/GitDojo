@@ -17,7 +17,8 @@
     "test:e2e": "turbo run test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "perf": "pnpm --filter @gitdojo/web perf"
+    "perf": "pnpm --filter @gitdojo/web perf",
+    "db:migrate": "pnpm --filter @gitdojo/web db:migrate"
   },
   "devDependencies": {
     "@gitdojo/config": "workspace:*",

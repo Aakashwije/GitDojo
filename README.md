@@ -64,7 +64,9 @@ progress and recent activity, and lets you export your progress as JSON or reset
 Accounts are optional. When a site configures [WSO2 Identity Platform](docs/authentication.md),
 learners can **sign up and sign in** on its secure hosted pages (GitDojo never handles
 passwords) and get an account menu on every page. Signing in or out never touches local
-progress; linking progress to accounts comes later.
+progress. With a PostgreSQL database, a protected API can also store signed-in learners' lesson
+completions on the server ([docs/account-progress.md](docs/account-progress.md)); the UI does not
+sync to it yet.
 
 Every workspace has a **code editor** (Monaco) with a file explorer and Git status letters, so
 editing a file really makes it "modified". When a command fails, the terminal shows Git's real
@@ -138,7 +140,9 @@ pnpm dev            # http://localhost:3000, then open /learn
 
 Accounts are optional. To try sign-in locally, copy `apps/web/.env.example` to
 `apps/web/.env.local` and follow [docs/authentication.md](docs/authentication.md); without it
-everything else works and the sign-in pages say accounts are unavailable.
+everything else works and the sign-in pages say accounts are unavailable. Server-side account
+progress additionally needs PostgreSQL: set `DATABASE_URL` and run `pnpm db:migrate`
+([docs/account-progress.md](docs/account-progress.md)).
 
 Before the first `pnpm test:e2e`, install a browser:
 `pnpm --filter @gitdojo/web exec playwright install chromium`.
@@ -184,6 +188,8 @@ single YAML file. See:
 - [docs/command-parser.md](docs/command-parser.md): how input is parsed and routed
 - [docs/progress.md](docs/progress.md): local progress, XP and what counts
 - [docs/authentication.md](docs/authentication.md): accounts with WSO2 Identity Platform, setup
+- [docs/account-progress.md](docs/account-progress.md): PostgreSQL, migrations and the account
+  progress API
   and console configuration
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [UI.md](UI.md): the design system
@@ -209,6 +215,7 @@ single YAML file. See:
 - [x] Testing and stabilization: integration and end-to-end coverage, accessibility (WCAG AA
       scans), performance fixes
 - [x] Accounts with WSO2 Identity Platform: hosted sign-in and sign-up, account menu, sign-out
+- [x] Account progress storage: PostgreSQL, migrations, protected progress API
 - [ ] Progress that syncs across devices with an account (today it is saved in the browser)
 - [ ] Remote repositories (`clone`, `fetch`, `pull`, `push`), then real GitHub
 

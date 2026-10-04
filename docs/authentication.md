@@ -15,9 +15,10 @@ playground and the local progress dashboard work without one, and without any co
 | `/account`                                                                 | GitDojo                 | Name, email and avatar; sign out.                                   |
 | `/auth/sign-out` → WSO2 logout → `/auth/signed-out`                        | GitDojo, then WSO2      | Ends the session everywhere, then "You're signed out".              |
 
-GitDojo stores no passwords and has no user database. Signing in or out never touches local
-progress or playground repositories ([progress.md](./progress.md)); progress is not synced to
-accounts yet.
+GitDojo stores no passwords. Signing in or out never touches local progress or playground
+repositories ([progress.md](./progress.md)). With a PostgreSQL database configured, signed-in
+learners also get server-side lesson progress through `/api/progress`
+([account-progress.md](./account-progress.md)); the UI does not sync to it yet.
 
 ## How it works
 
@@ -35,8 +36,8 @@ WSO2 ─▶ /auth/callback?code&state ─▶ SDK exchanges the code (server) and
   `/account`, `/auth/*`) render the SDK's `AsgardeoProvider`, and only when configured. All other
   pages stay statically generated; their header asks `/api/auth/session` after loading, so
   learning never waits on, or breaks because of, the identity provider.
-- **`proxy.ts`** (Next.js 16) runs the SDK's `asgardeoMiddleware` on account routes and
-  `/api/auth/*` only: it refreshes tokens, clears dead sessions and sends signed-out visitors of
+- **`proxy.ts`** (Next.js 16) runs the SDK's `asgardeoMiddleware` on account routes,
+  `/api/auth/*` and `/api/progress/*` only: it refreshes tokens, clears dead sessions and sends signed-out visitors of
   `/account` to `/sign-in?returnTo=/account`. Static files, images and Monaco's assets never pass
   through it. It is an optimistic check only.
 - **Server-side authorization.** `/account` and `/api/auth/session` validate the session on the
@@ -198,7 +199,8 @@ verification and branding still need the manual smoke test above.
 
 ## Known limitations
 
-- Progress is not linked to accounts or synced across devices yet.
+- Browser progress is not linked to accounts or synced across devices yet; the server-side
+  progress API ([account-progress.md](./account-progress.md)) is not used by the UI yet.
 - "Create account" cannot open the registration form directly; learners choose **Register** on
   the hosted page.
 - The SDK keeps the access and refresh tokens inside its signed (not encrypted) httpOnly session

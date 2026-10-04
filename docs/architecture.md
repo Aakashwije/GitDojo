@@ -235,6 +235,13 @@ work without any configuration. Headers learn the account state from `/api/auth/
 validates the session on the server. `proxy.ts` refreshes sessions and guards `/account` on
 account routes only. Accounts never read or change local progress.
 
+With `DATABASE_URL` set, `GET /api/progress` and `POST /api/progress/lessons` store signed-in
+learners' lesson completions in PostgreSQL ([account-progress.md](./account-progress.md)). The
+account is identified by the provider's OIDC `sub` from the userinfo endpoint, namespaced by
+issuer; XP and lesson metadata come from the content catalog on the server. Route handlers stay
+thin: `lib/auth/identity.ts` verifies the learner, `lib/account-progress/` holds the endpoint
+logic and SQL, and `lib/db/client.ts` the connection pool.
+
 ## Web app structure
 
 ```text

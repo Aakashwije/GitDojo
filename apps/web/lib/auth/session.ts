@@ -13,7 +13,7 @@ export interface SessionDeps {
   fetch: typeof fetch;
 }
 
-async function defaultDeps(): Promise<SessionDeps> {
+export async function defaultSessionDeps(): Promise<SessionDeps> {
   const client = await asgardeo();
   return {
     config: readAuthConfig(),
@@ -76,7 +76,7 @@ export async function getAccountSession(deps?: SessionDeps): Promise<AccountSess
   if (!config.configured || config.baseUrl === null) return { status: "unconfigured" };
 
   try {
-    const resolved = deps ?? (await defaultDeps());
+    const resolved = deps ?? (await defaultSessionDeps());
     const sessionId = await resolved.getSessionId();
     if (!sessionId) return { status: "signed-out" };
 

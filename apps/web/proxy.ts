@@ -24,6 +24,14 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Account routes only. Learning pages, static files, images and Monaco's assets never pass
-  // through authentication.
-  matcher: ["/sign-in", "/sign-up", "/account/:path*", "/auth/:path*", "/api/auth/:path*"],
+  // through authentication. The progress API is here for session refresh only: it answers
+  // signed-out requests with 401 itself instead of being redirected.
+  matcher: [
+    "/sign-in",
+    "/sign-up",
+    "/account/:path*",
+    "/auth/:path*",
+    "/api/auth/:path*",
+    "/api/progress/:path*",
+  ],
 };

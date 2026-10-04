@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 // The SDK's proxy helper: records what GitDojo's handler asks of it.
 const middleware = vi.hoisted(() => ({
@@ -78,6 +78,16 @@ describe("proxy", () => {
     expect((await proxy(request("/account"))).headers.get("x-proxy")).toBe("next");
     middleware.signedIn = false;
     expect((await proxy(request("/sign-in"))).headers.get("x-proxy")).toBe("next");
+    expect(middleware.protectRoute).not.toHaveBeenCalled();
+  });
+
+  it("refreshes sessions for the progress API without redirecting it", async () => {
+    expect(config.matcher).toContain("/api/progress/:path*");
+    configure();
+    for (const path of ["/api/progress", "/api/progress/lessons"]) {
+      expect((await proxy(request(path))).headers.get("x-proxy")).toBe("next");
+    }
+    // Signed-out API requests reach the route, which answers 401 itself.
     expect(middleware.protectRoute).not.toHaveBeenCalled();
   });
 });
