@@ -1,9 +1,10 @@
 import { CHALLENGE_CATEGORIES } from "@gitdojo/challenge-engine";
+import { applyProgressAction, emptyProgress } from "@gitdojo/progress";
 import { type ChallengeSummary } from "@gitdojo/shared-types";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useCourseProgressStore } from "@/features/course/state/use-course-progress";
+import { useProgressStore } from "@/features/progress/state/use-progress-store";
 import { ChallengeBrowser } from "./components/ChallengeBrowser";
 import { describeMissing, nextChallenge } from "./services/challenge-navigation";
 
@@ -44,10 +45,12 @@ describe("challenge navigation", () => {
 
 describe("ChallengeBrowser", () => {
   beforeEach(() => {
-    useCourseProgressStore.setState({
-      completedChallenges: { "first-commit": true },
-      hydrated: true,
-    });
+    const progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "complete", content: { kind: "challenge", id: "first-commit" } },
+      1,
+    );
+    useProgressStore.setState({ progress, status: "ready" });
   });
 
   it("groups challenges by category and shows solved and locked states", () => {

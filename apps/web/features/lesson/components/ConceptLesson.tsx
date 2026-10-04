@@ -4,6 +4,7 @@ import { type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types
 import { Button } from "@gitdojo/ui";
 import { ArrowRight, Check, CircleCheck } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { LessonPager } from "@/features/course/components/LessonPager";
 import { LessonTypeBadge } from "@/features/course/components/LessonTypeBadge";
 import {
@@ -12,10 +13,12 @@ import {
   lessonHref,
   lessonNeighbors,
 } from "@/features/course/services/course-navigation";
+import { XpAward } from "@/features/progress/components/XpAward";
 import {
+  recordCompletion,
+  recordProgress,
   useCompletedLessons,
-  useCourseProgressStore,
-} from "@/features/course/state/use-course-progress";
+} from "@/features/progress/state/use-progress-store";
 import { WorkspaceTopbar } from "@/features/workspace/components/WorkspaceTopbar";
 import { LessonContent } from "./content/LessonContent";
 import { renderInline, RichText } from "./RichText";
@@ -33,8 +36,12 @@ export function ConceptLesson({
 }) {
   const position = lessonNeighbors(course, lesson.slug);
   const { completed, hydrated } = useCompletedLessons();
-  const markLessonComplete = useCourseProgressStore((state) => state.markLessonComplete);
   const done = completed.has(lesson.id);
+  const courseId = course.id;
+
+  useEffect(() => {
+    void recordProgress({ type: "visit-lesson", courseId, lessonId: lesson.id });
+  }, [courseId, lesson.id]);
   const next = position?.next ?? null;
 
   return (
@@ -77,13 +84,13 @@ export function ConceptLesson({
         >
           {done ? (
             <>
-              <p className="flex items-center gap-2 text-small font-medium text-success">
-                <CircleCheck className="size-4" aria-hidden="true" />
-                Lesson complete
-                {lesson.completion?.xp ? (
-                  <span className="font-mono">+{lesson.completion.xp} XP</span>
-                ) : null}
-              </p>
+              <div role="status">
+                <p className="flex items-center gap-2 text-small font-medium text-success">
+                  <CircleCheck className="size-4" aria-hidden="true" />
+                  Lesson complete
+                </p>
+                <XpAward content={{ kind: "lesson", id: lesson.id }} className="mt-1 text-small" />
+              </div>
               <Button asChild variant="primary">
                 <Link
                   href={next ? lessonHref(course.slug, next.slug) : courseHref(course.slug)}
@@ -101,7 +108,13 @@ export function ConceptLesson({
                 disabled={!hydrated}
                 data-testid="mark-complete"
                 onClick={() => {
-                  markLessonComplete(lesson.id);
+                  // Concept lessons have no objectives: reading them is the completion.
+                  void recordCompletion({
+                    kind: "lesson",
+                    id: lesson.id,
+                    type: "concept",
+                    courseId: course.id,
+                  });
                 }}
               >
                 <Check /> Mark as complete

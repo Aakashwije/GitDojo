@@ -2,6 +2,7 @@ import { WorkspaceFileSystem } from "../filesystem/workspace-file-system";
 import { type GitContext } from "../engine/context";
 import { type GitBranchInfo, type GitRepositorySnapshot } from "../engine/git-engine";
 import {
+  createCommitCache,
   currentBranch,
   isRepository,
   readCommitsFrom,
@@ -54,14 +55,16 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
   ]);
   const branches: GitBranchInfo[] = branchStates.map(({ name, oid }) => ({ name, oid }));
   const tips = [head, ...branches.map((info) => info.oid)].filter((oid) => oid !== null);
+  // HEAD's history and every branch's share most commits: read each one once.
+  const cache = createCommitCache();
 
   return {
     initialized: true,
     currentBranch: branch,
     head,
     branches,
-    commits: head === null ? [] : await readCommitsFromHead(ctx),
-    allCommits: await readCommitsFrom(ctx, tips),
+    commits: head === null ? [] : await readCommitsFromHead(ctx, cache),
+    allCommits: await readCommitsFrom(ctx, tips, cache),
     entries,
     reflog: reflog.map((entry, index) => ({
       index,

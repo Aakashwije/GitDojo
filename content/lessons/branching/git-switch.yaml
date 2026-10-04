@@ -90,6 +90,3 @@ hints:
   create-and-switch:
     - "`git switch` has an option that creates the branch first."
     - Run `git switch -c bugfix/header`.
-
-completion:
-  xp: 75

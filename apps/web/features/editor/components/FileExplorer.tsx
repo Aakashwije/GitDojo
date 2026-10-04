@@ -126,7 +126,7 @@ export function FileExplorer({
           className={cn(
             "flex h-7 min-w-0 flex-1 items-center gap-1.5 text-left text-small disabled:cursor-default",
             active ? "text-fg" : "text-fg-secondary",
-            !exists && "text-fg-faint line-through",
+            !exists && "text-fg-muted line-through",
           )}
         >
           <FileText className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />

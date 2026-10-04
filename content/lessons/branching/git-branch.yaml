@@ -87,6 +87,3 @@ hints:
   stay-on-main:
     - Run `git branch`. The `*` shows which branch you are on.
     - If you switched to another branch, run `git switch main`.
-
-completion:
-  xp: 75

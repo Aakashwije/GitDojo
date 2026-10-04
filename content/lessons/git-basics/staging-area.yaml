@@ -89,6 +89,3 @@ content:
     body: >-
       `git add .` stages every change in the current folder at once. It is handy when everything
       belongs in the same commit.
-
-completion:
-  xp: 25

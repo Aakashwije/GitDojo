@@ -252,7 +252,6 @@ export const lessonDefinitionSchema = z
     objectives: z.array(objectiveSchema).default([]),
     hints: hintsSchema.optional(),
     editor: z.strictObject({ readOnly: z.boolean().optional() }).optional(),
-    completion: z.strictObject({ xp: z.number().int().nonnegative().optional() }).optional(),
   })
   .superRefine((lesson, ctx) => {
     checkSetup(lesson.setup, ctx);

@@ -107,6 +107,3 @@ hints:
   log-not-committed:
     - "`git status` should list `debug.log` as untracked, not staged."
     - If you staged it, run `git restore --staged debug.log`.
-
-completion:
-  xp: 100

@@ -119,6 +119,3 @@ hints:
   stash-empty:
     - "`git stash pop` removes the entry it applied; `git stash apply` keeps it."
     - If you used `apply`, run `git stash drop`.
-
-completion:
-  xp: 100

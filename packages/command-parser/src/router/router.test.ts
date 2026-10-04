@@ -32,7 +32,10 @@ describe("command router", () => {
     });
     expect((await runCommandLine("git init", context)).ok).toBe(true);
     expect((await runCommandLine("git status", context)).output).toContain("\tREADME.md");
-    expect(await runCommandLine("git add README.md", context)).toEqual({ ok: true, output: "" });
+    expect(await runCommandLine("git add README.md", context)).toMatchObject({
+      ok: true,
+      output: "",
+    });
     const commit = await runCommandLine('git commit -m "Initial commit"', context);
     expect(commit.ok).toBe(true);
     expect(commit.output).toMatch(/^\[main \(root-commit\) [0-9a-f]{7}\] Initial commit/);
@@ -49,12 +52,12 @@ describe("command router", () => {
     await runCommandLine("git add README.md", context);
     await runCommandLine('git commit -m "Initial commit"', context);
 
-    expect(await runCommandLine("git branch feature/login", context)).toEqual({
+    expect(await runCommandLine("git branch feature/login", context)).toMatchObject({
       ok: true,
       output: "",
     });
     expect((await runCommandLine("git branch", context)).output).toBe("  feature/login\n* main");
-    expect(await runCommandLine("git switch feature/login", context)).toEqual({
+    expect(await runCommandLine("git switch feature/login", context)).toMatchObject({
       ok: true,
       output: "Switched to branch 'feature/login'",
     });
@@ -62,7 +65,7 @@ describe("command router", () => {
       "Switched to a new branch 'bugfix'",
     );
     expect((await runCommandLine("git status", context)).output).toMatch(/^On branch bugfix/);
-    expect(await runCommandLine("git switch nope", context)).toEqual({
+    expect(await runCommandLine("git switch nope", context)).toMatchObject({
       ok: false,
       output: "fatal: invalid reference: nope",
       errorCode: "BRANCH_NOT_FOUND",
@@ -84,7 +87,7 @@ describe("command router", () => {
     expect((await runCommandLine("git checkout main", context)).output).toBe(
       "Switched to branch 'main'",
     );
-    expect(await runCommandLine("git checkout nope", context)).toEqual({
+    expect(await runCommandLine("git checkout nope", context)).toMatchObject({
       ok: false,
       output: "error: pathspec 'nope' did not match any file(s) known to git",
       errorCode: "BRANCH_NOT_FOUND",
@@ -93,7 +96,7 @@ describe("command router", () => {
   });
 
   it("returns friendly output for unknown git commands", async () => {
-    expect(await runCommandLine("git xyz", context)).toEqual({
+    expect(await runCommandLine("git xyz", context)).toMatchObject({
       ok: false,
       output: "git: 'xyz' is not a git command.",
       errorCode: "UNSUPPORTED_GIT_COMMAND",
@@ -117,7 +120,7 @@ describe("command router", () => {
   it("reports a missing commit message", async () => {
     await runCommandLine("git init", context);
     await runCommandLine("git add README.md", context);
-    expect(await runCommandLine("git commit", context)).toEqual({
+    expect(await runCommandLine("git commit", context)).toMatchObject({
       ok: false,
       output: "error: commit message is required",
       errorCode: "INVALID_ARGUMENT",
@@ -130,7 +133,7 @@ describe("command router", () => {
     await runCommandLine("git add README.md", context);
     await runCommandLine('git commit -m "Initial commit"', context);
     expect((await runCommandLine("git merge", context)).errorCode).toBe("INVALID_ARGUMENT");
-    expect(await runCommandLine("git merge nope", context)).toEqual({
+    expect(await runCommandLine("git merge nope", context)).toMatchObject({
       ok: false,
       output: "merge: nope - not something we can merge",
       errorCode: "BRANCH_NOT_FOUND",
@@ -158,8 +161,26 @@ describe("command router", () => {
     );
   });
 
+  it("reports which supported Git command each line ran, for usage counting", async () => {
+    const command = async (line: string) => (await runCommandLine(line, context)).gitCommand;
+    expect(await command("git init")).toBe("init");
+    expect(await command("git status")).toBe("status");
+    // Failed commands and bad arguments still name the command the learner tried.
+    expect(await command("git commit")).toBe("commit");
+    expect(await command('git branch feature <id of "x">')).toBe("branch");
+    expect(await command('git commit -m "unclosed')).toBe("commit");
+    // Help, clear, other programs and commands GitDojo does not run are not Git usage.
+    expect(await command("help")).toBeUndefined();
+    expect(await command("clear")).toBeUndefined();
+    expect(await command("ls")).toBeUndefined();
+    expect(await command("git")).toBeUndefined();
+    expect(await command("git push")).toBeUndefined();
+    expect(await command("git --help")).toBeUndefined();
+    expect(await command("   ")).toBeUndefined();
+  });
+
   it("handles built-ins", async () => {
-    expect(await runCommandLine("clear", context)).toEqual({
+    expect(await runCommandLine("clear", context)).toMatchObject({
       ok: true,
       output: "",
       clearScreen: true,
@@ -176,7 +197,7 @@ describe("command router", () => {
       status: () => Promise.reject(new Error("internal detail with stack")),
     };
     const result = await runCommandLine("git status", { workspaceId: WORKSPACE, git: exploding });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
       output: "fatal: something went wrong while running that command.",
       errorCode: "INTERNAL",
@@ -206,8 +227,8 @@ describe("command router", () => {
         "Unstaged changes after reset:\nM\tREADME.md",
       );
       await run("git add README.md");
-      expect(await run("git restore --staged README.md")).toEqual({ ok: true, output: "" });
-      expect(await run("git restore README.md")).toEqual({ ok: true, output: "" });
+      expect(await run("git restore --staged README.md")).toMatchObject({ ok: true, output: "" });
+      expect(await run("git restore README.md")).toMatchObject({ ok: true, output: "" });
       expect(await files.readFile(WORKSPACE, "README.md")).toBe("# GitDojo\n");
     });
 
@@ -269,7 +290,7 @@ describe("command router", () => {
       await files.writeFile(WORKSPACE, "side.txt", "s\n");
       await run("git add side.txt");
       await run('git commit -m "Side"');
-      expect(await run("git merge --ff-only main")).toEqual({
+      expect(await run("git merge --ff-only main")).toMatchObject({
         ok: false,
         output: "fatal: Not possible to fast-forward, aborting.",
         errorCode: "NOT_FAST_FORWARD",

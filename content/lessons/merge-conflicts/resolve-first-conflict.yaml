@@ -107,6 +107,3 @@ hints:
   completed:
     - Every conflict is resolved; only the merge commit is missing.
     - Run `git commit`.
-
-completion:
-  xp: 100

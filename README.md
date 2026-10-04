@@ -17,8 +17,9 @@ internally.
 > **Status: early development.** Five courses, from Git Basics to Undo and Recover, ten real-world
 > challenges and a free playground run end to end in the browser: a real Git engine, a terminal
 > and code editor, live working tree / staging / branch graph visualization, state-based
-> objective validation, progressive hints and plain-words error explanations. Accounts and cloud
-> progress are on the [roadmap](#roadmap).
+> objective validation, progressive hints, plain-words error explanations, and a progress
+> dashboard saved locally with no account. Accounts and cloud sync are on the
+> [roadmap](#roadmap).
 
 ## What it does today
 
@@ -56,6 +57,10 @@ Then:
   scenarios (a merge conflict, a detached HEAD, a repository to recover...), and come back later:
   it survives a refresh.
 
+Your progress is saved in the browser, no account needed. The **dashboard** (`/dashboard`) shows
+where to continue, lessons and challenges completed, XP, the Git commands you have used, course
+progress and recent activity, and lets you export your progress as JSON or reset it.
+
 Every workspace has a **code editor** (Monaco) with a file explorer and Git status letters, so
 editing a file really makes it "modified". When a command fails, the terminal shows Git's real
 message and a **"Why did this happen?"** panel explains it, with likely causes based on your own
@@ -81,7 +86,8 @@ Terminal (xterm.js)
   → Virtual Filesystem  LightningFS + IndexedDB, one isolated directory per lesson
   → Repository State    normalized model: files, staged files, commits, branches
   → Validator Engine    lesson objectives checked against repository state
-  → UI                  Zustand stores → React panels and React Flow graph
+  → Progress            completions, XP and command stats, saved in IndexedDB
+  → UI                  Zustand stores → React panels, React Flow graph, dashboard
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full picture, including the safety model.
@@ -112,16 +118,17 @@ pnpm install
 pnpm dev            # http://localhost:3000, then open /learn
 ```
 
-| Command                 | What it does                                                           |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `pnpm dev`              | Start the web app in development mode                                  |
-| `pnpm build`            | Production build (also validates every lesson)                         |
-| `pnpm lint`             | ESLint across all packages                                             |
-| `pnpm typecheck`        | `tsc --noEmit` across all packages                                     |
-| `pnpm test`             | Unit tests (Vitest) across all packages                                |
-| `pnpm validate:content` | Validate all lessons, challenges and scenarios, playing every solution |
-| `pnpm test:e2e`         | Build, then run Playwright (desktop + mobile)                          |
-| `pnpm format`           | Format with Prettier                                                   |
+| Command                 | What it does                                                            |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`              | Start the web app in development mode                                   |
+| `pnpm build`            | Production build (also validates every lesson)                          |
+| `pnpm lint`             | ESLint across all packages                                              |
+| `pnpm typecheck`        | `tsc --noEmit` across all packages                                      |
+| `pnpm test`             | Unit and integration tests (Vitest) across all packages                 |
+| `pnpm validate:content` | Validate all lessons, challenges and scenarios, playing every solution  |
+| `pnpm test:e2e`         | Build, then run Playwright (desktop + mobile, with accessibility scans) |
+| `pnpm perf`             | Stress scenarios with timings (see docs/testing.md)                     |
+| `pnpm format`           | Format with Prettier                                                    |
 
 Before the first `pnpm test:e2e`, install a browser:
 `pnpm --filter @gitdojo/web exec playwright install chromium`.
@@ -141,6 +148,7 @@ gitdojo/
 │   ├── validator/            state-based objective validators
 │   ├── error-engine/         "Why did this happen?" explanations
 │   ├── hints/                progressive hint levels and state
+│   ├── progress/             local progress: XP, completions, IndexedDB storage, migration
 │   ├── shared-types/         domain types shared by every package
 │   ├── ui/                   design tokens and components (see UI.md)
 │   └── config/               shared TypeScript, ESLint and Prettier config
@@ -164,6 +172,8 @@ single YAML file. See:
 - [docs/validators.md](docs/validators.md): available validators and how to add one
 - [docs/git-engine.md](docs/git-engine.md): how Git commands are implemented
 - [docs/command-parser.md](docs/command-parser.md): how input is parsed and routed
+- [docs/progress.md](docs/progress.md): local progress, XP and what counts
+- [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [UI.md](UI.md): the design system
 
 ## Roadmap
@@ -174,7 +184,7 @@ single YAML file. See:
 - [x] Safe command parser and router
 - [x] Terminal, repository graph, working tree / staging visualization
 - [x] Data-driven lessons with state-based validation, and the first-commit lesson
-- [x] Courses (`/learn`): Git Basics, Branching, Merging and Merge Conflicts, with saved progress
+- [x] Courses (`/learn`): Git Basics, Branching, Merging, Merge Conflicts and Undo and Recover
 - [x] Branch visualization with lanes, branch labels and HEAD
 - [x] Merging (fast-forward, three-way) and hand-resolved merge conflicts
 - [x] Code editor (Monaco) with file explorer and Git status letters
@@ -183,8 +193,11 @@ single YAML file. See:
 - [x] Recovery commands: `diff`, `restore`, `rm`, `reset`, `revert`, `stash`, `cherry-pick`,
       `reflog`, `rebase`
 - [x] Error explanations and progressive hints
-- [ ] Local progress dashboard (XP, command stats)
-- [ ] Accounts, and progress that syncs across devices (today it is saved in the browser)
+- [x] Local progress and dashboard: completions, XP, command and hint stats, export and reset
+- [x] Testing and stabilization: integration and end-to-end coverage, accessibility (WCAG AA
+      scans), performance fixes
+- [ ] Accounts (WSO2 Identity Platform), and progress that syncs across devices (today it is
+      saved in the browser)
 - [ ] Remote repositories (`clone`, `fetch`, `pull`, `push`), then real GitHub
 
 ## License

@@ -1,20 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-type Tab = "Editor" | "Terminal" | "Graph" | "Files";
-
-async function show(page: Page, tab: Tab, isMobile: boolean) {
-  if (isMobile)
-    await page
-      .getByRole("navigation", { name: "Workspace panels" })
-      .getByRole("button", { name: tab })
-      .click();
-}
-
-async function run(page: Page, command: string) {
-  await page.getByTestId("terminal").click();
-  await page.keyboard.type(command);
-  await page.keyboard.press("Enter");
-}
+import { expect, test } from "@playwright/test";
+import { run, show } from "./helpers";
 
 test("keeps the repository across reloads, loads scenarios and resets", async ({
   page,

@@ -3,13 +3,15 @@ import Link from "next/link";
 import { SITE } from "@/lib/site";
 import { GitHubIcon } from "./github-icon";
 import { Logo } from "./logo";
+import { MobileNav, type NavItem } from "./mobile-nav";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: readonly NavItem[] = [
   { label: "Learn", href: "/learn", external: false },
   { label: "Challenges", href: "/challenges", external: false },
   { label: "Playground", href: "/playground", external: false },
+  { label: "Dashboard", href: "/dashboard", external: false },
   { label: "Docs", href: SITE.docsUrl, external: true },
-] as const;
+];
 
 export function SiteHeader() {
   return (
@@ -41,12 +43,15 @@ export function SiteHeader() {
             )}
           </nav>
         </div>
-        <Button asChild variant="secondary" size="sm">
-          <a href={SITE.githubUrl} aria-label="Star GitDojo on GitHub">
-            <GitHubIcon />
-            <span className="hidden sm:inline">Star on GitHub</span>
-          </a>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="secondary" size="sm">
+            <a href={SITE.githubUrl} aria-label="Star GitDojo on GitHub">
+              <GitHubIcon />
+              <span className="hidden sm:inline">Star on GitHub</span>
+            </a>
+          </Button>
+          <MobileNav items={NAV_ITEMS} />
+        </div>
       </div>
     </header>
   );

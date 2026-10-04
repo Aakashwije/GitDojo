@@ -26,6 +26,10 @@
   --accent-primary: #6c8cff;
   --accent-hover: #7c9aff;
   --accent-active: #5877f2;
+  /* Filled accent surfaces under white text: deep enough for 4.5:1 (WCAG AA). */
+  --accent-strong: #4a67e0;
+  --accent-strong-hover: #4f6ce6;
+  --accent-strong-active: #4560d4;
   --accent-soft: rgb(108 140 255 / 0.12);
   --accent-soft-border: rgb(108 140 255 / 0.3);
   --focus-ring: rgb(108 140 255 / 0.2);
@@ -45,8 +49,10 @@
   /* Text */
   --text-primary: #f4f7fb;
   --text-secondary: #aeb6c2;
-  --text-muted: #7c8593;
-  --text-faint: #5f6875;
+  /* Muted text passes 4.5:1 on every surface up to --bg-hover. */
+  --text-muted: #8a93a1;
+  /* Non-text only (icons, markers, rules): 3:1 on every surface. Use --text-muted for text. */
+  --text-faint: #6f7886;
   --text-disabled: #49515c;
   --text-placeholder: #6f7886;
   --text-terminal: #d6dce5;
@@ -73,6 +79,9 @@
   --color-accent: var(--accent-primary);
   --color-accent-hover: var(--accent-hover);
   --color-accent-active: var(--accent-active);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-strong-hover: var(--accent-strong-hover);
+  --color-accent-strong-active: var(--accent-strong-active);
   --color-accent-soft: var(--accent-soft);
   --color-accent-border: var(--accent-soft-border);
   --color-branch: var(--accent-secondary);
@@ -102,7 +111,7 @@
   --color-card-foreground: var(--text-primary);
   --color-popover: var(--bg-elevated);
   --color-popover-foreground: var(--text-primary);
-  --color-primary: var(--accent-primary);
+  --color-primary: var(--accent-strong);
   --color-primary-foreground: #ffffff;
   --color-secondary: var(--bg-elevated);
   --color-secondary-foreground: var(--text-primary);

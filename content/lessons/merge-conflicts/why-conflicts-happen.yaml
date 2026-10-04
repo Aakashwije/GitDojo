@@ -75,6 +75,3 @@ content:
     body: >-
       A conflict does not mean anything broke. It is Git asking a question only a person can
       answer. Small, frequent merges keep conflicts small and easy.
-
-completion:
-  xp: 25

@@ -26,24 +26,78 @@ export function shortOid(oid: string): string {
   return oid.slice(0, 7);
 }
 
-export async function readCommitsFromHead(ctx: GitContext): Promise<GitCommitInfo[]> {
-  return readCommits(ctx, "HEAD");
+/**
+ * Commits already read during one operation (such as a snapshot), by oid, so histories shared by
+ * several branches are read once instead of once per branch.
+ */
+export type CommitCache = Map<string, CachedCommit>;
+
+interface CachedCommit {
+  info: GitCommitInfo;
+  committerTimestamp: number;
 }
 
-async function readCommits(ctx: GitContext, ref: string): Promise<GitCommitInfo[]> {
-  const entries = await git.log({ fs: ctx.fs, dir: ctx.dir, ref });
-  return entries.map(({ oid, commit }) => ({
-    oid,
-    shortOid: shortOid(oid),
-    message: commit.message.trimEnd(),
-    author: {
-      name: commit.author.name,
-      email: commit.author.email,
-      timestamp: commit.author.timestamp,
-      timezoneOffset: commit.author.timezoneOffset,
+export function createCommitCache(): CommitCache {
+  return new Map();
+}
+
+async function readCachedCommit(
+  ctx: GitContext,
+  oid: string,
+  cache: CommitCache,
+): Promise<CachedCommit> {
+  const cached = cache.get(oid);
+  if (cached) return cached;
+  const { commit } = await git.readCommit({ fs: ctx.fs, dir: ctx.dir, oid });
+  const entry: CachedCommit = {
+    info: {
+      oid,
+      shortOid: shortOid(oid),
+      message: commit.message.trimEnd(),
+      author: {
+        name: commit.author.name,
+        email: commit.author.email,
+        timestamp: commit.author.timestamp,
+        timezoneOffset: commit.author.timezoneOffset,
+      },
+      parents: commit.parent,
     },
-    parents: commit.parent,
-  }));
+    committerTimestamp: commit.committer.timestamp,
+  };
+  cache.set(oid, entry);
+  return entry;
+}
+
+export async function readCommitsFromHead(
+  ctx: GitContext,
+  cache: CommitCache = createCommitCache(),
+): Promise<GitCommitInfo[]> {
+  return readCommits(ctx, "HEAD", cache);
+}
+
+/**
+ * The history behind `ref`, in exactly the order isomorphic-git's `log` produces (newest
+ * committer date first), but reading commits through `cache`.
+ */
+async function readCommits(
+  ctx: GitContext,
+  ref: string,
+  cache: CommitCache = createCommitCache(),
+): Promise<GitCommitInfo[]> {
+  const oid = await git.resolveRef({ fs: ctx.fs, dir: ctx.dir, ref });
+  const tips = [await readCachedCommit(ctx, oid, cache)];
+  const commits: GitCommitInfo[] = [];
+  while (tips.length > 0) {
+    const commit = tips.pop();
+    if (commit === undefined) break;
+    commits.push(commit.info);
+    for (const parent of commit.info.parents) {
+      const entry = await readCachedCommit(ctx, parent, cache);
+      if (!tips.some((tip) => tip.info.oid === entry.info.oid)) tips.push(entry);
+    }
+    tips.sort((a, b) => a.committerTimestamp - b.committerTimestamp);
+  }
+  return commits;
 }
 
 /**
@@ -54,10 +108,11 @@ async function readCommits(ctx: GitContext, ref: string): Promise<GitCommitInfo[
 export async function readCommitsFrom(
   ctx: GitContext,
   tips: readonly string[],
+  cache: CommitCache = createCommitCache(),
 ): Promise<GitCommitInfo[]> {
   const byOid = new Map<string, GitCommitInfo>();
   for (const tip of new Set(tips)) {
-    for (const commit of await readCommits(ctx, tip)) {
+    for (const commit of await readCommits(ctx, tip, cache)) {
       if (!byOid.has(commit.oid)) byOid.set(commit.oid, commit);
     }
   }
@@ -106,12 +161,12 @@ export async function isAncestor(ctx: GitContext, ancestor: string, oid: string)
 }
 
 /** Every oid reachable from any branch. */
-async function reachableFromBranches(ctx: GitContext): Promise<Set<string>> {
+async function reachableFromBranches(ctx: GitContext, cache: CommitCache): Promise<Set<string>> {
   const reached = new Set<string>();
   for (const branch of await git.listBranches({ fs: ctx.fs, dir: ctx.dir })) {
     const tip = await resolveRefOrNull(ctx, `refs/heads/${branch}`);
     if (tip === null || reached.has(tip)) continue;
-    for (const commit of await readCommits(ctx, tip)) reached.add(commit.oid);
+    for (const commit of await readCommits(ctx, tip, cache)) reached.add(commit.oid);
   }
   return reached;
 }
@@ -124,8 +179,9 @@ export async function unreachableFromBranches(
   ctx: GitContext,
   oid: string,
 ): Promise<GitCommitInfo[]> {
-  const reached = await reachableFromBranches(ctx);
-  return (await readCommits(ctx, oid)).filter((commit) => !reached.has(commit.oid));
+  const cache = createCommitCache();
+  const reached = await reachableFromBranches(ctx, cache);
+  return (await readCommits(ctx, oid, cache)).filter((commit) => !reached.has(commit.oid));
 }
 
 export function subject(message: string): string {

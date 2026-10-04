@@ -15,6 +15,7 @@ export {
   type CommandErrorCode,
   type CommandExecutionContext,
   type CommandExecutionResult,
+  type GitCommandName,
 } from "./router/types";
 export { tokenize, type TokenizeResult } from "./tokenizer";
 export { type FlagSpec, type GitCommandSpec, type ParsedCommand } from "./types";

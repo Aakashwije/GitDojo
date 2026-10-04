@@ -99,6 +99,3 @@ hints:
   commit-changelog:
     - Commit the staged file with a message describing it.
     - Run `git commit -m "Add changelog"`, then `git log --oneline`.
-
-completion:
-  xp: 50

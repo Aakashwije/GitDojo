@@ -98,6 +98,3 @@ hints:
   back-to-main:
     - Run `git switch main`.
     - "`login.js` is committed on `feature/login`, so Git removes it while you are on `main`. Switch back and it returns."
-
-completion:
-  xp: 100

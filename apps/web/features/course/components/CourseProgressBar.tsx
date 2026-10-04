@@ -4,9 +4,12 @@ import { type CourseProgress } from "../services/course-navigation";
 /** Thin course progress line with a "3 of 10 lessons · 30%" summary. */
 export function CourseProgressBar({
   progress,
+  label = "Course progress",
   className,
 }: {
   progress: CourseProgress;
+  /** Accessible name; give each bar its own when several are on a page. */
+  label?: string;
   className?: string;
 }) {
   return (
@@ -22,7 +25,8 @@ export function CourseProgressBar({
       </p>
       <div
         role="progressbar"
-        aria-label="Course progress"
+        aria-label={label}
+        aria-valuetext={`${String(progress.completedCount)} of ${String(progress.total)} lessons`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={progress.percent}

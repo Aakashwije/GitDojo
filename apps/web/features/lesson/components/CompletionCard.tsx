@@ -1,10 +1,12 @@
 "use client";
 
 import { hintsUsed } from "@gitdojo/hints";
+import { type ContentRef } from "@gitdojo/progress";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { Button } from "@gitdojo/ui";
 import { RotateCcw, Trophy } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { XpAward } from "@/features/progress/components/XpAward";
 import { useLessonStore } from "../state/use-lesson-store";
 
 /** "Solved without hints" / "3 hints used", for the completion card and dialog. */
@@ -19,9 +21,11 @@ export function HintSummary({ className }: { className?: string }) {
 
 export function CompletionCard({
   lesson,
+  content,
   onPracticeAgain,
 }: {
   lesson: LessonDefinition;
+  content: Pick<ContentRef, "kind" | "id">;
   onPracticeAgain: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -42,11 +46,7 @@ export function CompletionCard({
         Lesson Complete
       </p>
       <p className="mt-1 text-small text-fg">{lesson.title}</p>
-      {lesson.completion?.xp ? (
-        <p className="mt-1 font-mono text-small font-semibold text-success">
-          +{lesson.completion.xp} XP
-        </p>
-      ) : null}
+      <XpAward content={content} className="mt-1 text-small" />
       <HintSummary className="mt-1 text-caption text-fg-muted" />
       <Button size="sm" variant="secondary" className="mt-3" onClick={onPracticeAgain}>
         <RotateCcw /> Practice again

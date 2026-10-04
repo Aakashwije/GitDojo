@@ -87,6 +87,3 @@ content:
     body: >-
       Real Git lets you stage a file that still contains markers, and the markers then end up in
       your code. GitDojo refuses, so you learn the habit: check the file before `git add`.
-
-completion:
-  xp: 25

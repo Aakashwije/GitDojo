@@ -104,6 +104,3 @@ hints:
     - Bringing an entry back does not always remove it from the list.
   clean:
     - Check the status for anything left over.
-
-completion:
-  xp: 300

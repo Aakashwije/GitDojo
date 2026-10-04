@@ -117,6 +117,3 @@ hints:
     - Merging would bring every commit. If you merged, reset the lesson.
   no-animation:
     - Only one commit should come across.
-
-completion:
-  xp: 100

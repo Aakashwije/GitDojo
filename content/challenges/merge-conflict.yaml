@@ -90,6 +90,3 @@ hints:
     - A merge that stopped for conflicts only finishes once it is committed.
   clean:
     - Check the status for anything left over.
-
-completion:
-  xp: 150

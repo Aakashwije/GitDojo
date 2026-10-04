@@ -32,7 +32,6 @@ export const challengeDefinitionSchema = z
     setup: setupSchema.default({}),
     objectives: z.array(objectiveSchema).min(1, "a challenge needs at least one success condition"),
     hints: hintsSchema.optional(),
-    completion: z.strictObject({ xp: z.number().int().nonnegative().optional() }).optional(),
   })
   .superRefine((challenge, ctx) => {
     checkSetup(challenge.setup, ctx);

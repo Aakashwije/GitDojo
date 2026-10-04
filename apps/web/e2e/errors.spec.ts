@@ -1,19 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
-
-async function run(page: Page, command: string) {
-  await page.getByTestId("terminal").click();
-  await page.keyboard.type(command);
-  await page.keyboard.press("Enter");
-}
+import { expect, test } from "@playwright/test";
+import { run, show } from "./helpers";
 
 test("explains why a command failed, next to Git's real message", async ({ page, isMobile }) => {
   await page.goto("/learn/demo");
-  if (isMobile) {
-    await page
-      .getByRole("navigation", { name: "Workspace panels" })
-      .getByRole("button", { name: "Terminal" })
-      .click();
-  }
+  await show(page, "Terminal", isMobile);
   const terminal = page.getByTestId("terminal");
   await expect(terminal).toContainText("learner@gitdojo");
 

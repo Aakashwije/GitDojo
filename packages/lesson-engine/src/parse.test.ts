@@ -25,8 +25,6 @@ objectives:
 hints:
   init:
     - Try git init.
-completion:
-  xp: 50
 `;
 
 function issuesFor(source: string): string[] {
@@ -47,7 +45,6 @@ describe("parseLesson", () => {
       title: "Sample lesson",
       difficulty: "beginner",
       setup: { files: { "README.md": "# Hi\n" } },
-      completion: { xp: 50 },
     });
     expect(lesson.objectives[1]?.validator).toEqual({ type: "file_staged", file: "README.md" });
   });

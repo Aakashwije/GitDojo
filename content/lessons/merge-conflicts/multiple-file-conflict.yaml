@@ -134,6 +134,3 @@ hints:
     - Run `git status` to check nothing is left under "Unmerged paths".
   completed:
     - Run `git commit`.
-
-completion:
-  xp: 100

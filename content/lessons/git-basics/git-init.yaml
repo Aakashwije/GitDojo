@@ -57,6 +57,3 @@ hints:
     - Try `git status` first. Git will tell you this is not a repository yet.
     - Every repository starts with one command that creates the `.git` folder.
     - Run `git init`.
-
-completion:
-  xp: 50

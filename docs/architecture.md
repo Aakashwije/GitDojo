@@ -21,7 +21,11 @@ Repository State    packages/repository-state        Git snapshot → normalized
    ↓
 Validator Engine    packages/validator               RepositoryState → pass/fail per objective
    ↓
-UI                  apps/web                         Zustand stores → React panels, graph, objectives
+Lesson/Challenge    packages/lesson-engine           sticky, ordered objective progress → completion
+   ↓
+Progress            packages/progress                completions, XP, command and hint counts (IndexedDB)
+   ↓
+UI                  apps/web                         Zustand stores → React panels, graph, dashboard
 ```
 
 After **every** command the web app recomputes repository state from scratch, validates the
@@ -100,7 +104,8 @@ YAML in `content/challenges/` (see [challenge-authoring.md](./challenge-authorin
 validated by `@gitdojo/challenge-engine`, which turns each into a lesson of type `challenge` so the
 same workspace, setup, validation and progress code runs it. A challenge whose `requires` names a
 command GitDojo cannot run yet is shown as locked. Challenge workspaces are `challenge-<id>`, and
-solved challenges are saved alongside completed lessons in `localStorage`.
+solved challenges are recorded in local progress as challenges, separately from lessons (see
+[progress.md](./progress.md)).
 
 ## Error explanations
 
@@ -152,6 +157,7 @@ used.
 | `@gitdojo/challenge-engine` | Challenge schema, loader, categories, availability                      | lesson-engine, command-parser, yaml, zod           |
 | `@gitdojo/error-engine`     | Educational explanations for command outcomes                           | command-parser, shared-types                       |
 | `@gitdojo/hints`            | Hint levels, ladder validation, hint state                              | shared-types                                       |
+| `@gitdojo/progress`         | Local progress: model, XP rules, IndexedDB storage, migration, metrics  | shared-types                                       |
 | `@gitdojo/ui`               | Design tokens (from `UI.md`) and shadcn/ui-style components             | radix-ui, tailwind-merge                           |
 | `@gitdojo/config`           | Shared TypeScript, ESLint and Prettier configuration                    | –                                                  |
 | `@gitdojo/web`              | Next.js app: landing page, courses and the lesson workspace             | everything above                                   |
@@ -179,6 +185,9 @@ libraries.
    know about status matrices or object ids.
 6. **Modules are independently testable.** Each package has its own Vitest suite that runs in
    Node against an in-memory IndexedDB (`fake-indexeddb`).
+7. **Progress follows state, not text.** A lesson or challenge is completed only when its
+   validators pass; command usage is counted from what the router actually ran
+   (`CommandExecutionResult.gitCommand`), never by matching the typed line.
 
 ## Safety model
 
@@ -210,16 +219,19 @@ Courses live in `content/courses/<slug>.yaml` and list lesson slugs in order; ea
 live in `content/lessons/<course slug>/`. Every course page and lesson page is generated statically
 at build time (`/learn`, `/learn/[course]`, `/learn/[course]/[lesson]`).
 
-Which lessons a learner has finished is kept in `localStorage` (`use-course-progress`), until
-accounts exist. A hands-on lesson is recorded as finished when its objectives are complete; a
-concept lesson when the learner marks it complete.
+What a learner has done is kept by `@gitdojo/progress` in its own IndexedDB database, with no
+account needed; see [progress.md](./progress.md). A hands-on lesson is recorded as finished when
+its objectives are complete; a concept lesson when the learner marks it complete. Course
+completion is never stored: it is derived from completed lessons and the course's current lesson
+list. The dashboard (`/dashboard`) shows totals, course progress, recent activity and command
+usage, and lets the learner export or reset their progress.
 
 ## Web app structure
 
 ```text
 apps/web/
 ├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo,
-│                               /playground, /challenges, /challenges/[slug]
+│                               /playground, /challenges, /challenges/[slug], /dashboard
 ├── components/                 site chrome and landing page
 ├── features/
 │   ├── terminal/               xterm host, line editor, history, output highlighting
@@ -228,12 +240,15 @@ apps/web/
 │   ├── conflicts/              conflict banner and the conflict editor
 │   ├── editor/                 Monaco editor, file explorer, tabs, EditorController
 │   ├── errors/                 "Why did this happen?" explanation panel
-│   ├── course/                 course outline, navigation, progress (localStorage)
+│   ├── course/                 course outline and navigation
+│   ├── progress/               progress store, ProgressProvider, dashboard, lesson tracking hook
 │   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
 │   ├── playground/             PlaygroundSession, scenario picker, playground layout
 │   └── workspace/              WorkspaceSession, LearningSession, browser environment, layout
-└── e2e/                        Playwright tests
+├── e2e/                        Playwright tests (desktop + mobile), including axe accessibility scans
+└── perf/                       stress scenarios (`pnpm perf`, `pnpm perf:browser`)
 ```
 
 Stores (`use-repository-store`, `use-lesson-store`, `use-terminal-store`) hold view state only;
-business logic lives in the packages and in `LearningSession`.
+business logic lives in the packages and in `LearningSession`. `use-progress-store` mirrors the
+saved progress for React; `@gitdojo/progress` owns persistence.

@@ -69,10 +69,9 @@ objectives: # the success conditions, at least one
 hints: # optional; objective id → hints, vague first
   fix-kept:
     - A new branch starts wherever HEAD is when you create it.
-
-completion:
-  xp: 150 # optional
 ```
+
+Every challenge earns the same XP (100), awarded once; see [Local progress](progress.md#xp).
 
 The schema is strict: unknown keys, unknown categories or validator types, missing missions and
 empty `concepts` or `objectives` are rejected, and setup and hint keys are checked like lessons'.

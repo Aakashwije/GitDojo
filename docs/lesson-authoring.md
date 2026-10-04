@@ -76,10 +76,10 @@ hints: # optional; objective id → hints, vague first, explicit last
   initialize:
     - Git does not know this folder is a repository yet.
     - Try `git init`.
-
-completion:
-  xp: 100 # optional
 ```
+
+XP is not authored: it follows from the lesson `type` (concept 25, interactive 50, challenge 100)
+and is awarded once. See [Local progress](progress.md#xp).
 
 ### Setup with history
 

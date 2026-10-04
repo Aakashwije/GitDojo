@@ -76,6 +76,3 @@ hints:
     - Git can be told to stop reporting a file by listing it in a special file at the top of the
       project.
     - That special file is `.gitignore`, and it should be committed too. The editor can create it.
-
-completion:
-  xp: 100

@@ -2192,9 +2192,10 @@ Example:
 
 --text-primary: #f4f7fb;
 --text-secondary: #aeb6c2;
---text-muted: #7c8593;
+--text-muted: #8a93a1; /* 4.5:1 on every surface (WCAG AA) */
 
---accent-primary: #6c8cff;
+--accent-primary: #6c8cff; /* text, borders, focus */
+--accent-strong: #4a67e0; /* filled backgrounds under white text */
 --accent-secondary: #f59e5b;
 
 --success: #4fd18b;

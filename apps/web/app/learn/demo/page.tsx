@@ -1,8 +1,6 @@
 import { type Metadata } from "next";
 import { LessonWorkspace } from "@/features/workspace/components/LessonWorkspace";
-import { loadLesson } from "@/lib/lessons";
-
-const DEMO_LESSON = "first-commit";
+import { DEMO_LESSON, loadLesson } from "@/lib/lessons";
 
 export async function generateMetadata(): Promise<Metadata> {
   const lesson = await loadLesson(DEMO_LESSON);

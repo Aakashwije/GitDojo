@@ -7,6 +7,7 @@ import {
   type SupportedGitCommand,
 } from "../commands";
 import { parseCommand, notAGitCommandMessage } from "../parser";
+import { tokenize } from "../tokenizer";
 import { type ParsedCommand } from "../types";
 import { helpText } from "./help";
 import { type CommandExecutionContext, type CommandExecutionResult } from "./types";
@@ -246,7 +247,7 @@ async function dispatch(
     };
   }
 
-  return fromGitResult(await gitHandlers[command](parsed, context));
+  return { ...fromGitResult(await gitHandlers[command](parsed, context)), gitCommand: command };
 }
 
 /**
@@ -262,10 +263,12 @@ export async function executeCommand(
   } catch (error) {
     // Keep the details for developers; learners only see a generic message.
     console.error("[gitdojo] command execution failed", error);
+    const command = parsed.program === "git" ? parsed.command : undefined;
     return {
       ok: false,
       output: "fatal: something went wrong while running that command.",
       errorCode: "INTERNAL",
+      ...(command !== undefined && isSupportedGitCommand(command) ? { gitCommand: command } : {}),
     };
   }
 }
@@ -277,7 +280,23 @@ export async function runCommandLine(
 ): Promise<CommandExecutionResult> {
   const parsed = parseCommand(raw);
   if (!parsed.ok) {
-    return { ok: false, output: parsed.error.message, errorCode: parsed.error.code };
+    const gitCommand = submittedGitCommand(raw);
+    return {
+      ok: false,
+      output: parsed.error.message,
+      errorCode: parsed.error.code,
+      // A supported command with bad arguments (`git branch a b c`) was still an attempt at it.
+      ...(gitCommand ? { gitCommand } : {}),
+    };
   }
   return executeCommand(parsed.command, context);
+}
+
+/** The supported Git subcommand a line asks for, even when it does not parse. */
+function submittedGitCommand(raw: string): SupportedGitCommand | null {
+  const tokens = tokenize(raw);
+  const [program, command] = tokens.ok ? tokens.tokens : raw.trim().split(/\s+/);
+  return program === "git" && command !== undefined && isSupportedGitCommand(command)
+    ? command
+    : null;
 }

@@ -104,6 +104,3 @@ hints:
     - Resetting to the newest lost commit brings back its parent too.
   clean:
     - "`git status` should say the working tree is clean."
-
-completion:
-  xp: 125

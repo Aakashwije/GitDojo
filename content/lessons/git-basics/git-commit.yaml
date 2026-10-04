@@ -83,6 +83,3 @@ hints:
     - Run `git status`. One file is still untracked.
     - Stage it, then commit it with a message of your own.
     - Run `git add index.js`, then `git commit -m "Add app entry point"`.
-
-completion:
-  xp: 75

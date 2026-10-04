@@ -50,7 +50,7 @@ export function LessonPager({ courseSlug, position, emphasizeNext, className }: 
               <span
                 className={cn(
                   "block text-micro uppercase",
-                  emphasizeNext ? "text-white/80" : "text-fg-muted",
+                  emphasizeNext ? "text-white" : "text-fg-muted",
                 )}
               >
                 Next
@@ -65,7 +65,7 @@ export function LessonPager({ courseSlug, position, emphasizeNext, className }: 
               <span
                 className={cn(
                   "block text-micro uppercase",
-                  emphasizeNext ? "text-white/80" : "text-fg-muted",
+                  emphasizeNext ? "text-white" : "text-fg-muted",
                 )}
               >
                 Finish

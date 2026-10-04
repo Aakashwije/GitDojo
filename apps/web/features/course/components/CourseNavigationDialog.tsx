@@ -11,7 +11,7 @@ import {
   formatLessonNumber,
   type LessonNeighbors,
 } from "../services/course-navigation";
-import { useCompletedLessons } from "../state/use-course-progress";
+import { useCompletedLessons } from "@/features/progress/state/use-progress-store";
 import { CourseOutlineList } from "./CourseOutlineList";
 import { CourseProgressBar } from "./CourseProgressBar";
 

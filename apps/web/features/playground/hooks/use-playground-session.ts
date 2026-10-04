@@ -8,6 +8,8 @@ import { type WorkspaceFileActions } from "@/features/editor/services/editor-con
 import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { explainOutcome } from "@/features/errors/services/explain-outcome";
 import { useExplanationStore } from "@/features/errors/state/use-explanation-store";
+import { recordCommand } from "@/features/progress/services/record-command";
+import { recordProgress } from "@/features/progress/state/use-progress-store";
 import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
 import { createBrowserLessonEnvironment } from "@/features/workspace/services/browser-environment";
 import {
@@ -67,6 +69,8 @@ export function usePlaygroundSession(
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // One session per visit: retries, resets and scenario changes do not count again.
+  const sessionCounted = useRef(false);
 
   useEffect(() => {
     // An object, not a boolean, so TypeScript does not narrow it across the `await`s below.
@@ -91,6 +95,10 @@ export function usePlaygroundSession(
         publish(snapshot);
         setRestored(snapshot.restored);
         setStatus("ready");
+        if (!sessionCounted.current) {
+          sessionCounted.current = true;
+          void recordProgress({ type: "playground-session" });
+        }
       } catch (error) {
         if (lifecycle.cancelled) return;
         console.error("[gitdojo] playground setup failed", error);
@@ -113,6 +121,7 @@ export function usePlaygroundSession(
       const { result, snapshot } = await session.execute(input);
       publish(snapshot);
       explainOutcome(input, result, snapshot.repository);
+      recordCommand(result);
       return result;
     } catch (error) {
       console.error("[gitdojo] command failed", error);

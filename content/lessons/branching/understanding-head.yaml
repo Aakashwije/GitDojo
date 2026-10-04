@@ -97,6 +97,3 @@ content:
     body: >-
       HEAD can also point straight at a commit instead of a branch. Git calls this a "detached
       HEAD". It is useful for inspecting old commits, and is covered in a later course.
-
-completion:
-  xp: 25

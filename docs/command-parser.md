@@ -60,6 +60,12 @@ real error goes to the developer console only.
 `runCommandLine(raw, context)` parses and executes in one step; that is what the terminal and
 lesson setup `commands` use.
 
+Every result for a supported Git command carries `gitCommand` (`git commit -m x` → `commit`), set
+whether the command succeeded or not, including lines that name a supported command but fail to
+parse (`git branch a b c`). `help`, `clear`, other programs and unsupported Git commands have
+none. Local progress counts command usage from this field, so it reflects what actually ran
+rather than a pattern match on the typed text.
+
 ## Supported commands
 
 `init`, `status`, `add`, `commit`, `log`, `branch`, `switch`, `checkout`, `merge`, `diff`,

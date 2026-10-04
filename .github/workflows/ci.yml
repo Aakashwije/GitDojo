@@ -15,7 +15,7 @@ jobs:
   ci:
     name: Lint, typecheck, test, build, e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
 
@@ -30,13 +30,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Format
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
+      # Unit and integration tests in every package, including the progress package and the
+      # command → engine → validators → progress flow in the web app.
+      - name: Unit and integration tests
         run: pnpm test
 
       # Every lesson, course, challenge and playground scenario: schema, references, and a
@@ -47,17 +52,37 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Browsers are cached per Playwright version; system libraries are always installed.
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @gitdojo/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
 
-      # Turborepo reuses the build above from its local cache.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @gitdojo/web exec playwright install-deps chromium
+
+      # Desktop and mobile projects, including the axe accessibility scans. Turborepo reuses the
+      # build above from its local cache.
       - name: End-to-end tests
         run: pnpm test:e2e
 
-      - name: Upload Playwright report
+      - name: Upload Playwright report and traces
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: apps/web/playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
           retention-days: 7

@@ -1,18 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-async function show(page: Page, tab: "Lesson" | "Terminal", isMobile: boolean) {
-  if (isMobile)
-    await page
-      .getByRole("navigation", { name: "Workspace panels" })
-      .getByRole("button", { name: tab })
-      .click();
-}
-
-async function run(page: Page, command: string) {
-  await page.getByTestId("terminal").click();
-  await page.keyboard.type(command);
-  await page.keyboard.press("Enter");
-}
+import { expect, test } from "@playwright/test";
+import { run, show } from "./helpers";
 
 test("climbs the hint ladder from concept to answer", async ({ page, isMobile }) => {
   await page.goto("/learn/demo");

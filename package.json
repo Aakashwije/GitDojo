@@ -16,7 +16,8 @@
     "validate:content": "pnpm --filter @gitdojo/lesson-engine --filter @gitdojo/challenge-engine exec vitest run content challenges",
     "test:e2e": "turbo run test:e2e",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "perf": "pnpm --filter @gitdojo/web perf"
   },
   "devDependencies": {
     "@gitdojo/config": "workspace:*",

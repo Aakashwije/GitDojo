@@ -102,6 +102,5 @@ export function toLessonDefinition(challenge: ChallengeDefinition): LessonDefini
     setup: challenge.setup,
     objectives: challenge.objectives,
     ...(challenge.hints ? { hints: challenge.hints } : {}),
-    ...(challenge.completion ? { completion: challenge.completion } : {}),
   };
 }

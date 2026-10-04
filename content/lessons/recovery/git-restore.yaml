@@ -105,6 +105,3 @@ hints:
   discard-experiment:
     - Restoring a file in the working tree replaces it with the staged version.
     - Run `git restore index.html`.
-
-completion:
-  xp: 75

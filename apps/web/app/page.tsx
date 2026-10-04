@@ -56,7 +56,7 @@ export default function HomePage() {
       </main>
       <footer className="border-t border-border-subtle">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-4 py-8 text-small text-fg-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <Logo className="opacity-80" />
+          <Logo />
           <p>
             MIT licensed ·{" "}
             <a className="hover:text-fg" href={SITE.githubUrl}>

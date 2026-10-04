@@ -84,6 +84,3 @@ hints:
     - The newest of the two commits brings its parent along.
   main-untouched:
     - The recovery should not move `main`.
-
-completion:
-  xp: 150

@@ -121,6 +121,3 @@ hints:
     - Run `git rebase main`.
   work-kept:
     - A rebase copies your commits; check them with `git log --oneline`.
-
-completion:
-  xp: 150

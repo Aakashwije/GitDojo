@@ -82,6 +82,3 @@ content:
       - The three places your changes live: the working tree, the staging area and the repository
       - How to stage changes with `git add` and record them with `git commit`
       - How to read your history with `git log`
-
-completion:
-  xp: 25

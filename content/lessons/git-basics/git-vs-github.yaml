@@ -64,6 +64,3 @@ content:
     body: >-
       Pushing and pulling to a remote like GitHub is covered in a later course. For now, all of
       your work stays in your local repository.
-
-completion:
-  xp: 25

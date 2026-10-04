@@ -83,6 +83,3 @@ hints:
   stage-style:
     - "`.` means the current folder, including everything inside it."
     - Run `git add .`, then `git status` to confirm nothing is left.
-
-completion:
-  xp: 50

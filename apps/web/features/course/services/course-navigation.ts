@@ -1,4 +1,8 @@
+import { courseProgress, nextLessonToStudy, type CourseProgress } from "@gitdojo/progress";
 import { type CourseLessonSummary, type CourseOutline } from "@gitdojo/shared-types";
+
+// Course completion is derived from completed lessons by the progress package.
+export { courseProgress, nextLessonToStudy, type CourseProgress };
 
 export type LessonStatus = "completed" | "current" | "upcoming";
 
@@ -13,26 +17,6 @@ export function lessonHref(courseSlug: string, lessonSlug: string): string {
 /** Lesson numbers are shown zero-padded, as in "03 Initialize a Repository". */
 export function formatLessonNumber(number: number): string {
   return String(number).padStart(2, "0");
-}
-
-export interface CourseProgress {
-  completedCount: number;
-  total: number;
-  /** Whole percent, 0–100. */
-  percent: number;
-}
-
-export function courseProgress(
-  course: CourseOutline,
-  completed: ReadonlySet<string>,
-): CourseProgress {
-  const total = course.lessons.length;
-  const completedCount = course.lessons.filter((lesson) => completed.has(lesson.id)).length;
-  return {
-    completedCount,
-    total,
-    percent: total === 0 ? 0 : Math.round((completedCount / total) * 100),
-  };
 }
 
 export interface LessonNeighbors {
@@ -50,14 +34,6 @@ export function lessonNeighbors(course: CourseOutline, lessonSlug: string): Less
     previous: course.lessons[index - 1] ?? null,
     next: course.lessons[index + 1] ?? null,
   };
-}
-
-/** The first lesson not completed yet, or `null` when the whole course is done. */
-export function nextLessonToStudy(
-  course: CourseOutline,
-  completed: ReadonlySet<string>,
-): CourseLessonSummary | null {
-  return course.lessons.find((lesson) => !completed.has(lesson.id)) ?? null;
 }
 
 /**

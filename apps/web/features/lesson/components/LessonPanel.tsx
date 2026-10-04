@@ -1,6 +1,7 @@
 "use client";
 
 import { normalizeHints } from "@gitdojo/hints";
+import { type ContentRef } from "@gitdojo/progress";
 import { lessonTypeOf, type LessonDefinition } from "@gitdojo/shared-types";
 import { Badge, cn, Panel, PanelBody, PanelFooter, PanelHeader, PanelTitle } from "@gitdojo/ui";
 import { BookOpen, Flag } from "lucide-react";
@@ -21,10 +22,21 @@ export interface LessonPanelProps {
   /** Where the lesson sits in its course, when it belongs to one. */
   course?: { slug: string; position: LessonNeighbors };
   onPracticeAgain: () => void;
+  /** What completing this counts as in progress; defaults to the lesson itself. */
+  content?: Pick<ContentRef, "kind" | "id">;
+  /** Called when a hint is revealed: its objective and position (0 = first hint). */
+  onHintRevealed?: (objectiveId: string, index: number) => void;
   className?: string;
 }
 
-export function LessonPanel({ lesson, course, onPracticeAgain, className }: LessonPanelProps) {
+export function LessonPanel({
+  lesson,
+  course,
+  onPracticeAgain,
+  content,
+  onHintRevealed,
+  className,
+}: LessonPanelProps) {
   // Ignore progress left over from the previous lesson until this one has loaded.
   const progress = useLessonStore((state) =>
     state.progress?.lessonId === lesson.id ? state.progress : null,
@@ -91,7 +103,11 @@ export function LessonPanel({ lesson, course, onPracticeAgain, className }: Less
         />
 
         {progress?.completed ? (
-          <CompletionCard lesson={lesson} onPracticeAgain={onPracticeAgain} />
+          <CompletionCard
+            lesson={lesson}
+            content={content ?? { kind: "lesson", id: lesson.id }}
+            onPracticeAgain={onPracticeAgain}
+          />
         ) : currentId ? (
           <HintPanel
             key={currentId}
@@ -99,7 +115,10 @@ export function LessonPanel({ lesson, course, onPracticeAgain, className }: Less
             state={hintStates[currentId]}
             missing={missing}
             onReveal={() => {
+              const index = hintStates[currentId]?.revealedHints ?? 0;
+              if (index >= hints.length) return;
               revealHint(currentId, hints.length);
+              onHintRevealed?.(currentId, index);
             }}
           />
         ) : null}

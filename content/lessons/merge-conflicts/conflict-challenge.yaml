@@ -115,6 +115,3 @@ hints:
     - "Check the graph: a merge commit has two parents."
   clean:
     - "`git status` shows whether anything is left over."
-
-completion:
-  xp: 200

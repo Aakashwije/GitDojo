@@ -29,7 +29,7 @@ export function DemoAreasView({ areas }: { areas: DemoAreas }) {
               {title}
             </h4>
             {files.length === 0 ? (
-              <p className="mt-2 text-caption text-fg-faint">Empty</p>
+              <p className="mt-2 text-caption text-fg-muted">Empty</p>
             ) : (
               <ul className="mt-1.5 space-y-1">
                 {files.map((file) => (

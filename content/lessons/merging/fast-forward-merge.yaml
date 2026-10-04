@@ -91,6 +91,3 @@ hints:
   fast-forward:
     - Run `git log --oneline` and look at the labels on the newest commit.
     - If you used `--no-ff`, Git made a merge commit instead. Reset the lesson and merge without it.
-
-completion:
-  xp: 75

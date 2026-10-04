@@ -113,6 +113,3 @@ hints:
     - Run `git merge feature/login`.
   merge-commit:
     - Run `git log --oneline`. The merge commit is at the top.
-
-completion:
-  xp: 75

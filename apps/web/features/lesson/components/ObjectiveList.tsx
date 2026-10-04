@@ -52,7 +52,7 @@ export function ObjectiveList({ objectives, completedIds, currentId }: Objective
                   ? "border-accent-border bg-accent-soft text-fg"
                   : "border-transparent",
                 state === "completed" && "text-fg-muted",
-                state === "upcoming" && "text-fg-faint",
+                state === "upcoming" && "text-fg-muted",
               )}
             >
               {state === "completed" ? (

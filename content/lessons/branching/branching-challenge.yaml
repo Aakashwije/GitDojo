@@ -90,6 +90,3 @@ hints:
     - Where does HEAD point right now? The graph and `git status` both tell you.
   clean:
     - "`git status` shows whether anything is left over."
-
-completion:
-  xp: 150

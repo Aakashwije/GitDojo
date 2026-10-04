@@ -33,7 +33,11 @@ export function RefLabels({
   const others = branches.filter((branch) => branch !== attachedTo);
 
   const head = (
-    <Badge tone="accent" data-testid="head-label" className="border-accent bg-accent text-white">
+    <Badge
+      tone="accent"
+      data-testid="head-label"
+      className="border-accent-strong bg-accent-strong text-white"
+    >
       HEAD
     </Badge>
   );

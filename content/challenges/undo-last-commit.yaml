@@ -70,6 +70,3 @@ hints:
     - Git can be told to stop reporting a file.
   two-commits:
     - If history has three commits, the key is still in one of them.
-
-completion:
-  xp: 125

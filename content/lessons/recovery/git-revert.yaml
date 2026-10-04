@@ -106,6 +106,3 @@ hints:
     - A revert never removes commits. If this fails, the history was reset; reset the lesson.
   footer-kept:
     - Only the dark mode should be undone.
-
-completion:
-  xp: 100

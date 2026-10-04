@@ -61,13 +61,15 @@ export async function runAdd(ctx: GitContext, rawPaths: string[]): Promise<GitAd
     // A conflicted file resolved to exactly the current version has no changes, but adding it
     // still marks the conflict as resolved.
     if (entry.unstaged === null && !conflicted.has(entry.path)) continue;
-    if (entry.unstaged === "deleted") {
-      await git.remove({ fs: ctx.fs, dir: ctx.dir, filepath: entry.path });
-      removed.push(entry.path);
-    } else {
-      await git.add({ fs: ctx.fs, dir: ctx.dir, filepath: entry.path });
-      staged.push(entry.path);
-    }
+    if (entry.unstaged === "deleted") removed.push(entry.path);
+    else staged.push(entry.path);
+  }
+  // One index update for all additions: adding files one by one rewrote the whole index each
+  // time, which made `git add .` slow in large working trees.
+  const cache = {};
+  if (staged.length > 0) await git.add({ fs: ctx.fs, dir: ctx.dir, filepath: staged, cache });
+  for (const path of removed) {
+    await git.remove({ fs: ctx.fs, dir: ctx.dir, filepath: path, cache });
   }
 
   const resolved: string[] = [];

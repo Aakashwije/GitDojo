@@ -15,6 +15,9 @@ import path from "node:path";
 import { CONTENT_DIR } from "./content";
 
 const LESSONS_DIR = path.join(CONTENT_DIR, "lessons");
+
+/** The standalone five-minute lesson at /learn/demo. */
+export const DEMO_LESSON = "first-commit";
 const courses = createDirectoryCourseSource(path.join(CONTENT_DIR, "courses"));
 const lessonsFor = (course: string) => createDirectoryLessonSource(path.join(LESSONS_DIR, course));
 

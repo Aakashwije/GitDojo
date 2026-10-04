@@ -105,6 +105,3 @@ hints:
     - Staged changes stay in the staging area until you commit them.
     - Every commit needs a message, given with `-m`.
     - Run `git commit -m "Update README and add todo list"`, then `git status`.
-
-completion:
-  xp: 75

@@ -47,7 +47,7 @@ export function HeroDemo() {
       <div className="rounded-lg border border-border-subtle bg-terminal">
         <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
           <span className="text-caption font-medium text-fg-secondary">Terminal</span>
-          <span className="text-micro text-fg-faint">Safe browser environment</span>
+          <span className="text-micro text-fg-muted">Safe browser environment</span>
         </div>
         <div className="space-y-1 px-3 py-3 font-mono text-[12.5px] leading-5 text-fg-terminal">
           <Prompt index={0}>git status</Prompt>

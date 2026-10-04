@@ -1,21 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-type Tab = "Lesson" | "Terminal" | "Graph" | "Files";
-
-/** Phones show one panel at a time; switch to it before interacting. */
-async function show(page: Page, tab: Tab, isMobile: boolean) {
-  if (isMobile)
-    await page
-      .getByRole("navigation", { name: "Workspace panels" })
-      .getByRole("button", { name: tab })
-      .click();
-}
-
-async function run(page: Page, command: string) {
-  await page.getByTestId("terminal").click();
-  await page.keyboard.type(command);
-  await page.keyboard.press("Enter");
-}
+import { expect, test } from "@playwright/test";
+import { run, show } from "./helpers";
 
 test("works through concept lessons and tracks course progress", async ({ page }) => {
   await page.goto("/learn");

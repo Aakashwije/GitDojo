@@ -104,6 +104,3 @@ content:
     body: >-
       When both sides changed the *same* lines, Git cannot know which version you want. That is a
       merge conflict, and the next course is all about resolving them.
-
-completion:
-  xp: 25

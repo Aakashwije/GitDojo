@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { explainOutcome } from "@/features/errors/services/explain-outcome";
 import { useExplanationStore } from "@/features/errors/state/use-explanation-store";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
+import { recordCommand } from "@/features/progress/services/record-command";
 import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
 import { createBrowserLessonEnvironment } from "../services/browser-environment";
 import { LearningSession, type SessionSnapshot } from "../services/learning-session";
@@ -104,6 +105,7 @@ export function useLearningSession(
       const { result, snapshot } = await session.execute(input);
       publish(snapshot);
       explainOutcome(input, result, snapshot.repository);
+      recordCommand(result);
       return result;
     } catch (error) {
       console.error("[gitdojo] command failed", error);

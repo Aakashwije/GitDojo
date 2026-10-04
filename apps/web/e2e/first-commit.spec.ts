@@ -1,21 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-
-type Tab = "Lesson" | "Terminal" | "Graph" | "Files";
-
-/** Phones show one panel at a time; switch to it before interacting. */
-async function show(page: Page, tab: Tab, isMobile: boolean) {
-  if (isMobile)
-    await page
-      .getByRole("navigation", { name: "Workspace panels" })
-      .getByRole("button", { name: tab })
-      .click();
-}
-
-async function run(page: Page, command: string) {
-  await page.getByTestId("terminal").click();
-  await page.keyboard.type(command);
-  await page.keyboard.press("Enter");
-}
+import { expect, test } from "@playwright/test";
+import { run, show } from "./helpers";
 
 test("completes the first-commit lesson end to end", async ({ page, isMobile }) => {
   await page.goto("/learn/demo");
@@ -63,7 +47,7 @@ test("completes the first-commit lesson end to end", async ({ page, isMobile }) 
   // Lesson completion dialog.
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Lesson Complete");
-  await expect(dialog).toContainText("+100 XP");
+  await expect(dialog).toContainText("+50 XP");
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toBeHidden();
 

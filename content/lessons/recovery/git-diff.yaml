@@ -110,6 +110,3 @@ hints:
   debug-left:
     - If you staged `src/config.js` too, take it back out of the staging area.
     - Run `git restore --staged src/config.js`, or reset the lesson and stage only the fix.
-
-completion:
-  xp: 75

@@ -76,6 +76,3 @@ hints:
       should be left over.
   clean:
     - Check the status for anything left over.
-
-completion:
-  xp: 150

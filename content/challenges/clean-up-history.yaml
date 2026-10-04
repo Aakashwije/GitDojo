@@ -103,6 +103,3 @@ hints:
     - Count the commits with a one-line log.
   on-branch:
     - Check the status for anything left over.
-
-completion:
-  xp: 200

@@ -160,9 +160,6 @@ export interface LessonDefinition {
   hints?: Record<string, LessonHintInput[]>;
   /** Code editor settings for hands-on lessons. */
   editor?: LessonEditorSettings;
-  completion?: {
-    xp?: number;
-  };
 }
 
 export function lessonTypeOf(lesson: Pick<LessonDefinition, "type">): LessonType {
@@ -263,7 +260,6 @@ export interface ChallengeDefinition {
   objectives: LessonObjective[];
   /** Objective id → hints, vague first. Never the exact command (no level 3). */
   hints?: Record<string, LessonHintInput[]>;
-  completion?: { xp?: number };
 }
 
 /** What the challenge browser needs, without setup or objectives. */

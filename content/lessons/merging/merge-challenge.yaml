@@ -108,6 +108,3 @@ hints:
     - The graph shows where HEAD is.
   clean:
     - "`git status` shows whether anything is left over."
-
-completion:
-  xp: 150

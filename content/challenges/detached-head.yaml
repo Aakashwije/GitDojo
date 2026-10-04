@@ -79,6 +79,3 @@ hints:
     - The newest commit is the one HEAD points at; its parent comes with it.
   on-main:
     - Once the work has a branch of its own, leaving is safe.
-
-completion:
-  xp: 150

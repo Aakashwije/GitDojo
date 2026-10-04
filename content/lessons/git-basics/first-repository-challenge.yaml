@@ -84,6 +84,3 @@ hints:
   one-commit:
     - Your history should have a single commit with both files. If you made more than one, reset
       the challenge and try again.
-
-completion:
-  xp: 150

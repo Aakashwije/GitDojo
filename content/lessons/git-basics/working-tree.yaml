@@ -101,6 +101,3 @@ content:
     body: >-
       In a GitDojo workspace, the **Working Tree** panel shows exactly these changes, and updates
       after every command you run.
-
-completion:
-  xp: 25

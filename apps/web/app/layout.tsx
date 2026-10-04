@@ -5,6 +5,8 @@ import "./globals.css";
 import { TooltipProvider } from "@gitdojo/ui";
 import { type Metadata, type Viewport } from "next";
 import { type ReactNode } from "react";
+import { ProgressProvider } from "@/features/progress/components/ProgressProvider";
+import { loadProgressCatalog } from "@/lib/progress-catalog";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -19,11 +21,14 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Small (ids, titles, course order) and built once at build time.
+  const catalog = await loadProgressCatalog();
   return (
     <html lang="en">
       <body className="min-h-dvh bg-app text-fg">
         <TooltipProvider>{children}</TooltipProvider>
+        <ProgressProvider catalog={catalog} />
       </body>
     </html>
   );

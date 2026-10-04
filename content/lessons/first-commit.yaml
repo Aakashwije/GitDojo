@@ -64,6 +64,3 @@ hints:
     - A commit records everything in the staging area as a snapshot.
     - Every commit needs a short message describing the change.
     - Try `git commit -m "Initial commit"`.
-
-completion:
-  xp: 100

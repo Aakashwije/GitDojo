@@ -92,6 +92,3 @@ hints:
   merged:
     - "`main` has not moved, so this will be a fast-forward."
     - Run `git merge feature/search`.
-
-completion:
-  xp: 100

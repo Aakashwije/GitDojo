@@ -8,7 +8,6 @@ import {
   lessonHref,
   lessonNeighbors,
 } from "@/features/course/services/course-navigation";
-import { useCourseProgressStore } from "@/features/course/state/use-course-progress";
 import { ConflictBanner } from "@/features/conflicts/components/ConflictBanner";
 import { ConflictEditorDialog } from "@/features/conflicts/components/ConflictEditorDialog";
 import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
@@ -22,6 +21,7 @@ import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { LessonCompleteDialog } from "@/features/lesson/components/LessonCompleteDialog";
 import { LessonPanel } from "@/features/lesson/components/LessonPanel";
 import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
+import { useLessonProgress } from "@/features/progress/hooks/use-lesson-progress";
 import { RepositoryGraphPanel } from "@/features/repository/components/RepositoryGraphPanel";
 import { RepositoryPanel } from "@/features/repository/components/RepositoryPanel";
 import { StagingAreaPanel } from "@/features/repository/components/StagingAreaPanel";
@@ -74,20 +74,20 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
     useEditorStore.getState().reset();
   }, [lesson.id]);
 
-  const completed = useLessonStore(
+  const evaluatedComplete = useLessonStore(
     (state) => state.progress?.lessonId === lesson.id && state.progress.completed,
   );
+  // Only this workspace's own evaluation counts. Until its session is ready, the store can still
+  // hold the previous attempt, and a lesson and a challenge may share an id (`first-commit`).
+  const completed = status === "ready" && evaluatedComplete;
   const completionDismissed = useLessonStore((state) => state.completionDismissed);
   const dismissCompletion = useLessonStore((state) => state.dismissCompletion);
-  const markLessonComplete = useCourseProgressStore((state) => state.markLessonComplete);
-  const markChallengeComplete = useCourseProgressStore((state) => state.markChallengeComplete);
-  const isChallenge = challenge !== undefined;
-
-  useEffect(() => {
-    if (!completed) return;
-    if (isChallenge) markChallengeComplete(lesson.id);
-    else markLessonComplete(lesson.id);
-  }, [completed, isChallenge, lesson.id, markLessonComplete, markChallengeComplete]);
+  const { content, recordHint } = useLessonProgress({
+    lesson,
+    ...(course ? { courseId: course.id } : {}),
+    challenge: challenge !== undefined,
+    completed,
+  });
 
   const position = course ? lessonNeighbors(course, lesson.slug) : null;
   const courseContext = course && position ? { slug: course.slug, position } : undefined;
@@ -138,6 +138,8 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
             lesson={lesson}
             course={courseContext}
             onPracticeAgain={() => void resetLesson()}
+            content={content}
+            onHintRevealed={recordHint}
             className={cn(visibleOn("lesson"), "md:h-[480px] lg:h-auto")}
           />
           <WorkbenchPanel
@@ -173,6 +175,7 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
       <MobileTabs active={tab} onChange={setTab} tabs={LESSON_TABS} />
       <LessonCompleteDialog
         lesson={lesson}
+        content={content}
         open={completed && !completionDismissed}
         onOpenChange={(open) => {
           if (!open) dismissCompletion();

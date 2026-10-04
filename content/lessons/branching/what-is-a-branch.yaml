@@ -103,6 +103,3 @@ content:
     body: >-
       Branch names often use a prefix such as `feature/`, `bugfix/` or `docs/` to show what kind
       of work they hold. The slash is just part of the name.
-
-completion:
-  xp: 25

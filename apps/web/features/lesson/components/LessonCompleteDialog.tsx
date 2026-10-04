@@ -1,3 +1,4 @@
+import { type ContentRef } from "@gitdojo/progress";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import {
   Button,
@@ -9,10 +10,13 @@ import {
 } from "@gitdojo/ui";
 import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
+import { XpAward } from "@/features/progress/components/XpAward";
 import { HintSummary } from "./CompletionCard";
 
 export interface LessonCompleteDialogProps {
   lesson: LessonDefinition;
+  /** What the completion counts as in progress. */
+  content: Pick<ContentRef, "kind" | "id">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPracticeAgain: () => void;
@@ -23,13 +27,13 @@ export interface LessonCompleteDialogProps {
 
 export function LessonCompleteDialog({
   lesson,
+  content,
   open,
   onOpenChange,
   onPracticeAgain,
   next = { href: "/", label: "Back to home" },
   title = "Lesson Complete",
 }: LessonCompleteDialogProps) {
-  const xp = lesson.completion?.xp;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="shadow-[0_0_80px_-20px_rgb(79_209_139/0.35)]">
@@ -57,7 +61,7 @@ export function LessonCompleteDialog({
           </div>
         ) : null}
 
-        {xp ? <p className="mt-5 font-mono text-h4 font-semibold text-success">+{xp} XP</p> : null}
+        <XpAward content={content} className="mt-5 text-h4" />
         <HintSummary className="mt-1 text-small text-fg-muted" />
 
         <DialogFooter>

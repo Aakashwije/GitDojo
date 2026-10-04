@@ -85,6 +85,3 @@ hints:
     - If features came along, start over and copy only the fix.
   clean:
     - Check the status for anything left over.
-
-completion:
-  xp: 150
