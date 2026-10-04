@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+    # Major upgrades remain separate PRs. Never merge dependency updates automatically.

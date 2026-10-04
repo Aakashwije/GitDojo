@@ -3,20 +3,95 @@ name: CI
 on:
   push:
   pull_request:
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      performance:
+        description: Run the additional Node and browser stress scenarios
+        type: boolean
+        default: false
+  schedule:
+    # Monday 02:30 UTC (08:00 Asia/Colombo).
+    - cron: "30 2 * * 1"
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Keep push, PR, manual and scheduled runs from cancelling one another.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
 jobs:
-  ci:
-    name: Lint, typecheck, test, build, e2e
+  quality:
+    name: Quality / ${{ matrix.check }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # A throwaway PostgreSQL for the account progress integration tests (test-only credentials).
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [format, lint, typecheck, workflows]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Check formatting
+        if: matrix.check == 'format'
+        run: pnpm format:check
+      - name: Lint
+        if: matrix.check == 'lint'
+        run: pnpm lint
+      - name: Typecheck
+        if: matrix.check == 'typecheck'
+        run: pnpm typecheck
+      - name: Validate GitHub Actions workflows
+        if: matrix.check == 'workflows'
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint" -color
+
+  unit:
+    name: Unit tests / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit and integration tests
+        run: pnpm exec turbo run test -- --reporter=default --reporter=junit --outputFile=junit.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unit-results-node-${{ matrix.node }}
+          path: |
+            apps/*/junit.xml
+            packages/*/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  database:
+    name: PostgreSQL integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17
@@ -32,80 +107,191 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v5
-
-      # Uses the pnpm version pinned in package.json#packageManager.
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Format
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      # Unit and integration tests in every package, including the progress package and the
-      # command → engine → validators → progress flow in the web app.
-      - name: Unit and integration tests
-        run: pnpm test
-
-      # The migrations, constraints and account progress API against real PostgreSQL, including
-      # concurrent duplicate completions.
-      - name: Database tests
-        run: pnpm --filter @gitdojo/web test:db
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Migrations, isolation and concurrent completions
+        run: pnpm --filter @gitdojo/web test:db --reporter=default --reporter=junit --outputFile=db-junit.xml
         env:
+          # Disposable service credentials; never point this job at a production database.
           TEST_DATABASE_URL: postgres://gitdojo:gitdojo@localhost:5432/gitdojo_test
+      - name: Upload database test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: database-results
+          path: apps/web/db-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
 
-      # Every lesson, course, challenge and playground scenario: schema, references, and a
-      # reference solution played through the real Git engine.
-      - name: Content validation
-        run: pnpm validate:content
+  content:
+    name: Content validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - run: pnpm validate:content
 
-      - name: Build
-        run: pnpm build
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
 
-      # Browsers are cached per Playwright version; system libraries are always installed.
-      - name: Read Playwright version
-        id: playwright
-        run: echo "version=$(pnpm --filter @gitdojo/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Cache Next.js compiler output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - name: Build with test-only public identity settings
+        # Direct invocation keeps the explicit environment overrides (Turbo uses strict env).
+        run: pnpm --filter @gitdojo/web build
+        env:
+          # The SDK inlines these at build time. They must match playwright.config.ts.
+          # Runtime configuration still keeps the anonymous server's accounts disabled.
+          NEXT_PUBLIC_ASGARDEO_BASE_URL: http://localhost:3199/t/gitdojo
+          NEXT_PUBLIC_ASGARDEO_CLIENT_ID: gitdojo-e2e-client
+          ASGARDEO_CLIENT_SECRET: ""
+          ASGARDEO_SECRET: ""
+          DATABASE_URL: ""
+      - name: Package the tested build
+        # Tar retains hidden files and symlinks. No .env files or node_modules are included.
+        run: tar --exclude=.next/cache --exclude=.next/dev -czf "$RUNNER_TEMP/gitdojo-build.tar.gz" -C apps/web .next public/monaco
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-build
+          path: ${{ runner.temp }}/gitdojo-build.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
+  browser:
+    name: Browser / ${{ matrix.project }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, mobile, auth-flow]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: production-build
+          path: ${{ runner.temp }}/gitdojo-build
+      - name: Restore production build
+        run: |
+          tar -xzf "$RUNNER_TEMP/gitdojo-build/gitdojo-build.tar.gz" -C apps/web
+          test -s apps/web/.next/BUILD_ID
       - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
+        id: browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install Playwright browser
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
-
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Install browser system libraries
+        if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm --filter @gitdojo/web exec playwright install-deps chromium
-
-      # Desktop and mobile projects with the axe accessibility scans, plus the account sign-in flow
-      # against a local mock identity provider (test-only values, no secrets). Turborepo reuses
-      # the build above from its local cache.
-      - name: End-to-end tests
-        run: pnpm test:e2e
-
-      - name: Upload Playwright report and traces
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Production browser and accessibility tests
+        # Call Playwright directly: the upstream build is reused rather than rebuilt by Turbo.
+        run: pnpm --filter @gitdojo/web exec playwright test --project="$PLAYWRIGHT_PROJECT" --workers=2
+        env:
+          PLAYWRIGHT_PROJECT: ${{ matrix.project }}
+      - name: Upload browser reports and failure traces
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: playwright-report
+          name: browser-results-${{ matrix.project }}
           path: |
             apps/web/playwright-report
             apps/web/test-results
-          retention-days: 7
+          if-no-files-found: warn
+          retention-days: 14
+
+  performance:
+    name: Performance stress scenarios
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.performance)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: production-build
+          path: ${{ runner.temp }}/gitdojo-build
+      - run: tar -xzf "$RUNNER_TEMP/gitdojo-build/gitdojo-build.tar.gz" -C apps/web
+      - run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
+      - name: Node stress scenarios
+        run: pnpm perf 2>&1 | tee "$RUNNER_TEMP/performance-node.log"
+      - name: Browser stress scenarios
+        run: pnpm --filter @gitdojo/web perf:browser 2>&1 | tee "$RUNNER_TEMP/performance-browser.log"
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: performance-results
+          path: |
+            ${{ runner.temp }}/performance-*.log
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  required:
+    name: CI required
+    if: always()
+    needs: [quality, unit, database, content, audit, build, browser, performance]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Summarize and enforce all required results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          results = json.loads(os.environ["RESULTS"])
+          failed = []
+          lines = ["## CI results", "", "| Job | Result |", "| --- | --- |"]
+          for name, job in results.items():
+              result = job["result"]
+              lines.append(f"| {name} | {result} |")
+              allowed = {"success", "skipped"} if name == "performance" else {"success"}
+              if result not in allowed:
+                  failed.append(name)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("\n".join(lines) + "\n")
+          if failed:
+              print("Required jobs did not pass: " + ", ".join(failed), file=sys.stderr)
+              sys.exit(1)
+          PY

@@ -15,16 +15,17 @@ accessibility review and the performance scenarios with their measurements.
 | `pnpm validate:content`                   | Every lesson, course, challenge and scenario: schema, references, and each reference solution played                |
 | `pnpm build`                              | Production build (also loads and validates all content)                                                             |
 | `pnpm test:e2e`                           | Build, then Playwright on desktop Chrome and a Pixel 7 profile, including axe accessibility scans                   |
-| `pnpm perf`                               | Stress scenarios in Node (not part of CI; prints a timing table)                                                    |
+| `pnpm perf`                               | Stress scenarios in Node (weekly/manual CI; prints a timing table)                                                  |
 | `pnpm --filter @gitdojo/web perf:browser` | The commit-graph scenario in a real browser (needs a build, like e2e)                                               |
 
 Install a browser once before the first e2e run:
 `pnpm --filter @gitdojo/web exec playwright install chromium`.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and integration
-tests, the database tests against a PostgreSQL service container, content validation, the production build and the Playwright suite on every push and pull
-request. Playwright browsers are cached per Playwright version; on failure the HTML report and the
-traces from `test-results/` are uploaded as an artifact.
+GitHub Actions runs parallel quality checks, Node 22/24 unit tests, PostgreSQL 17 integration
+tests, content validation, dependency auditing, and a production build. Desktop, mobile and
+authentication Playwright projects reuse that build in separate jobs. Reports are uploaded even
+when a test fails. Weekly and manually requested performance runs exercise the existing stress
+scenarios. See [ci.md](./ci.md) for the job graph, security workflows and branch protection setup.
 
 ## What is tested where
 

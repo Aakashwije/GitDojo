@@ -20,3 +20,7 @@ apps/web/playwright/.cache
 
 # Monaco editor assets, copied from node_modules at build time
 apps/web/public/monaco
+
+# CI test reports
+junit.xml
+db-junit.xml

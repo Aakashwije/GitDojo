@@ -192,6 +192,7 @@ single YAML file. See:
   progress API
   and console configuration
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
+- [docs/ci.md](docs/ci.md): CI jobs, security scans, reports and branch protection
 - [UI.md](UI.md): the design system
 
 ## Roadmap
