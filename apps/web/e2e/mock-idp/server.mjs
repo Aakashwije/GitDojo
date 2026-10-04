@@ -73,9 +73,18 @@ function issueTokens(nonce) {
   };
 }
 
+// Encode dynamic values for HTML text and quoted attribute contexts.
+const escapeHtml = (value) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>${title}</title></head><body style="font-family:sans-serif;padding:2rem">
-<h1>${title}</h1>${body}</body></html>`;
+<title>${escapeHtml(title)}</title></head><body style="font-family:sans-serif;padding:2rem">
+<h1>${escapeHtml(title)}</h1>${body}</body></html>`;
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://localhost:${String(PORT)}`);
@@ -107,10 +116,10 @@ const server = createServer(async (request, response) => {
       200,
       page(
         "Mock identity provider",
-        `<p>Scopes requested: <code data-testid="scopes">${url.searchParams.get("scope") ?? ""}</code></p>
-         <p><a href="${back.toString()}">Sign in as Ada Lovelace</a></p>
-         <p><a href="${cancel.toString()}">Cancel</a></p>
-         <p>No account? <a href="${back.toString()}">Register</a></p>`,
+        `<p>Scopes requested: <code data-testid="scopes">${escapeHtml(url.searchParams.get("scope") ?? "")}</code></p>
+         <p><a href="${escapeHtml(back.toString())}">Sign in as Ada Lovelace</a></p>
+         <p><a href="${escapeHtml(cancel.toString())}">Cancel</a></p>
+         <p>No account? <a href="${escapeHtml(back.toString())}">Register</a></p>`,
       ),
       { "Content-Type": "text/html; charset=utf-8" },
     );
