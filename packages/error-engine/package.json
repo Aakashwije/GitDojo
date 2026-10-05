@@ -20,7 +20,7 @@
     "@gitdojo/config": "workspace:*",
     "@gitdojo/git-engine": "workspace:*",
     "@gitdojo/repository-state": "workspace:*",
-    "@types/node": "24.19.0",
+    "@types/node": "26.6.4",
     "eslint": "9.39.5",
     "fake-indexeddb": "6.2.5",
     "typescript": "5.9.3",
