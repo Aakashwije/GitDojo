@@ -4,6 +4,8 @@ import { asgardeo } from "@asgardeo/nextjs/server";
 import { type AccountSession, type AccountUser } from "@/features/auth/types";
 import { readAuthConfig, type AuthConfig } from "./config";
 
+const USERINFO_TIMEOUT_MS = 5000;
+
 /** The SDK session boundary, injectable so tests stay deterministic. */
 export interface SessionDeps {
   config: AuthConfig;
@@ -67,11 +69,23 @@ export function clearProfileCache(): void {
 }
 
 /**
+ * Forgets one session's cached profile, when the provider has rejected its token: the header and
+ * sign-in pages then see the session as ended at once instead of after the cache expires.
+ */
+export function forgetProfile(sessionId: string): void {
+  profiles.delete(sessionId);
+}
+
+/**
  * The learner's account state, validated on the server through the SDK's session cookie.
  * Never throws: problems talking to the identity provider show as signed out, and are logged
  * without any token or response body.
  */
-export async function getAccountSession(deps?: SessionDeps): Promise<AccountSession> {
+export async function getAccountSession(
+  deps?: SessionDeps,
+  /** Ask the provider even if a profile is cached: for decisions such as skipping sign-in. */
+  { fresh = false }: { fresh?: boolean } = {},
+): Promise<AccountSession> {
   const config = deps?.config ?? readAuthConfig();
   if (!config.configured || config.baseUrl === null) return { status: "unconfigured" };
 
@@ -81,13 +95,17 @@ export async function getAccountSession(deps?: SessionDeps): Promise<AccountSess
     if (!sessionId) return { status: "signed-out" };
 
     const cached = profiles.get(sessionId);
-    if (cached && cached.expires > Date.now()) return { status: "signed-in", user: cached.user };
+    if (!fresh && cached && cached.expires > Date.now()) {
+      return { status: "signed-in", user: cached.user };
+    }
 
     const accessToken = await resolved.getAccessToken(sessionId);
     // The standard OIDC userinfo endpoint: needs only the openid/profile/email scopes.
     const response = await resolved.fetch(`${config.baseUrl}/oauth2/userinfo`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       cache: "no-store",
+      // A slow provider must not hold the request open until the platform times it out.
+      signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
     });
     // A revoked or expired token: the session is no longer usable.
     if (response.status === 401 || response.status === 403) return { status: "signed-out" };

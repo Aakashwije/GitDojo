@@ -188,9 +188,12 @@ export class ProgressRepository {
       const { progress, issues } = parseProgress(raw, now);
       if (issues.length > 0) box.damaged = raw;
       const migrated = migrateLegacyProgress(progress, legacy, this.options.catalog, now);
-      box.loaded = { progress: migrated, persistence: this.persistence, issues };
-      const unchanged = raw !== undefined && issues.length === 0 && migrated === progress;
-      return unchanged ? undefined : migrated;
+      // A new record starts out anonymous; mark whose it is.
+      const owner = this.options.owner ?? ANONYMOUS;
+      const owned = ownerKey(migrated.owner) === this.key ? migrated : { ...migrated, owner };
+      box.loaded = { progress: owned, persistence: this.persistence, issues };
+      const unchanged = raw !== undefined && issues.length === 0 && owned === progress;
+      return unchanged ? undefined : owned;
     });
     const { loaded, damaged } = box;
     if (loaded === undefined) throw new Error("Progress load did not run");

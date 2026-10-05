@@ -64,6 +64,14 @@ describe("getAccountSession", () => {
     expect(d.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("asks the provider again for a fresh check, so an ended session can sign in again", async () => {
+    const d = deps();
+    await getAccountSession(d);
+    vi.mocked(d.fetch).mockResolvedValue(new Response(null, { status: 401 }));
+    expect(await getAccountSession(d)).toMatchObject({ status: "signed-in" });
+    expect(await getAccountSession(d, { fresh: true })).toEqual({ status: "signed-out" });
+  });
+
   it("treats a rejected token as an ended session", async () => {
     const d = deps({ fetch: () => Promise.resolve(new Response(null, { status: 401 })) });
     expect(await getAccountSession(d)).toEqual({ status: "signed-out" });

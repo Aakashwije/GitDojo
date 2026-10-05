@@ -1,9 +1,11 @@
 import {
+  ANONYMOUS,
   createIndexedDbStorage,
   PROGRESS_CHANNEL,
   ProgressRepository,
   type LegacyStorage,
   type ProgressCatalog,
+  type ProgressOwner,
 } from "@gitdojo/progress";
 
 /** Stands in for IndexedDB where it does not exist, so the repository falls back to memory. */
@@ -22,13 +24,21 @@ function localStorageOrNull(): LegacyStorage | null {
   }
 }
 
-/** Progress in IndexedDB, migrated from localStorage, synchronized across tabs. Browser only. */
-export function createBrowserProgressRepository(catalog: ProgressCatalog): ProgressRepository {
+/**
+ * One owner's progress in IndexedDB, synchronized across tabs. Browser only. Anonymous progress
+ * also imports the pre-IndexedDB localStorage copy; an account's record never does, so anonymous
+ * progress is never merged into an account.
+ */
+export function createBrowserProgressRepository(
+  catalog: ProgressCatalog,
+  owner: ProgressOwner = ANONYMOUS,
+): ProgressRepository {
   const factory = (globalThis.indexedDB as IDBFactory | undefined) ?? UNAVAILABLE;
   return new ProgressRepository({
     storage: createIndexedDbStorage(factory),
     catalog,
-    legacy: localStorageOrNull(),
+    owner,
+    legacy: owner.kind === "anonymous" ? localStorageOrNull() : null,
     channel:
       typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(PROGRESS_CHANNEL),
   });

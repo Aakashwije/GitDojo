@@ -11,7 +11,11 @@ import {
 } from "@gitdojo/ui";
 import { Download, RotateCcw, Settings2 } from "lucide-react";
 import { useState } from "react";
-import { exportCurrentProgress, resetProgress } from "../state/use-progress-store";
+import {
+  exportCurrentProgress,
+  resetProgress,
+  useProgressStore,
+} from "../state/use-progress-store";
 
 function download(fileName: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -27,6 +31,7 @@ function download(fileName: string, text: string): void {
 
 /** Export progress as JSON, or reset it after an explicit confirmation. */
 export function ProgressManagement() {
+  const signedIn = useProgressStore((state) => state.mode !== "anonymous");
   const [open, setOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [announcement, setAnnouncement] = useState("");
@@ -60,22 +65,25 @@ export function ProgressManagement() {
         Your data
       </h2>
       <p className="mt-2 max-w-2xl text-small text-fg-secondary">
-        Progress is stored only in this browser. Export a copy as JSON, or start over. Playground
-        repositories are kept either way.
+        {signedIn
+          ? "Completed lessons are saved to your account. Command stats, hints and challenges stay in this browser. Export a copy as JSON."
+          : "Progress is stored only in this browser. Export a copy as JSON, or start over. Playground repositories are kept either way."}
       </p>
       <div className="mt-4 flex flex-wrap gap-3">
         <Button variant="secondary" onClick={exportJson} data-testid="export-progress">
           <Download /> Export progress
         </Button>
-        <Button
-          variant="danger"
-          onClick={() => {
-            setOpen(true);
-          }}
-          data-testid="reset-progress"
-        >
-          <RotateCcw /> Reset learning progress
-        </Button>
+        {signedIn ? null : (
+          <Button
+            variant="danger"
+            onClick={() => {
+              setOpen(true);
+            }}
+            data-testid="reset-progress"
+          >
+            <RotateCcw /> Reset learning progress
+          </Button>
+        )}
       </div>
       <p role="status" className="sr-only">
         {announcement}

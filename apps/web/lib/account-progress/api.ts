@@ -24,6 +24,8 @@ export interface CompletedLesson {
 }
 
 export interface ProgressResponse {
+  /** Opaque and stable per account; the browser keys its local cache by it. */
+  account: { id: string };
   completedLessons: CompletedLesson[];
   totalXp: number;
 }
@@ -57,8 +59,30 @@ const unauthenticated = () =>
 const identityUnavailable = () =>
   error(503, "identity_unavailable", "We couldn't confirm your sign-in. Try again shortly.");
 
+class ProgressStepError extends Error {
+  constructor(
+    readonly step: "database" | "catalog",
+    cause: unknown,
+  ) {
+    super("Progress dependency failed", { cause });
+  }
+}
+
+async function progressStep<T>(
+  step: "database" | "catalog",
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (cause) {
+    throw new ProgressStepError(step, cause);
+  }
+}
+
 /** Database and other unexpected failures: a generic message, logged without details or data. */
 function failure(cause: unknown): Response {
+  const step = cause instanceof ProgressStepError ? cause.step : "response";
+  if (cause instanceof ProgressStepError) cause = cause.cause;
   if (cause instanceof DatabaseNotConfiguredError) {
     return error(503, "progress_unavailable", "Account progress isn't available right now.");
   }
@@ -66,10 +90,11 @@ function failure(cause: unknown): Response {
     typeof cause === "object" && cause !== null && "code" in cause && typeof cause.code === "string"
       ? cause.code
       : undefined;
+  // Database errors are named by their SQLSTATE: class names are minified in production builds.
   console.error(
     "[gitdojo] account progress request failed:",
-    cause instanceof Error ? cause.name : "unknown error",
-    ...(code ? [code] : []),
+    code ? `database error ${code}` : cause instanceof Error ? cause.name : "unknown error",
+    `step=${step}`,
   );
   return error(500, "internal_error", "Something went wrong. Your progress was not changed.");
 }
@@ -99,12 +124,13 @@ export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
   if (verified.status === "unavailable") return identityUnavailable();
 
   try {
-    const [completions, catalog] = await Promise.all([
-      deps.store().read(verified.identity),
-      deps.catalog(),
+    const [{ accountId, completions }, catalog] = await Promise.all([
+      progressStep("database", () => deps.store().read(verified.identity)),
+      progressStep("catalog", () => deps.catalog()),
     ]);
     const lessons = indexLessons(catalog);
     const body: ProgressResponse = {
+      account: { id: accountId },
       completedLessons: completions.map((completion) => present(completion, lessons)),
       totalXp: sumXp(completions),
     };
@@ -203,16 +229,18 @@ export async function recordLessonCompletion(
   if (!parsed.ok) return parsed.response;
 
   try {
-    const lessons = indexLessons(await deps.catalog());
+    const lessons = indexLessons(await progressStep("catalog", () => deps.catalog()));
     const lesson = lessons.get(parsed.lessonId);
     if (!lesson) return error(422, "unknown_lesson", "There is no lesson with that id.");
 
-    const result = await deps.store().recordLesson(verified.identity, {
-      lessonId: lesson.id,
-      lessonType: lesson.type,
-      courseId: lesson.course?.id ?? null,
-      xp: completionXp({ kind: "lesson", id: lesson.id, type: lesson.type }),
-    });
+    const result = await progressStep("database", () =>
+      deps.store().recordLesson(verified.identity, {
+        lessonId: lesson.id,
+        lessonType: lesson.type,
+        courseId: lesson.course?.id ?? null,
+        xp: completionXp({ kind: "lesson", id: lesson.id, type: lesson.type }),
+      }),
+    );
     const body: RecordLessonResponse = {
       lesson: present(result.completion, lessons),
       alreadyCompleted: !result.created,

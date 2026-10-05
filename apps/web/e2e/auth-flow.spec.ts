@@ -79,9 +79,10 @@ test("sign up from a lesson, come back to it, stay signed in, then sign out", as
   await expect(page.getByTestId("account-profile")).toContainText("Ada Lovelace");
   await expect(page.getByTestId("account-profile")).toContainText("ada@example.com");
 
-  // Local progress is untouched by signing in.
+  // Signed in, the account's progress is shown; the anonymous lesson is not merged into it.
   await page.goto("/dashboard");
-  await expect(stat(page, "xp")).toHaveText("25");
+  await expect(page.locator("html")).toHaveAttribute("data-progress-mode", /^account/);
+  await expect(stat(page, "xp")).toHaveText("0");
 
   // 5. Sign out from the account menu: through the provider and back.
   await (await accountMenu(page)).click();

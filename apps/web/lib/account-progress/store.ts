@@ -20,6 +20,12 @@ export interface NewCompletion {
   xp: number;
 }
 
+export interface AccountRecords {
+  /** The internal user id. The browser uses it only to keep each account's cache separate. */
+  accountId: string;
+  completions: StoredCompletion[];
+}
+
 export interface RecordResult {
   /** False when the lesson was already completed: nothing changed and no XP was added. */
   created: boolean;
@@ -33,7 +39,7 @@ export interface RecordResult {
  * the request, so one learner can never read or write another's records.
  */
 export interface AccountProgressStore {
-  read(identity: VerifiedIdentity): Promise<StoredCompletion[]>;
+  read(identity: VerifiedIdentity): Promise<AccountRecords>;
   recordLesson(identity: VerifiedIdentity, completion: NewCompletion): Promise<RecordResult>;
 }
 
@@ -119,7 +125,10 @@ export async function insertCompletion(
 export function createPostgresProgressStore(sql: postgres.Sql): AccountProgressStore {
   return {
     async read(identity) {
-      return sql.begin(async (tx) => listCompletions(tx, await upsertUser(tx, identity)));
+      return sql.begin(async (tx) => {
+        const accountId = await upsertUser(tx, identity);
+        return { accountId, completions: await listCompletions(tx, accountId) };
+      });
     },
     async recordLesson(identity, completion) {
       return sql.begin(async (tx) => {

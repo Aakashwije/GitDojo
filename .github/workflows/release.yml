@@ -1,0 +1,207 @@
+name: Release
+
+# Releases main to staging, then production, after CI has passed for that exact commit.
+# Vercel builds each release from source with its own environment variables; CI's test build
+# (mock identity provider settings) is never deployed. Git-triggered production deployments are
+# disabled in apps/web/vercel.json, so this workflow is the only way to production.
+# Setup: docs/deployment.md.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Releases and their migrations run one at a time and are never cancelled midway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERCEL_CLI: vercel@62.2.0
+  VERCEL_TELEMETRY_DISABLED: "1"
+
+jobs:
+  gate:
+    name: Release gate
+    # Only CI runs for pushes to main in this repository; never pull requests or forks.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      release: ${{ steps.commit.outputs.release }}
+    steps:
+      - name: Choose the commit and confirm CI passed for it
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          CI_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ "$REF" != "refs/heads/main" ]; then
+              echo "::error::Releases run from main only."
+              exit 1
+            fi
+            sha="$DISPATCH_SHA"
+            result=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=CI%20required" \
+              --jq '[.check_runs[] | .conclusion] | first // "missing"')
+            if [ "$result" != "success" ]; then
+              echo "::error::'CI required' is '$result' for $sha. Releases need a passing CI run."
+              exit 1
+            fi
+          else
+            sha="$CI_SHA"
+          fi
+          # CI runs can finish out of order; releasing an older commit would roll production back.
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$sha" != "$head" ]; then
+            echo "::notice::$sha is no longer the head of main ($head); that commit will be released instead."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  staging:
+    name: Staging
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Check release configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL_UNPOOLED STAGING_URL; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::The staging environment is missing: ${missing[*]}. See docs/deployment.md."
+            exit 1
+          fi
+      - name: Migrate the staging database
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      - name: Deploy to staging
+        # The staging project's production target owns the stable staging domain.
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" --meta "gitSha=$SHA")
+          echo "Deployed $url"
+          echo "### Staging: $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test staging
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node apps/web/scripts/smoke.mjs "$STAGING_URL" --expect-accounts --expect-database
+
+  production:
+    name: Production
+    needs: [gate, staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Add required reviewers to this environment to approve each production release.
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Check release configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL_UNPOOLED PRODUCTION_URL; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::The production environment is missing: ${missing[*]}. See docs/deployment.md."
+            exit 1
+          fi
+      - name: Migrate the production database
+        # Migrations must keep the currently live version working (docs/deployment.md#migrations).
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      - name: Build a production deployment without assigning domains
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          url=$(npx --yes "$VERCEL_CLI" deploy --prod --skip-domain --yes --token "$VERCEL_TOKEN" --meta "gitSha=$SHA")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Built $url"
+      - name: Smoke test the new deployment before it receives traffic
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node apps/web/scripts/smoke.mjs "$DEPLOYMENT_URL" --expect-accounts --expect-database
+      - name: Promote to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: npx --yes "$VERCEL_CLI" promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
+      - name: Smoke test production
+        id: live
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: node apps/web/scripts/smoke.mjs "$PRODUCTION_URL" --expect-accounts --expect-database
+      - name: Explain how to roll back
+        if: failure() && steps.live.outcome == 'failure'
+        run: |
+          {
+            echo "### Production smoke test failed after promotion"
+            echo "Roll back to the previous deployment: Vercel dashboard → Deployments → Instant Rollback,"
+            echo "or \`vercel rollback\` with a token. Database changes are not rolled back; see docs/deployment.md#rollback."
+          } >> "$GITHUB_STEP_SUMMARY"

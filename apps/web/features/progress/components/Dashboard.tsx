@@ -47,14 +47,19 @@ function isNewLearner(progress: LocalProgress): boolean {
 export function Dashboard({ catalog }: { catalog: ProgressCatalog }) {
   const progress = useProgressStore((state) => state.progress);
   const persistence = useProgressStore((state) => state.persistence);
+  const mode = useProgressStore((state) => state.mode);
 
   return (
     <main className="mx-auto w-full max-w-[1280px] px-4 py-12 sm:px-6 sm:py-16">
       <h1 className="text-h2 font-semibold tracking-tight text-fg sm:text-h1">Dashboard</h1>
       <p className="mt-3 max-w-2xl text-body-lg text-fg-secondary">
-        {persistence?.mode === "memory"
-          ? "Your progress for this visit. This browser is not letting GitDojo save it."
-          : "Your progress, saved in this browser. No account needed."}
+        {mode === "account"
+          ? "Your progress, saved to your account."
+          : mode === "account-unavailable"
+            ? "Your account progress couldn't be loaded. Showing this visit only."
+            : persistence?.mode === "memory"
+              ? "Your progress for this visit. This browser is not letting GitDojo save it."
+              : "Your progress, saved in this browser. No account needed."}
       </p>
 
       {progress === null ? (

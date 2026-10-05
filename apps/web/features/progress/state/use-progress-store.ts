@@ -1,21 +1,42 @@
 import {
+  ANONYMOUS,
   applyProgressAction,
   completionXp,
   contentKey,
+  createMemoryStorage,
   exportProgress,
+  indexLessons,
+  ProgressRepository,
   type ContentRef,
   type LocalProgress,
   type Persistence,
   type ProgressAction,
   type ProgressCatalog,
   type ProgressExport,
-  type ProgressRepository,
+  type ProgressOwner,
 } from "@gitdojo/progress";
 import { useMemo } from "react";
 import { create } from "zustand";
+import { loadAccountSession, useAccountSession } from "@/features/auth/state/use-account-session";
+import {
+  fetchAccountProgress,
+  uploadLessonCompletion,
+  type AccountLessons,
+} from "../services/account-progress";
 import { createBrowserProgressRepository } from "../services/browser-progress";
 
 export type ProgressStatus = "loading" | "ready";
+
+/**
+ * Whose progress is shown. `account`: a signed-in learner, with lesson completions saved to their
+ * account and a per-account cache in this browser. `account-unavailable`: signed in, but the
+ * account could not be read; this visit's progress is kept in memory and still sent to the
+ * account. Anonymous progress is never shown to, or merged into, an account.
+ */
+export type ProgressMode = "anonymous" | "account" | "account-unavailable";
+
+/** Why account progress is not up to date, shown to the learner. */
+export type AccountNotice = "session-ended" | "unavailable" | "load-failed";
 
 /** XP a completion just earned: 0 when the content had been completed before. */
 export interface CompletionAward {
@@ -32,8 +53,10 @@ interface ProgressState {
   saveError: string | null;
   catalog: ProgressCatalog | null;
   lastAward: CompletionAward | null;
-  /** True while changes are being written. */
+  /** True while changes are being written, locally or to the account. */
   saving: boolean;
+  mode: ProgressMode;
+  accountNotice: AccountNotice | null;
 }
 
 /**
@@ -49,6 +72,8 @@ export const useProgressStore = create<ProgressState>()(() => ({
   catalog: null,
   lastAward: null,
   saving: false,
+  mode: "anonymous",
+  accountNotice: null,
 }));
 
 let repository: ProgressRepository | null = null;
@@ -56,6 +81,13 @@ let repository: ProgressRepository | null = null;
 let pending: ProgressAction[] = [];
 /** Saves not finished yet; while any are running the optimistic state is kept. */
 let inFlight = 0;
+/** Account uploads not finished yet. */
+let uploading = 0;
+let accountFetch: typeof fetch | undefined;
+
+function updateSaving(): void {
+  useProgressStore.setState({ saving: inFlight > 0 || uploading > 0 });
+}
 
 const SAVE_ERROR =
   "GitDojo couldn't save your latest progress. It is kept while this tab stays open.";
@@ -74,19 +106,19 @@ function save(action: ProgressAction): Promise<void> {
   const target = repository;
   if (!target) return Promise.resolve();
   inFlight += 1;
-  useProgressStore.setState({ saving: true });
+  updateSaving();
   return target.apply(action).then(
     (saved) => {
       inFlight -= 1;
       // Earlier results would hide changes still being saved; the last one includes them all.
-      if (inFlight === 0) {
-        useProgressStore.setState({ progress: saved, saveError: null, saving: false });
-      }
+      if (inFlight === 0) useProgressStore.setState({ progress: saved, saveError: null });
+      updateSaving();
     },
     (error: unknown) => {
       inFlight -= 1;
       console.error("[gitdojo] could not save progress", error);
-      useProgressStore.setState({ saveError: SAVE_ERROR, saving: inFlight > 0 });
+      useProgressStore.setState({ saveError: SAVE_ERROR });
+      updateSaving();
     },
   );
 }
@@ -102,8 +134,61 @@ export function recordProgress(action: ProgressAction): Promise<void> {
     return Promise.resolve();
   }
   award(progress, action);
+  // Only a first completion goes to the account; replays never send (or earn) anything again.
+  const upload =
+    action.type === "complete" &&
+    action.content.kind === "lesson" &&
+    progress.completedLessons[action.content.id] === undefined &&
+    useProgressStore.getState().mode !== "anonymous";
   useProgressStore.setState({ progress: applyProgressAction(progress, action, Date.now()) });
-  return save(action);
+  const saved = save(action);
+  if (upload) void uploadLesson(action.content.id);
+  return saved;
+}
+
+/**
+ * Sends a lesson completion to the account and adopts the account's record. Failures leave the
+ * completion in this browser's account cache, which is uploaded again on the next visit.
+ */
+async function uploadLesson(lessonId: string): Promise<boolean> {
+  uploading += 1;
+  updateSaving();
+  try {
+    const result = await uploadLessonCompletion(lessonId, accountFetch);
+    switch (result.status) {
+      case "ok":
+        await save({ type: "account-lessons", lessons: { [result.lessonId]: result.record } });
+        if (useProgressStore.getState().accountNotice !== "load-failed") {
+          useProgressStore.setState({ accountNotice: null });
+        }
+        return true;
+      case "signed-out":
+        useProgressStore.setState({ accountNotice: "session-ended" });
+        return false;
+      case "unavailable":
+        useProgressStore.setState({ accountNotice: "unavailable" });
+        return false;
+      case "rejected":
+        console.warn("[gitdojo] the account did not accept a lesson completion");
+        return true;
+    }
+  } finally {
+    uploading -= 1;
+    updateSaving();
+  }
+}
+
+/** Uploads lessons completed in this browser that the account does not have yet. */
+async function uploadPending(
+  progress: LocalProgress,
+  account: AccountLessons,
+  catalog: ProgressCatalog,
+): Promise<void> {
+  const lessons = indexLessons(catalog);
+  for (const id of Object.keys(progress.completedLessons)) {
+    if (account[id] !== undefined || !lessons.has(id)) continue;
+    if (!(await uploadLesson(id))) return;
+  }
 }
 
 export function recordCompletion(content: ContentRef): Promise<void> {
@@ -112,16 +197,95 @@ export function recordCompletion(content: ContentRef): Promise<void> {
 
 let initialization: Promise<void> | null = null;
 
+/** Whose progress to load, decided before anything is read or written. */
+export type AccountResolution =
+  | { kind: "anonymous"; notice?: AccountNotice }
+  | { kind: "account"; accountId: string; lessons: AccountLessons }
+  | { kind: "unavailable" };
+
+/** Anonymous progress only: the default, for pages and tests without accounts. */
+export const anonymousOnly = (): Promise<AccountResolution> =>
+  Promise.resolve({ kind: "anonymous" });
+
+const ACCOUNT_TIMEOUT_MS = 10_000;
+
+/**
+ * Asks the server who the learner is (the same request the header makes) and, when signed in,
+ * reads their account progress. If this takes too long the learner is treated as signed in but
+ * unavailable, never as anonymous, so account activity is not written to anonymous progress.
+ */
+export function resolveBrowserAccount(
+  fetcher: typeof fetch = fetch,
+  timeoutMs = ACCOUNT_TIMEOUT_MS,
+): Promise<AccountResolution> {
+  const resolve = async (): Promise<AccountResolution> => {
+    await loadAccountSession(fetcher);
+    if (useAccountSession.getState().session?.status !== "signed-in") return { kind: "anonymous" };
+    const result = await fetchAccountProgress(fetcher);
+    if (result.status === "ok") {
+      return { kind: "account", accountId: result.accountId, lessons: result.lessons };
+    }
+    return result.status === "signed-out"
+      ? { kind: "anonymous", notice: "session-ended" }
+      : { kind: "unavailable" };
+  };
+  return new Promise((done) => {
+    const timer = setTimeout(() => {
+      done({ kind: "unavailable" });
+    }, timeoutMs);
+    void resolve().then((resolution) => {
+      clearTimeout(timer);
+      done(resolution);
+    });
+  });
+}
+
+export interface InitProgressOptions {
+  /** Defaults to anonymous progress only. The app passes {@link resolveBrowserAccount}. */
+  resolveAccount?: () => Promise<AccountResolution>;
+  /** For account requests; tests replace it. */
+  fetcher?: typeof fetch;
+}
+
 /** Loads progress once per page load. Later calls only refresh the catalog. */
 export function initProgress(
   catalog: ProgressCatalog,
   createRepository: (
     catalog: ProgressCatalog,
+    owner: ProgressOwner,
   ) => ProgressRepository = createBrowserProgressRepository,
+  { resolveAccount = anonymousOnly, fetcher }: InitProgressOptions = {},
 ): Promise<void> {
   useProgressStore.setState({ catalog });
   initialization ??= (async () => {
-    repository = createRepository(catalog);
+    accountFetch = fetcher;
+    const account = await resolveAccount();
+    if (account.kind === "account") {
+      repository = createRepository(catalog, { kind: "account", accountId: account.accountId });
+    } else if (account.kind === "unavailable") {
+      // Unknown account: nothing is persisted locally, completions are still sent to the account.
+      repository = new ProgressRepository({
+        storage: createMemoryStorage(),
+        catalog,
+        owner: { kind: "account", accountId: "unavailable" },
+      });
+    } else {
+      repository = createRepository(catalog, ANONYMOUS);
+    }
+    useProgressStore.setState({
+      mode:
+        account.kind === "anonymous"
+          ? "anonymous"
+          : account.kind === "account"
+            ? "account"
+            : "account-unavailable",
+      accountNotice:
+        account.kind === "unavailable"
+          ? "load-failed"
+          : account.kind === "anonymous"
+            ? (account.notice ?? null)
+            : null,
+    });
     repository.subscribe((progress) => {
       // A save in progress here will return the merged result anyway.
       if (inFlight === 0) useProgressStore.setState({ progress });
@@ -130,11 +294,21 @@ export function initProgress(
     if (loaded.issues.length > 0) {
       console.warn("[gitdojo] repaired saved progress", loaded.issues);
     }
-    useProgressStore.setState({
-      progress: loaded.progress,
-      persistence: loaded.persistence,
-      status: "ready",
-    });
+    let progress = loaded.progress;
+    if (account.kind === "account") {
+      // The account is the source of truth for lesson completions.
+      progress = await repository
+        .apply({ type: "account-lessons", lessons: account.lessons })
+        .catch(() =>
+          applyProgressAction(
+            progress,
+            { type: "account-lessons", lessons: account.lessons },
+            Date.now(),
+          ),
+        );
+    }
+    useProgressStore.setState({ progress, persistence: loaded.persistence, status: "ready" });
+    if (account.kind === "account") void uploadPending(progress, account.lessons, catalog);
     const queued = pending;
     pending = [];
     for (const action of queued) void recordProgress(action);
@@ -162,6 +336,8 @@ export function resetProgressStoreForTests(): void {
   repository = null;
   pending = [];
   inFlight = 0;
+  uploading = 0;
+  accountFetch = undefined;
   initialization = null;
   useProgressStore.setState({
     progress: null,
@@ -171,6 +347,8 @@ export function resetProgressStoreForTests(): void {
     catalog: null,
     lastAward: null,
     saving: false,
+    mode: "anonymous",
+    accountNotice: null,
   });
 }
 

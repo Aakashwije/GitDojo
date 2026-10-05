@@ -69,7 +69,10 @@ export function createMemoryProgressStore(): AccountProgressStore & {
   return {
     rows,
     read(identity) {
-      return Promise.resolve([...userRows(identity).values()]);
+      return Promise.resolve({
+        accountId: `account-${identity.subject}@${identity.issuer}`,
+        completions: [...userRows(identity).values()],
+      });
     },
     recordLesson(identity, completion) {
       const user = userRows(identity);

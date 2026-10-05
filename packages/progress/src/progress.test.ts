@@ -171,6 +171,42 @@ describe("XP and completion", () => {
   });
 });
 
+describe("account lessons", () => {
+  const ACCOUNT = {
+    "what-is-git": { completedAt: T0 - 50_000, xp: 25, type: "concept", courseId: "git-basics" },
+    "git-init": { completedAt: T0 - 40_000, xp: 50, type: "interactive", courseId: "git-basics" },
+  } as const;
+
+  it("adopts the account's completions, keeping its first completion time and XP", () => {
+    const local = reduce([lesson("git-init", "interactive", "git-basics")]);
+    const synced = applyProgressAction(local, { type: "account-lessons", lessons: ACCOUNT }, T0);
+    expect(synced.completedLessons["git-init"]).toEqual(ACCOUNT["git-init"]);
+    expect(synced.completedLessons["what-is-git"]).toEqual(ACCOUNT["what-is-git"]);
+    expect(synced.xp).toBe(75);
+  });
+
+  it("keeps lessons completed only here until they are uploaded", () => {
+    const local = reduce([lesson("staging-area", "concept", "git-basics")]);
+    const synced = applyProgressAction(local, { type: "account-lessons", lessons: ACCOUNT }, T0);
+    expect(Object.keys(synced.completedLessons).sort()).toEqual([
+      "git-init",
+      "staging-area",
+      "what-is-git",
+    ]);
+    expect(synced.xp).toBe(100);
+  });
+
+  it("changes nothing when the record already matches", () => {
+    const synced = applyProgressAction(
+      emptyProgress(T0),
+      { type: "account-lessons", lessons: ACCOUNT },
+      T0,
+    );
+    const again = applyProgressAction(synced, { type: "account-lessons", lessons: ACCOUNT }, T0);
+    expect(again).toBe(synced);
+  });
+});
+
 describe("command and hint counting", () => {
   it("counts uses and successes per command", () => {
     const progress = reduce([
@@ -429,6 +465,29 @@ describe("ProgressRepository", () => {
     expect(progress.completedLessons["git-init"]).toMatchObject({ xp: 50 });
     expect(progress.commandStats.init).toMatchObject({ uses: 1, successes: 1 });
     expect(progress.xp).toBe(50);
+  });
+
+  it("keeps anonymous progress and each account's progress apart", async () => {
+    const anonymous = repository();
+    await anonymous.load();
+    await anonymous.apply(lesson("what-is-git", "concept", "git-basics"));
+
+    const ada = repository({ owner: { kind: "account", accountId: "ada" } });
+    const adaLoaded = await ada.load();
+    expect(adaLoaded.progress.owner).toEqual({ kind: "account", accountId: "ada" });
+    expect(adaLoaded.progress.completedLessons).toEqual({});
+    await ada.apply(lesson("git-init", "interactive", "git-basics"));
+
+    const grace = repository({ owner: { kind: "account", accountId: "grace" } });
+    expect((await grace.load()).progress.xp).toBe(0);
+
+    const anonymousAgain = await repository({ storage: createIndexedDbStorage(factory) }).load();
+    expect(Object.keys(anonymousAgain.progress.completedLessons)).toEqual(["what-is-git"]);
+    const adaAgain = await repository({
+      storage: createIndexedDbStorage(factory),
+      owner: { kind: "account", accountId: "ada" },
+    }).load();
+    expect(Object.keys(adaAgain.progress.completedLessons)).toEqual(["git-init"]);
   });
 
   it("migrates legacy progress once and removes the legacy copy", async () => {

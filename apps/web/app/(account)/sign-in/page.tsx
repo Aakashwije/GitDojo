@@ -36,7 +36,11 @@ export default async function SignInPage({
   }
 
   // Already signed in: nothing to do here.
-  if ((await getAccountSession()).status === "signed-in") redirect(returnTo);
+  // Checked with the provider, not the profile cache: a session it has ended must be able to
+  // sign in again right away.
+  if ((await getAccountSession(undefined, { fresh: true })).status === "signed-in") {
+    redirect(returnTo);
+  }
 
   return (
     <AuthShell>

@@ -40,6 +40,9 @@ test("commit graph keeps up with a long history", async ({ page }) => {
     const selectElapsed = Date.now() - selectStart;
     await page.getByTestId("terminal").click();
 
+    // Budgets (docs/testing.md): roughly 20x a laptop's time, to catch large regressions only.
+    expect(elapsed, "command → graph updated").toBeLessThan(2_000);
+    expect(selectElapsed, "select a commit").toBeLessThan(1_000);
     const measured = [
       `| command → graph updated | ${String(target)} commits | ${String(elapsed)} |`,
       `| select a commit | ${String(target)} commits | ${String(selectElapsed)} |`,

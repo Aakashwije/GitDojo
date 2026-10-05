@@ -8,6 +8,16 @@ const baseURL = `http://localhost:${String(PORT)}`;
 const AUTH_PORT = PORT + 1;
 const MOCK_IDP_PORT = PORT + 99;
 export const authBaseURL = `http://localhost:${String(AUTH_PORT)}`;
+export const mockIdpURL = `http://localhost:${String(MOCK_IDP_PORT)}`;
+
+/**
+ * A dedicated, disposable PostgreSQL database for account progress tests (its name must contain
+ * "test"; migrate it first). Without one, the account server runs without a database and the
+ * account projects skip. Set to "" so a developer's .env.local DATABASE_URL is never used.
+ */
+export const e2eDatabaseUrl = process.env.E2E_DATABASE_URL?.trim() ?? "";
+
+const ACCOUNT_SPECS = ["auth-flow.spec.ts", "account-progress.spec.ts"];
 
 /** The production server most tests run against (no accounts configured, as in CI). */
 export const appServer = {
@@ -28,12 +38,24 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: "auth-flow.spec.ts" },
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: "auth-flow.spec.ts" },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: ACCOUNT_SPECS },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: ACCOUNT_SPECS },
     {
       name: "auth-flow",
       testMatch: "auth-flow.spec.ts",
       use: { ...devices["Desktop Chrome"], baseURL: authBaseURL },
+    },
+    // Account progress with real PostgreSQL, in two browser engines. Each project signs in as
+    // its own mock users, so they can run side by side against one database.
+    {
+      name: "account-chromium",
+      testMatch: "account-progress.spec.ts",
+      use: { ...devices["Desktop Chrome"], baseURL: authBaseURL },
+    },
+    {
+      name: "account-firefox",
+      testMatch: "account-progress.spec.ts",
+      use: { ...devices["Desktop Firefox"], baseURL: authBaseURL },
     },
   ],
   // Runs against the production build (`pnpm build` runs first via Turborepo).
@@ -57,6 +79,7 @@ export default defineConfig({
         NEXT_PUBLIC_ASGARDEO_CLIENT_ID: "gitdojo-e2e-client",
         ASGARDEO_CLIENT_SECRET: "gitdojo-e2e-secret",
         ASGARDEO_SECRET: "e2e-session-signing-secret-not-for-production-use",
+        DATABASE_URL: e2eDatabaseUrl,
       },
     },
   ],
