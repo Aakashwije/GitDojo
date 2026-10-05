@@ -382,6 +382,11 @@ jobs:
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
               summary.write("\n".join(lines) + "\n")
           if failed:
-              print("Required jobs did not pass: " + ", ".join(failed), file=sys.stderr)
+              print("Required jobs did not pass: " + ", ".join(
+                  f"{name} ({results[name]['result']})" for name in failed), file=sys.stderr)
+              if all(results[name]["result"] == "cancelled" for name in failed):
+                  # Usually a newer commit superseded this run; its own run decides the check.
+                  print("::notice::Jobs were cancelled, not failed. If a newer commit was pushed, "
+                        "check that commit's run instead.", file=sys.stderr)
               sys.exit(1)
           PY
