@@ -57,7 +57,7 @@ async function signIn(page: Page, name: string, returnTo = "/dashboard") {
   await page.goto(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
   await page.getByTestId("start-sign-in").click();
   await page.getByRole("link", { name: `Sign in as ${name}` }).click();
-  await expect(page).toHaveURL(new RegExp(`${returnTo.replace(/[/]/g, "\\/")}$`));
+  await expect(page).toHaveURL(new RegExp(`${returnTo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
   await expect(page.getByRole("button", { name: `Account menu for ${name}` })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-progress-mode", "account");
 }
