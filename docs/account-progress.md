@@ -1,25 +1,54 @@
 # Account progress (PostgreSQL)
 
-Signed-in learners can have lesson completions stored on the server, in PostgreSQL, under their
-WSO2 account. This phase adds the database, the server-side account identity and two protected
-endpoints. It is **optional**: without `DATABASE_URL`, GitDojo works exactly as before.
+Signed-in learners have their lesson completions stored on the server, in PostgreSQL, under
+their WSO2 account, and see them in any browser. It is **optional**: without `DATABASE_URL`,
+GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deployment.md](./deployment.md).
 
-**In this phase**
+**What exists**
 
 - `users` and `lesson_completions` tables, with versioned migrations and `pnpm db:migrate`.
 - `GET /api/progress` and `POST /api/progress/lessons` for the signed-in learner only.
+- In the browser, signed-in learners see their account's lessons in courses, lessons and the
+  dashboard, and finishing a lesson saves it to the account ([In the browser](#in-the-browser)).
+- `GET /api/health` reports whether the database is reachable and migrated.
 
-**Not in this phase**
+**What doesn't**
 
-- Nothing in the UI calls these endpoints yet. Anonymous progress stays in the browser
-  (IndexedDB, [progress.md](./progress.md)) and is never read, changed, merged or uploaded.
-- There's no merging of browser progress into an account, no automatic sync, no offline conflict
-  resolution, and no playground data on the server.
+- Anonymous browser progress is never merged into, or uploaded to, an account.
+- No offline conflict resolution, and no playground, hint, command or challenge data on the
+  server: those stay in the browser.
 
 > **Learner-reported progress.** `POST /api/progress/lessons` records that the learner _says_
 > they completed a lesson. The server checks that the lesson exists and computes its XP, but it
 > doesn't replay or validate the exercise, because exercises run in the browser. Don't treat
 > account XP as proof of skill until server-side validation exists.
+
+## In the browser
+
+`ProgressProvider` decides whose progress to show once per page load, before anything is read or
+written (`features/progress/state/use-progress-store.ts`):
+
+| Situation                                         | Shown                                                     | Writes                                                               |
+| ------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
+| Signed out, or accounts not configured            | Anonymous progress (IndexedDB), exactly as before         | Browser only                                                         |
+| Signed in, account loaded                         | The account's lessons, cached per account in this browser | First completion of a lesson → `POST /api/progress/lessons`          |
+| Signed in, account unavailable or too slow (10 s) | This visit only, in memory, with a notice                 | Still sent to the account; never written to anonymous progress       |
+| The account rejects the session (401)             | A notice: "Your session has ended", with **Sign in**      | Kept in the account's browser cache, uploaded after signing in again |
+| The account can't be reached (5xx, network)       | A notice: "Account sync paused"                           | Kept in the account's browser cache, uploaded on the next visit      |
+
+- **Isolation.** Anonymous progress and each account have separate IndexedDB records (keyed by
+  the account's internal id from `GET /api/progress`). Signing in never uploads anonymous
+  progress; signing out shows the anonymous record again; another person signing in on the same
+  browser sees only their own account.
+- **The account wins for lessons.** Its first completion time and XP replace the cached ones.
+  Lessons completed in this browser's account cache but missing from the account (a failed
+  upload) are sent again on the next load.
+- **XP once.** Only a lesson's first completion is uploaded; replays send nothing, and the server
+  ignores duplicates anyway. Cross-tab updates mark the lesson complete in other open tabs.
+- **Dashboard.** Says where progress is saved; account mode hides **Reset** (it would only clear
+  the cache) and keeps **Export**.
+- Pages of the sign-in flow (`/sign-in`, `/sign-up`, `/auth/*`) don't load progress: sign-in
+  finishes with client-side navigation, and progress is loaded on the next page instead.
 
 ## How identity works
 
@@ -133,11 +162,16 @@ createdb gitdojo
    so a build doesn't need it. Never use a `NEXT_PUBLIC_` name. Require TLS in the URL:
    `postgres://user:password@host:5432/gitdojo?sslmode=verify-full` (or `sslmode=require` if your
    provider's certificate chain isn't in Node's trust store).
-4. **Migrate before each release** that adds migrations, from CI/CD or a release step with the
-   same `DATABASE_URL`: `pnpm db:migrate`. Then start the new version.
-5. **Connections.** Each server instance keeps a pool of up to 10 connections. Behind a
-   transaction-mode pooler (PgBouncer, or a provider's "pooled" port), add `prepare=false` to the
-   URL, because prepared statements don't survive transaction pooling.
+4. **Migrate before each release**, never from the app: `pnpm db:migrate` with
+   `DATABASE_URL_UNPOOLED` (a direct, non-pooled connection; preferred) or `DATABASE_URL`. The
+   release workflow does this ([deployment.md](./deployment.md)).
+5. **Connections** (`apps/web/lib/db/connection.mjs`): each server instance keeps a pool of at
+   most `DATABASE_POOL_MAX` connections (default 5), closed after 20 idle seconds. Prepared
+   statements are always off, so transaction-mode poolers (Neon's `-pooler` host, PgBouncer) work.
+   Remote hosts must use TLS: without `sslmode`, certificates are verified (`verify-full`);
+   `disable`, `allow` and `prefer` are refused; Neon's `require` is upgraded to `verify-full`.
+   `channel_binding` (in Neon's strings) is removed because postgres.js doesn't support it.
+   Loopback and single-label hosts (Docker Compose `db`) may connect without TLS.
 6. **Accounts** must be configured too, including `ASGARDEO_SECRET`.
 
 ## API
@@ -158,6 +192,7 @@ Cookie: <the session cookie>
 ```json
 200 OK
 {
+  "account": { "id": "8f6c1c0e-5d3a-4c55-9a8e-1f2b3c4d5e6f" },
   "completedLessons": [
     {
       "lessonId": "git-init",
@@ -269,12 +304,16 @@ Manual, with a configured tenant and database:
    returns `403`.
 4. In `psql`, `SELECT issuer, subject, email FROM users;` shows one row with your WSO2 `sub`, and
    `SELECT * FROM lesson_completions;` shows one row per lesson.
-5. Local progress (the dashboard) is unchanged by all of the above.
+5. Open the dashboard in another browser and sign in: the same lessons and XP appear. Sign out:
+   the browser's anonymous progress is shown again, unchanged.
 
 ## Known limitations
 
 - Progress is learner-reported (see above).
-- The UI doesn't use these endpoints yet. Browser progress isn't merged or synced.
+- Anonymous browser progress isn't merged into accounts. Command stats, hints, challenges and
+  playground sessions stay in the browser, per account cache.
+- An account's browser cache stays in IndexedDB after signing out (it is never shown to anyone
+  else); clearing site data removes it.
 - Only lesson completions are stored. Standalone challenges, hints, command statistics and
   playground sessions stay local.
 - Every progress request makes one userinfo call to WSO2, which adds latency and depends on the

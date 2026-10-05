@@ -2,6 +2,7 @@ import {
   completionXp,
   contentKey,
   emptyProgress,
+  totalXp,
   type CompletionRecord,
   type ContentRef,
   type LocalProgress,
@@ -24,7 +25,13 @@ export type ProgressAction =
   /** The playground workspace loaded for a visit. */
   | { type: "playground-session" }
   /** Forget learning progress (keeps the device id and applied migrations). */
-  | { type: "reset" };
+  | { type: "reset" }
+  /**
+   * Lesson completions confirmed by the learner's account. They replace this record's entries for
+   * the same lessons (the account's first completion and XP win); lessons completed only here
+   * are kept until they are uploaded.
+   */
+  | { type: "account-lessons"; lessons: Record<string, CompletionRecord> };
 
 /** Git subcommand names: lowercase words and dashes. Anything else is ignored. */
 const COMMAND_NAME = /^[a-z][a-z-]{0,31}$/;
@@ -120,6 +127,27 @@ export function applyProgressAction(
 
     case "playground-session":
       return touch({ ...progress, playgroundSessions: progress.playgroundSessions + 1 }, now);
+
+    case "account-lessons": {
+      let changed = false;
+      const completedLessons = { ...progress.completedLessons };
+      for (const [id, record] of Object.entries(action.lessons)) {
+        const current = completedLessons[id];
+        if (
+          current?.completedAt === record.completedAt &&
+          current.xp === record.xp &&
+          current.type === record.type &&
+          current.courseId === record.courseId
+        ) {
+          continue;
+        }
+        completedLessons[id] = record;
+        changed = true;
+      }
+      if (!changed) return progress;
+      const next = { ...progress, completedLessons };
+      return touch({ ...next, xp: totalXp(next) }, now);
+    }
 
     case "reset": {
       const fresh = emptyProgress(now, { owner: progress.owner, deviceId: progress.deviceId });

@@ -3,34 +3,46 @@
 GitDojo uses GitHub Actions with the pnpm version from `package.json`, Node 24 from `.nvmrc`,
 and a frozen lockfile. All workflows use read-only repository permissions unless a specific
 job needs more. External actions are pinned to full commit hashes; Dependabot proposes updates.
-No deployment or real WSO2/database credentials are required.
+CI needs no deployment or real WSO2/database credentials; releases are a separate workflow
+([deployment.md](./deployment.md)).
 
 ## Checks
 
-The `CI` workflow runs for pushes, pull requests, merge queues, manual dispatches and every
-Monday at 02:30 UTC (08:00 Asia/Colombo). No path filters omit required checks.
+The `CI` workflow runs for pushes to `main`, pull requests, merge queues, manual dispatches and
+every Monday at 02:30 UTC (08:00 Asia/Colombo). Other branches are checked through their pull
+requests, so a branch push doesn't run everything twice. No path filters omit required checks.
 
-| Job                    | Purpose                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------- |
-| Quality                | Independent formatting, ESLint, TypeScript and actionlint checks                                  |
-| Unit tests             | All package and web tests on Node 22 and 24; JUnit artifacts                                      |
-| PostgreSQL integration | Disposable PostgreSQL 17; migration, isolation and concurrency tests                              |
-| Content validation     | Lesson/challenge schemas, references and executable solutions                                     |
-| Dependency audit       | Reject high/critical advisories in production dependencies                                        |
-| Production build       | Next.js build with mock public identity settings; reusable test artifact                          |
-| Browser                | Desktop Chromium, Pixel 7 and mock identity-provider auth projects; accessibility checks included |
-| Performance            | Node and browser stress scenarios on the weekly schedule or manual request                        |
-| CI required            | Final summary; fails if any required job failed, was cancelled or was skipped                     |
+| Job                    | Purpose                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Quality                | Independent formatting, ESLint, TypeScript and actionlint checks                                                   |
+| Unit tests             | All package and web tests on Node 22 and 24; JUnit artifacts                                                       |
+| PostgreSQL integration | Disposable PostgreSQL 17; migration, isolation and concurrency tests                                               |
+| Content validation     | Lesson/challenge schemas, references and executable solutions                                                      |
+| Dependency audit       | Reject high/critical advisories in production dependencies                                                         |
+| Production build       | Next.js build with mock public identity settings; reusable test artifact                                           |
+| Browser                | Desktop Chromium and Pixel 7 against the anonymous server; accessibility checks included                           |
+| Accounts               | Mock identity provider sign-in (`auth-flow`) and account progress against PostgreSQL 17 in Chromium and Firefox    |
+| Performance            | Node and browser stress scenarios on the weekly schedule or manual request                                         |
+| CI required            | Final summary; fails if any job failed, was cancelled or was skipped (performance may be skipped unless requested) |
 
-Checks run concurrently. Browser and performance jobs depend on the production build. The
-final gate waits for all jobs. Only the optional performance job may be skipped. Performance
-checks verify correctness under load and report timings; they do not enforce machine-dependent
-latency budgets.
+Checks run concurrently. Browser, account and performance jobs depend on the production build.
+The final gate waits for all jobs. Only the optional performance job may be skipped, and only
+when it wasn't requested (schedule or the manual `performance` input). Performance scenarios
+check correctness under load and enforce generous time budgets, roughly 10–30× a laptop's
+timings, so they catch order-of-magnitude regressions without flaking
+([testing.md](./testing.md#performance)).
+
+The account job (`Accounts / …`) runs each project on its own runner with a PostgreSQL service
+container, migrates it with `pnpm db:migrate`, and points the account-enabled test server at it
+through `E2E_DATABASE_URL`. It covers saving and loading account progress in a fresh browser,
+duplicate and concurrent completions (XP once), isolation between anonymous progress and
+different accounts, sign-out, and a session ended by the identity provider. Each browser project
+signs in as different mock users.
 
 The build is created once on Linux/Node 24 with the mock provider's public URL and client ID,
-packaged with Monaco assets, and restored by each
-browser job. Playwright is invoked directly so Turborepo cannot silently rebuild it. pnpm,
-Next.js compiler output and Playwright downloads are cached; test results are always fresh.
+packaged with Monaco assets, and restored by each browser and account job. Playwright is invoked directly so Turborepo cannot silently rebuild it. pnpm,
+Next.js compiler output and Playwright downloads (per browser engine) are cached; test results
+are always fresh.
 Turborepo's task cache is not persisted between workflow runs.
 
 JUnit and Playwright reports/traces are retained for 14 days. The CI build artifact is retained
@@ -90,8 +102,8 @@ Use **Actions → CI → Run workflow** to rerun all checks. Select the performa
 stress tests. The summary on `CI required` identifies failed jobs; open their logs and download
 the matching artifact. A failure blocks the gate even when other jobs finish successfully.
 
-New pushes cancel older push runs on the same branch; new PR updates cancel older runs for that
-PR. Push, PR, manual and scheduled runs use separate concurrency groups, so they cannot cancel
+New pushes to `main` cancel older `main` runs; new PR updates cancel older runs for that PR.
+The Release workflow uses its own concurrency group and is never cancelled midway. Push, PR, manual and scheduled runs use separate concurrency groups, so they cannot cancel
 one another. Manual and scheduled runs do not interrupt an in-progress run in their group.
 GitHub can still replace a queued pending run. A cancelled run is not evidence of a test failure.
 
@@ -117,6 +129,17 @@ Run database tests only with a dedicated `TEST_DATABASE_URL`; see [account-progr
 For workflow linting, install `github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` with Go, then
 run `actionlint` from the repository root. The quality job uses this version too.
 
-Deployment can be added once a hosting target is selected. Keep its credentials in a protected
-environment and consume a successful release build; do not deploy the anonymous CI test artifact
-as an account-enabled release without checking runtime/build-time configuration.
+Account browser tests need a migrated, dedicated test database:
+
+```bash
+DATABASE_URL=postgres://gitdojo:gitdojo@localhost:5432/gitdojo_e2e_test pnpm db:migrate
+E2E_DATABASE_URL=postgres://gitdojo:gitdojo@localhost:5432/gitdojo_e2e_test \
+  pnpm --filter @gitdojo/web exec playwright test --project=account-chromium --project=account-firefox
+```
+
+## Releases
+
+`.github/workflows/release.yml` deploys `main` to staging and then production on Vercel after CI
+passes, with migrations, smoke tests and promotion. Vercel builds each release from source with
+that environment's variables; the CI build artifact (mock identity provider settings) is never
+deployed. Setup and operations: [deployment.md](./deployment.md).

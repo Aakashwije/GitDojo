@@ -15,10 +15,11 @@ playground and the local progress dashboard work without one, and without any co
 | `/account`                                                                 | GitDojo                 | Name, email and avatar; sign out.                                   |
 | `/auth/sign-out` → WSO2 logout → `/auth/signed-out`                        | GitDojo, then WSO2      | Ends the session everywhere, then "You're signed out".              |
 
-GitDojo stores no passwords. Signing in or out never touches local progress or playground
+GitDojo stores no passwords. Signing in or out never changes anonymous progress or playground
 repositories ([progress.md](./progress.md)). With a PostgreSQL database configured, signed-in
-learners also get server-side lesson progress through `/api/progress`
-([account-progress.md](./account-progress.md)); the UI does not sync to it yet.
+learners see and save their account's lesson progress instead
+([account-progress.md](./account-progress.md)). Staging and production WSO2 applications and
+their exact callback URLs: [deployment.md](./deployment.md#wso2-applications).
 
 ## How it works
 

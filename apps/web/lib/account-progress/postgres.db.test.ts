@@ -219,7 +219,7 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         identity("isolation-other"),
         { ...owner, issuer: "https://x/oauth2/token" },
       ]) {
-        expect(await body(await getProgress(deps(other)))).toEqual({
+        expect(await body(await getProgress(deps(other)))).toMatchObject({
           completedLessons: [],
           totalXp: 0,
         });

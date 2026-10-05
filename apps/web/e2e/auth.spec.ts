@@ -161,17 +161,28 @@ test.describe("navigation reflects the session", () => {
     await expect(page.getByTestId("session-expired")).toHaveCount(0);
   });
 
-  test("signing in and out never touches local progress", async ({ page, isMobile }) => {
+  test("signed in shows the account's progress; anonymous progress is kept for later", async ({
+    page,
+    isMobile,
+  }) => {
     await page.goto("/learn/git-basics/what-is-git");
     await page.getByTestId("mark-complete").click();
     await expect(page.getByTestId("concept-completion")).toContainText("+25 XP");
     await waitForProgressSaved(page);
 
-    // Signed in.
+    // Signed in: the (empty) account is shown, never the anonymous progress.
     await answerSession(page, ADA);
+    await page.route("**/api/progress", (route) =>
+      route.fulfill({
+        json: { account: { id: "e2e-account" }, completedLessons: [], totalXp: 0 },
+        headers: { "Cache-Control": "private, no-store" },
+      }),
+    );
     await page.goto("/dashboard");
     await expect(page.getByRole("button", { name: /Account menu/ })).toBeVisible();
-    await expect(stat(page, "xp")).toHaveText("25");
+    await expect(page.locator("html")).toHaveAttribute("data-progress-mode", "account");
+    await expect(stat(page, "xp")).toHaveText("0");
+    await page.unroute("**/api/progress");
 
     // Sign out from the menu (this build has no provider, so the sign-out page sends us home).
     await page.getByRole("button", { name: /Account menu/ }).click();

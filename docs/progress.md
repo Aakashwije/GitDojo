@@ -151,7 +151,10 @@ Authentication tokens will never be stored in progress records.
 
 - A change made in the last moment before a tab closes can be lost if its transaction has not
   committed yet.
-- Command, hint and playground counters cannot be merged across devices yet (there is no sync).
+- Command, hint and playground counters cannot be merged across devices: only lesson completions
+  are saved to accounts ([account-progress.md](./account-progress.md#in-the-browser)). Signed-in
+  learners get a separate per-account record in this browser; anonymous progress is never merged
+  into it.
 - Completions of content that has since been removed still count towards "Lessons completed"
   and earn whatever XP they earned, but not towards any course's progress.
 - Progress is per browser profile; clearing site data removes it. Export is the only backup.

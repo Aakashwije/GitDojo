@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { type AuthConfig } from "./config";
 import { getVerifiedIdentity, issuerFor } from "./identity";
-import { type SessionDeps } from "./session";
+import { clearProfileCache, getAccountSession, type SessionDeps } from "./session";
 
 vi.mock("server-only", () => ({}));
 // The SDK boundary is replaced by injected dependencies in every test.
@@ -117,6 +117,18 @@ describe("getVerifiedIdentity", () => {
     expect(await getVerifiedIdentity(garbage)).toEqual({ status: "unavailable" });
     expect(JSON.stringify(warn.mock.calls)).not.toContain(TOKEN);
     warn.mockRestore();
+  });
+
+  it("ends the header's cached session when the provider rejects the token", async () => {
+    clearProfileCache();
+    const signedIn = deps({ sub: "user-123", name: "Ada" });
+    expect(await getAccountSession(signedIn)).toMatchObject({ status: "signed-in" });
+    const rejected = deps(undefined, {
+      fetch: vi.fn(() => Promise.resolve(new Response(null, { status: 401 }))),
+    });
+    // Without this, the header would show "signed in" until its profile cache expired.
+    expect(await getVerifiedIdentity(rejected)).toEqual({ status: "unauthenticated" });
+    expect(await getAccountSession(rejected)).toEqual({ status: "signed-out" });
   });
 
   it("asks the provider on every call, so a revoked session stops working at once", async () => {

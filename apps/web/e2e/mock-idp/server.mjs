@@ -14,12 +14,24 @@ const BASE = `http://localhost:${String(PORT)}${TENANT}`;
 export const CLIENT_ID = "gitdojo-e2e-client";
 export const CLIENT_SECRET = "gitdojo-e2e-secret";
 
-const USER = {
-  sub: "c0ffee00-0000-4000-8000-000000000001",
-  given_name: "Ada",
-  family_name: "Lovelace",
-  email: "ada@example.com",
-};
+// Test users. Ada is the default ("Register" signs in as Ada); the others let account tests
+// check isolation, and let each browser project use its own accounts.
+const USERS = [
+  ["ada", "Ada", "Lovelace"],
+  ["grace", "Grace", "Hopper"],
+  ["linus", "Linus", "Torvalds"],
+  ["margaret", "Margaret", "Hamilton"],
+  ["alan", "Alan", "Turing"],
+].map(([id, given, family], index) => ({
+  id,
+  claims: {
+    sub: `c0ffee00-0000-4000-8000-00000000000${String(index + 1)}`,
+    given_name: given,
+    family_name: family,
+    email: `${id}@example.com`,
+  },
+}));
+const ADA = USERS[0];
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const KID = "e2e-key";
@@ -33,8 +45,9 @@ function signJwt(claims) {
   return `${header}.${payload}.${signature.toString("base64url")}`;
 }
 
-const codes = new Map(); // code → { redirectUri, nonce }
-const accessTokens = new Set();
+const codes = new Map(); // code → { redirectUri, nonce, user }
+const accessTokens = new Map(); // token → user
+const refreshTokens = new Map(); // token → user
 
 function send(response, status, body, headers = {}) {
   response.writeHead(status, { "Cache-Control": "no-store", ...headers });
@@ -50,13 +63,15 @@ async function readForm(request) {
   return new URLSearchParams(body);
 }
 
-function issueTokens(nonce) {
+function issueTokens(user, nonce) {
   const now = Math.floor(Date.now() / 1000);
   const accessToken = randomBytes(24).toString("hex");
-  accessTokens.add(accessToken);
+  const refreshToken = randomBytes(24).toString("hex");
+  accessTokens.set(accessToken, user);
+  refreshTokens.set(refreshToken, user);
   return {
     access_token: accessToken,
-    refresh_token: randomBytes(24).toString("hex"),
+    refresh_token: refreshToken,
     token_type: "Bearer",
     expires_in: 3600,
     scope: "openid profile email",
@@ -64,11 +79,11 @@ function issueTokens(nonce) {
       iss: `${BASE}/oauth2/token`,
       aud: [CLIENT_ID],
       azp: CLIENT_ID,
-      sub: USER.sub,
+      sub: user.claims.sub,
       iat: now,
       exp: now + 3600,
       ...(nonce ? { nonce } : {}),
-      ...USER,
+      ...user.claims,
     }),
   };
 }
@@ -101,12 +116,24 @@ const server = createServer(async (request, response) => {
     ) {
       return send(response, 400, "invalid client or redirect_uri");
     }
-    const code = randomBytes(16).toString("hex");
-    codes.set(code, { redirectUri, nonce: url.searchParams.get("nonce") });
-    const back = new URL(redirectUri);
-    back.searchParams.set("code", code);
-    back.searchParams.set("state", state);
-    back.searchParams.set("session_state", "mock-session-state");
+    const nonce = url.searchParams.get("nonce");
+    // One single-use code per user offered on this page.
+    const backFor = (user) => {
+      const code = randomBytes(16).toString("hex");
+      codes.set(code, { redirectUri, nonce, user });
+      const back = new URL(redirectUri);
+      back.searchParams.set("code", code);
+      back.searchParams.set("state", state);
+      back.searchParams.set("session_state", "mock-session-state");
+      return back;
+    };
+    const back = backFor(ADA);
+    const others = USERS.slice(1)
+      .map((user) => {
+        const name = `${user.claims.given_name} ${user.claims.family_name}`;
+        return `<p><a href="${escapeHtml(backFor(user).toString())}">Sign in as ${escapeHtml(name)}</a></p>`;
+      })
+      .join("");
     const cancel = new URL(redirectUri);
     cancel.searchParams.set("error", "access_denied");
     cancel.searchParams.set("error_description", "User denied the consent");
@@ -118,6 +145,7 @@ const server = createServer(async (request, response) => {
         "Mock identity provider",
         `<p>Scopes requested: <code data-testid="scopes">${escapeHtml(url.searchParams.get("scope") ?? "")}</code></p>
          <p><a href="${escapeHtml(back.toString())}">Sign in as Ada Lovelace</a></p>
+         ${others}
          <p><a href="${escapeHtml(cancel.toString())}">Cancel</a></p>
          <p>No account? <a href="${escapeHtml(back.toString())}">Register</a></p>`,
       ),
@@ -130,21 +158,36 @@ const server = createServer(async (request, response) => {
     if (form.get("client_id") !== CLIENT_ID || form.get("client_secret") !== CLIENT_SECRET) {
       return json(response, 401, { error: "invalid_client" });
     }
-    if (form.get("grant_type") === "refresh_token") return json(response, 200, issueTokens());
+    if (form.get("grant_type") === "refresh_token") {
+      const user = refreshTokens.get(form.get("refresh_token") ?? "");
+      if (!user) return json(response, 400, { error: "invalid_grant" });
+      return json(response, 200, issueTokens(user));
+    }
     const grant = codes.get(form.get("code") ?? "");
     codes.delete(form.get("code") ?? "");
     if (!grant || grant.redirectUri !== form.get("redirect_uri")) {
       return json(response, 400, { error: "invalid_grant" });
     }
-    return json(response, 200, issueTokens(grant.nonce));
+    return json(response, 200, issueTokens(grant.user, grant.nonce));
   }
 
   if (path === "/oauth2/jwks") return json(response, 200, { keys: [jwk] });
 
   if (path === "/oauth2/userinfo") {
     const token = (request.headers.authorization ?? "").replace(/^Bearer /, "");
-    if (!accessTokens.has(token)) return json(response, 401, { error: "invalid_token" });
-    return json(response, 200, USER);
+    const user = accessTokens.get(token);
+    if (!user) return json(response, 401, { error: "invalid_token" });
+    return json(response, 200, user.claims);
+  }
+
+  // Test control: ends one user's sessions at the provider, as an expiry or revocation would.
+  // Scoped to a user so tests running in parallel keep their own sessions.
+  if (path === "/test/revoke" && request.method === "POST") {
+    const id = url.searchParams.get("user");
+    for (const tokens of [accessTokens, refreshTokens]) {
+      for (const [token, user] of tokens) if (user.id === id) tokens.delete(token);
+    }
+    return send(response, 204, "");
   }
 
   if (path === "/oauth2/revoke") return send(response, 200, "");

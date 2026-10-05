@@ -27,6 +27,34 @@ function failingStore(cause: Error): ProgressApiDeps["store"] {
 }
 
 describe("GET /api/progress", () => {
+  it.each(["database", "catalog"] as const)(
+    "identifies a %s URL failure without exposing its input or stack",
+    async (step) => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      try {
+        const secret = "postgresql://owner:private-password@host/db";
+        const cause = Object.assign(new TypeError(`Invalid URL: ${secret}`), {
+          code: "ERR_INVALID_URL",
+          input: secret,
+        });
+        const deps = apiDeps(ADA);
+        if (step === "database")
+          deps.store = () => {
+            throw cause;
+          };
+        else deps.catalog = () => Promise.reject(cause);
+        const response = await getProgress(deps);
+        expect(response.status).toBe(500);
+        expect(JSON.stringify(log.mock.calls)).toContain(`step=${step}`);
+        expect(JSON.stringify(log.mock.calls)).toContain("ERR_INVALID_URL");
+        expect(JSON.stringify(log.mock.calls)).not.toContain("private-password");
+        expect(await response.text()).not.toContain("private-password");
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
   it("rejects signed-out requests without touching the database", async () => {
     const store = vi.fn(createMemoryProgressStore);
     const response = await getProgress({ ...apiDeps({ status: "unauthenticated" }), store });
@@ -45,7 +73,11 @@ describe("GET /api/progress", () => {
   it("returns an empty record for a new account", async () => {
     const response = await getProgress(apiDeps(ADA));
     expect(response.status).toBe(200);
-    expect(await json(response)).toEqual({ completedLessons: [], totalXp: 0 });
+    expect(await json(response)).toEqual({
+      account: { id: expect.any(String) as unknown },
+      completedLessons: [],
+      totalXp: 0,
+    });
   });
 
   it("returns completed lessons with metadata from the content catalog", async () => {
@@ -69,11 +101,12 @@ describe("GET /api/progress", () => {
   it("only ever shows the signed-in learner's own records", async () => {
     const store = createMemoryProgressStore();
     await recordLessonCompletion(postLesson({ lessonId: "git-init" }), apiDeps(ADA, store));
+    const ada = await json(await getProgress(apiDeps(ADA, store)));
     for (const other of [GRACE, ADA_ELSEWHERE]) {
-      expect(await json(await getProgress(apiDeps(other, store)))).toEqual({
-        completedLessons: [],
-        totalXp: 0,
-      });
+      const body = await json(await getProgress(apiDeps(other, store)));
+      expect(body).toMatchObject({ completedLessons: [], totalXp: 0 });
+      // Each account has its own id, so browsers keep their caches apart.
+      expect(body.account).not.toEqual(ada.account);
     }
   });
 

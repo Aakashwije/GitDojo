@@ -63,10 +63,10 @@ progress and recent activity, and lets you export your progress as JSON or reset
 
 Accounts are optional. When a site configures [WSO2 Identity Platform](docs/authentication.md),
 learners can **sign up and sign in** on its secure hosted pages (GitDojo never handles
-passwords) and get an account menu on every page. Signing in or out never touches local
-progress. With a PostgreSQL database, a protected API can also store signed-in learners' lesson
-completions on the server ([docs/account-progress.md](docs/account-progress.md)); the UI does not
-sync to it yet.
+passwords) and get an account menu on every page. With a PostgreSQL database, signed-in
+learners' completed lessons are saved to their account and appear in any browser
+([docs/account-progress.md](docs/account-progress.md)); anonymous progress stays in the browser
+and is never merged into an account. Deploying: [docs/deployment.md](docs/deployment.md).
 
 Every workspace has a **code editor** (Monaco) with a file explorer and Git status letters, so
 editing a file really makes it "modified". When a command fails, the terminal shows Git's real

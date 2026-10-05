@@ -1,7 +1,9 @@
 import "server-only";
 
 import { readAuthConfig } from "./config";
-import { defaultSessionDeps, type SessionDeps } from "./session";
+import { defaultSessionDeps, forgetProfile, type SessionDeps } from "./session";
+
+const USERINFO_TIMEOUT_MS = 5000;
 
 /** Who the learner is, as verified by the identity provider. Server-side only. */
 export interface VerifiedIdentity {
@@ -61,10 +63,11 @@ export async function getVerifiedIdentity(deps?: SessionDeps): Promise<IdentityR
   if (!config.configured || config.baseUrl === null) return { status: "unauthenticated" };
 
   let resolved: SessionDeps;
+  let sessionId: string | undefined;
   let accessToken: string;
   try {
     resolved = deps ?? (await defaultSessionDeps());
-    const sessionId = await resolved.getSessionId();
+    sessionId = await resolved.getSessionId();
     if (!sessionId) return { status: "unauthenticated" };
     // Throws when the verified session holds no access token.
     accessToken = await resolved.getAccessToken(sessionId);
@@ -77,9 +80,14 @@ export async function getVerifiedIdentity(deps?: SessionDeps): Promise<IdentityR
     const response = await resolved.fetch(`${config.baseUrl}/oauth2/userinfo`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       cache: "no-store",
+      // A slow provider must not hold the request open until the platform times it out.
+      signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
     });
     // The provider no longer accepts the token: the session has ended.
-    if (response.status === 401 || response.status === 403) return { status: "unauthenticated" };
+    if (response.status === 401 || response.status === 403) {
+      forgetProfile(sessionId);
+      return { status: "unauthenticated" };
+    }
     if (!response.ok) return { status: "unavailable" };
 
     const claims: unknown = await response.json();

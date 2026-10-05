@@ -1,7 +1,9 @@
 name: CI
 
 on:
+  # Branches are covered by their pull requests; pushes to main feed the release workflow.
   push:
+    branches: [main]
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -193,7 +195,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [chromium, mobile, auth-flow]
+        project: [chromium, mobile]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -212,7 +214,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install Chromium
         if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
@@ -225,6 +227,90 @@ jobs:
         env:
           PLAYWRIGHT_PROJECT: ${{ matrix.project }}
       - name: Upload browser reports and failure traces
+        # Test data only: mock identity provider users and a disposable database.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-results-${{ matrix.project }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+  accounts:
+    name: Accounts / ${{ matrix.project }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: auth-flow
+            browser: chromium
+          - project: account-chromium
+            browser: chromium
+          - project: account-firefox
+            browser: firefox
+    # Sign-in against the mock identity provider and account progress against real PostgreSQL.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gitdojo
+          POSTGRES_PASSWORD: gitdojo
+          POSTGRES_DB: gitdojo_e2e_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gitdojo -d gitdojo_e2e_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Disposable service credentials; never point this job at a real database.
+      E2E_DATABASE_URL: postgres://gitdojo:gitdojo@localhost:5432/gitdojo_e2e_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: production-build
+          path: ${{ runner.temp }}/gitdojo-build
+      - name: Restore production build
+        run: |
+          tar -xzf "$RUNNER_TEMP/gitdojo-build/gitdojo-build.tar.gz" -C apps/web
+          test -s apps/web/.next/BUILD_ID
+      - name: Migrate the test database
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+      - name: Cache Playwright browsers
+        id: browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install ${{ matrix.browser }}
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: pnpm --filter @gitdojo/web exec playwright install --with-deps "$BROWSER"
+        env:
+          BROWSER: ${{ matrix.browser }}
+      - name: Install browser system libraries
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: pnpm --filter @gitdojo/web exec playwright install-deps "$BROWSER"
+        env:
+          BROWSER: ${{ matrix.browser }}
+      - name: Account browser tests
+        # Account isolation, duplicate XP, sign-out and ended sessions, against PostgreSQL.
+        run: pnpm --filter @gitdojo/web exec playwright test --project="$PLAYWRIGHT_PROJECT" --workers=2
+        env:
+          PLAYWRIGHT_PROJECT: ${{ matrix.project }}
+      - name: Upload browser reports and failure traces
+        # Test data only: mock identity provider users and a disposable database.
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -270,28 +356,37 @@ jobs:
   required:
     name: CI required
     if: always()
-    needs: [quality, unit, database, content, audit, build, browser, performance]
+    needs: [quality, unit, database, content, audit, build, browser, accounts, performance]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Summarize and enforce all required results
         env:
           RESULTS: ${{ toJSON(needs) }}
+          # Performance is optional, but must pass whenever it was asked for.
+          PERFORMANCE_REQUESTED: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.performance) }}
         run: |
           python3 - <<'PY'
           import json, os, sys
           results = json.loads(os.environ["RESULTS"])
+          optional = {"performance"} if os.environ["PERFORMANCE_REQUESTED"] != "true" else set()
           failed = []
           lines = ["## CI results", "", "| Job | Result |", "| --- | --- |"]
           for name, job in results.items():
               result = job["result"]
               lines.append(f"| {name} | {result} |")
-              allowed = {"success", "skipped"} if name == "performance" else {"success"}
+              # Failed, cancelled and unexpectedly skipped jobs all block.
+              allowed = {"success", "skipped"} if name in optional else {"success"}
               if result not in allowed:
                   failed.append(name)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
               summary.write("\n".join(lines) + "\n")
           if failed:
-              print("Required jobs did not pass: " + ", ".join(failed), file=sys.stderr)
+              print("Required jobs did not pass: " + ", ".join(
+                  f"{name} ({results[name]['result']})" for name in failed), file=sys.stderr)
+              if all(results[name]["result"] == "cancelled" for name in failed):
+                  # Usually a newer commit superseded this run; its own run decides the check.
+                  print("::notice::Jobs were cancelled, not failed. If a newer commit was pushed, "
+                        "check that commit's run instead.", file=sys.stderr)
               sys.exit(1)
           PY

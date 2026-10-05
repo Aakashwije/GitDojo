@@ -56,24 +56,27 @@ completed state; completion now counts only from the workspace's own evaluation.
 
 ### End-to-end (Playwright)
 
-| Spec                              | Workflows                                                                                                                                                                                                                         |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `first-commit.spec.ts`            | First-commit lesson end to end, state-based validation (`git add .`), lesson reset                                                                                                                                                |
-| `courses.spec.ts`                 | Concept lessons and course progress, visual demos, a branching lesson (feature-branch commit)                                                                                                                                     |
-| `merging.spec.ts`                 | Fast-forward merge, resolving a conflict in the conflict editor                                                                                                                                                                   |
-| `editor.spec.ts`                  | Editing and saving a file (becomes modified), creating a file                                                                                                                                                                     |
-| `recovery.spec.ts`                | Reflog recovery, stash, diff                                                                                                                                                                                                      |
-| `playground.spec.ts`              | Playground persistence across reload, scenarios, reset, snapshot export                                                                                                                                                           |
-| `challenges.spec.ts`              | Solving a standalone challenge and seeing it remembered                                                                                                                                                                           |
-| `hints.spec.ts`, `errors.spec.ts` | The hint ladder and error explanations                                                                                                                                                                                            |
-| `progress.spec.ts`                | Whole Git Basics course → dashboard totals (450 XP); replay without duplicate XP; reload; standalone challenge; unique hint usage (via export); reset keeps the playground; legacy migration; continue learning; empty state      |
-| `accessibility.spec.ts`           | axe WCAG 2.1 A/AA scans of every main page and dialog, focus trapping and return, mobile navigation                                                                                                                               |
-| `auth.spec.ts`                    | Without account configuration (as in CI): public routes stay anonymous, account routes fall back safely, header states (mocked session endpoint), keyboard account menu, axe scans, progress across sign-in and sign-out          |
-| `auth-flow.spec.ts`               | The real SDK sign-up/sign-in/sign-out flow against a local mock OpenID Connect provider (`e2e/mock-idp`), on a second server with test-only values: return to the intended page, reload, `/account`, cancellation, forged cookies |
+| Spec                              | Workflows                                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `first-commit.spec.ts`            | First-commit lesson end to end, state-based validation (`git add .`), lesson reset                                                                                                                                                                            |
+| `courses.spec.ts`                 | Concept lessons and course progress, visual demos, a branching lesson (feature-branch commit)                                                                                                                                                                 |
+| `merging.spec.ts`                 | Fast-forward merge, resolving a conflict in the conflict editor                                                                                                                                                                                               |
+| `editor.spec.ts`                  | Editing and saving a file (becomes modified), creating a file                                                                                                                                                                                                 |
+| `recovery.spec.ts`                | Reflog recovery, stash, diff                                                                                                                                                                                                                                  |
+| `playground.spec.ts`              | Playground persistence across reload, scenarios, reset, snapshot export                                                                                                                                                                                       |
+| `challenges.spec.ts`              | Solving a standalone challenge and seeing it remembered                                                                                                                                                                                                       |
+| `hints.spec.ts`, `errors.spec.ts` | The hint ladder and error explanations                                                                                                                                                                                                                        |
+| `progress.spec.ts`                | Whole Git Basics course → dashboard totals (450 XP); replay without duplicate XP; reload; standalone challenge; unique hint usage (via export); reset keeps the playground; legacy migration; continue learning; empty state                                  |
+| `accessibility.spec.ts`           | axe WCAG 2.1 A/AA scans of every main page and dialog, focus trapping and return, mobile navigation                                                                                                                                                           |
+| `auth.spec.ts`                    | Without account configuration (as in CI): public routes stay anonymous, account routes fall back safely, header states (mocked session endpoint), keyboard account menu, axe scans, progress across sign-in and sign-out                                      |
+| `auth-flow.spec.ts`               | The real SDK sign-up/sign-in/sign-out flow against a local mock OpenID Connect provider (`e2e/mock-idp`), on a second server with test-only values: return to the intended page, reload, `/account`, cancellation, forged cookies                             |
+| `account-progress.spec.ts`        | Account progress against real PostgreSQL (`E2E_DATABASE_URL`): saved while signed in and loaded in a fresh browser, duplicate and concurrent completions award XP once, anonymous and other accounts stay separate, sign-out, a session ended by the provider |
 
-Projects: `chromium` (desktop) and `mobile` (Pixel 7) run everything except the auth flow,
-which runs in its own `auth-flow` project on port 3101 next to the mock provider (port 3199);
-Playwright starts all three servers. Real WSO2 accounts are never used; see
+Projects: `chromium` (desktop) and `mobile` (Pixel 7) run everything except the account specs.
+`auth-flow`, `account-chromium` and `account-firefox` run against a second server on port 3101,
+next to the mock provider (port 3199), which offers several test users; the account projects use
+different users so they can share one database. Without `E2E_DATABASE_URL` the account projects
+skip. Playwright starts all three servers. Real WSO2 accounts are never used; see
 [authentication.md](./authentication.md#manual-smoke-test) for the manual check against a tenant.
 
 Tests share helpers in `e2e/helpers.ts`, wait on visible state rather than sleeping, and each
@@ -109,8 +112,10 @@ animations are disabled under `prefers-reduced-motion`.
 ## Performance
 
 `apps/web/perf/scenarios.perf.ts` runs the hot paths at well beyond lesson size and checks the
-results are still correct (ordering, the latest edit saved, counts). There are no time limits:
-numbers depend on the machine. Measured on an Apple Silicon laptop, Node 24, `fake-indexeddb`;
+results are still correct (ordering, the latest edit saved, counts). Each scenario also has a
+budget (`BUDGETS_MS` in the file; 2 s for the browser's command → graph update, 1 s for selecting
+a commit), set at roughly 10–30× the timings below so that only order-of-magnitude regressions
+fail, not slower CI machines. CI runs them weekly and on request. Measured on an Apple Silicon laptop, Node 24, `fake-indexeddb`;
 "Before" is the same scenario before the fixes described below:
 
 | Scenario                              | Size                             | Before (ms) | After (ms) |
