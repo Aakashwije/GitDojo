@@ -1,13 +1,13 @@
 # Account progress (PostgreSQL)
 
-Signed-in learners have their lesson completions stored on the server, in PostgreSQL, under
+Signed-in learners have their lesson and challenge completions stored on the server, in PostgreSQL, under
 their WSO2 account, and see them in any browser. It is **optional**: without `DATABASE_URL`,
 GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deployment.md](./deployment.md).
 
 **What exists**
 
-- `users` and `lesson_completions` tables, with versioned migrations and `pnpm db:migrate`.
-- `GET /api/progress` and `POST /api/progress/lessons` for the signed-in learner only.
+- `users`, `lesson_completions` and `challenge_completions` tables, with versioned migrations and `pnpm db:migrate`.
+- `GET /api/progress`, `POST /api/progress/lessons` and `POST /api/progress/challenges` for the signed-in learner only.
 - In the browser, signed-in learners see their account's lessons in courses, lessons and the
   dashboard, and finishing a lesson saves it to the account ([In the browser](#in-the-browser)).
 - `GET /api/health` reports whether the database is reachable and migrated.
@@ -15,7 +15,7 @@ GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deploymen
 **What doesn't**
 
 - Anonymous browser progress is never merged into, or uploaded to, an account.
-- No offline conflict resolution, and no playground, hint, command or challenge data on the
+- No offline conflict resolution, and no playground, hint or command data on the
   server: those stay in the browser.
 
 > **Learner-reported progress.** `POST /api/progress/lessons` records that the learner _says_
@@ -310,13 +310,19 @@ Manual, with a configured tenant and database:
 ## Known limitations
 
 - Progress is learner-reported (see above).
-- Anonymous browser progress isn't merged into accounts. Command stats, hints, challenges and
+- Anonymous browser progress isn't merged into accounts. Command stats, hints and
   playground sessions stay in the browser, per account cache.
 - An account's browser cache stays in IndexedDB after signing out (it is never shown to anyone
   else); clearing site data removes it.
-- Only lesson completions are stored. Standalone challenges, hints, command statistics and
+- Lesson and standalone challenge completions are stored. Hints, command statistics and
   playground sessions stay local.
 - Every progress request makes one userinfo call to WSO2, which adds latency and depends on the
   provider being reachable (`503` otherwise).
 - Deleting a WSO2 user doesn't delete their GitDojo rows. Remove them with
   `DELETE FROM users WHERE issuer = $1 AND subject = $2` (completions cascade).
+
+## Standalone challenge sync
+
+`POST /api/progress/challenges` accepts only `{ "challengeId": "first-commit" }`. The server checks the challenge catalog and assigns 100 XP once per account and challenge. `GET /api/progress` returns `completedChallenges` alongside `completedLessons`, with `totalXp` summed across both. Lesson and challenge IDs have separate namespaces.
+
+Run `pnpm db:migrate` against each deployment database before deploying this version. Existing challenge completions in the signed-in account’s browser cache upload automatically on the next visit. Progress in another database or an anonymous browser cache is not imported.

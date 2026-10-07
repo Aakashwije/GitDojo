@@ -76,6 +76,7 @@ describe("GET /api/progress", () => {
     expect(await json(response)).toEqual({
       account: { id: expect.any(String) as unknown },
       completedLessons: [],
+      completedChallenges: [],
       totalXp: 0,
     });
   });

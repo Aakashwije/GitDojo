@@ -4,6 +4,7 @@ import { type VerifiedIdentity } from "@/lib/auth/identity";
 
 /** One lesson an account has completed, as stored. */
 export interface StoredCompletion {
+  kind?: "challenge";
   lessonId: string;
   lessonType: LessonType;
   courseId: string | null;
@@ -14,6 +15,7 @@ export interface StoredCompletion {
 
 /** A completion to record. Everything here is computed by the server from the content catalog. */
 export interface NewCompletion {
+  kind?: "challenge";
   lessonId: string;
   lessonType: LessonType;
   courseId: string | null;
@@ -46,6 +48,7 @@ export interface AccountProgressStore {
 type Queryable = postgres.Sql | postgres.TransactionSql;
 
 interface CompletionRow {
+  kind?: "challenge" | null;
   lesson_id: string;
   lesson_type: LessonType;
   course_id: string | null;
@@ -54,6 +57,7 @@ interface CompletionRow {
 }
 
 const toCompletion = (row: CompletionRow): StoredCompletion => ({
+  ...(row.kind === "challenge" ? { kind: "challenge" as const } : {}),
   lessonId: row.lesson_id,
   lessonType: row.lesson_type,
   courseId: row.course_id,
@@ -86,9 +90,12 @@ export async function upsertUser(sql: Queryable, identity: VerifiedIdentity): Pr
 
 export async function listCompletions(sql: Queryable, userId: string): Promise<StoredCompletion[]> {
   const rows = await sql<CompletionRow[]>`
-    SELECT lesson_id, lesson_type, course_id, xp, completed_at
-    FROM lesson_completions
-    WHERE user_id = ${userId}
+    SELECT lesson_id, lesson_type, course_id, xp, completed_at, NULL AS kind
+    FROM lesson_completions WHERE user_id = ${userId}
+    UNION ALL
+    SELECT challenge_id AS lesson_id, 'challenge' AS lesson_type, NULL AS course_id,
+      xp, completed_at, 'challenge' AS kind
+    FROM challenge_completions WHERE user_id = ${userId}
     ORDER BY completed_at, lesson_id
   `;
   return rows.map(toCompletion);
@@ -103,6 +110,32 @@ export async function insertCompletion(
   userId: string,
   completion: NewCompletion,
 ): Promise<{ created: boolean; completion: StoredCompletion }> {
+  if (completion.kind === "challenge") {
+    const [inserted] = await sql<{ challenge_id: string; xp: number; completed_at: Date }[]>`
+      INSERT INTO challenge_completions (user_id, challenge_id, xp)
+      VALUES (${userId}, ${completion.lessonId}, ${completion.xp})
+      ON CONFLICT (user_id, challenge_id) DO NOTHING
+      RETURNING challenge_id, xp, completed_at
+    `;
+    const [existing] = inserted
+      ? [inserted]
+      : await sql<{ challenge_id: string; xp: number; completed_at: Date }[]>`
+      SELECT challenge_id, xp, completed_at FROM challenge_completions
+      WHERE user_id = ${userId} AND challenge_id = ${completion.lessonId}
+    `;
+
+    return {
+      created: Boolean(inserted),
+      completion: {
+        kind: "challenge",
+        lessonId: existing.challenge_id,
+        lessonType: "challenge",
+        courseId: null,
+        xp: existing.xp,
+        completedAt: existing.completed_at,
+      },
+    };
+  }
   const [inserted] = await sql<CompletionRow[]>`
     INSERT INTO lesson_completions (user_id, lesson_id, lesson_type, course_id, xp)
     VALUES (

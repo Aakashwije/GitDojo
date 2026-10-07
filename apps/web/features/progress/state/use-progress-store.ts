@@ -137,12 +137,13 @@ export function recordProgress(action: ProgressAction): Promise<void> {
   // Only a first completion goes to the account; replays never send (or earn) anything again.
   const upload =
     action.type === "complete" &&
-    action.content.kind === "lesson" &&
-    progress.completedLessons[action.content.id] === undefined &&
+    progress[action.content.kind === "lesson" ? "completedLessons" : "completedChallenges"][
+      action.content.id
+    ] === undefined &&
     useProgressStore.getState().mode !== "anonymous";
   useProgressStore.setState({ progress: applyProgressAction(progress, action, Date.now()) });
   const saved = save(action);
-  if (upload) void uploadLesson(action.content.id);
+  if (upload) void uploadLesson(action.content.id, action.content.kind);
   return saved;
 }
 
@@ -150,14 +151,21 @@ export function recordProgress(action: ProgressAction): Promise<void> {
  * Sends a lesson completion to the account and adopts the account's record. Failures leave the
  * completion in this browser's account cache, which is uploaded again on the next visit.
  */
-async function uploadLesson(lessonId: string): Promise<boolean> {
+async function uploadLesson(
+  lessonId: string,
+  kind: "lesson" | "challenge" = "lesson",
+): Promise<boolean> {
   uploading += 1;
   updateSaving();
   try {
-    const result = await uploadLessonCompletion(lessonId, accountFetch);
+    const result = await uploadLessonCompletion(lessonId, accountFetch, kind);
     switch (result.status) {
       case "ok":
-        await save({ type: "account-lessons", lessons: { [result.lessonId]: result.record } });
+        await save({
+          type: "account-lessons",
+          lessons: kind === "lesson" ? { [result.lessonId]: result.record } : {},
+          ...(kind === "challenge" ? { challenges: { [result.lessonId]: result.record } } : {}),
+        });
         if (useProgressStore.getState().accountNotice !== "load-failed") {
           useProgressStore.setState({ accountNotice: null });
         }
@@ -183,11 +191,16 @@ async function uploadPending(
   progress: LocalProgress,
   account: AccountLessons,
   catalog: ProgressCatalog,
+  challenges: AccountLessons = {},
 ): Promise<void> {
   const lessons = indexLessons(catalog);
   for (const id of Object.keys(progress.completedLessons)) {
     if (account[id] !== undefined || !lessons.has(id)) continue;
     if (!(await uploadLesson(id))) return;
+  }
+  for (const id of Object.keys(progress.completedChallenges)) {
+    if (challenges[id] !== undefined || !catalog.challenges.some((c) => c.id === id)) continue;
+    if (!(await uploadLesson(id, "challenge"))) return;
   }
 }
 
@@ -200,7 +213,7 @@ let initialization: Promise<void> | null = null;
 /** Whose progress to load, decided before anything is read or written. */
 export type AccountResolution =
   | { kind: "anonymous"; notice?: AccountNotice }
-  | { kind: "account"; accountId: string; lessons: AccountLessons }
+  | { kind: "account"; accountId: string; lessons: AccountLessons; challenges?: AccountLessons }
   | { kind: "unavailable" };
 
 /** Anonymous progress only: the default, for pages and tests without accounts. */
@@ -223,7 +236,12 @@ export function resolveBrowserAccount(
     if (useAccountSession.getState().session?.status !== "signed-in") return { kind: "anonymous" };
     const result = await fetchAccountProgress(fetcher);
     if (result.status === "ok") {
-      return { kind: "account", accountId: result.accountId, lessons: result.lessons };
+      return {
+        kind: "account",
+        accountId: result.accountId,
+        lessons: result.lessons,
+        challenges: result.challenges,
+      };
     }
     return result.status === "signed-out"
       ? { kind: "anonymous", notice: "session-ended" }
@@ -298,17 +316,22 @@ export function initProgress(
     if (account.kind === "account") {
       // The account is the source of truth for lesson completions.
       progress = await repository
-        .apply({ type: "account-lessons", lessons: account.lessons })
+        .apply({
+          type: "account-lessons",
+          lessons: account.lessons,
+          challenges: account.challenges,
+        })
         .catch(() =>
           applyProgressAction(
             progress,
-            { type: "account-lessons", lessons: account.lessons },
+            { type: "account-lessons", lessons: account.lessons, challenges: account.challenges },
             Date.now(),
           ),
         );
     }
     useProgressStore.setState({ progress, persistence: loaded.persistence, status: "ready" });
-    if (account.kind === "account") void uploadPending(progress, account.lessons, catalog);
+    if (account.kind === "account")
+      void uploadPending(progress, account.lessons, catalog, account.challenges);
     const queued = pending;
     pending = [];
     for (const action of queued) void recordProgress(action);

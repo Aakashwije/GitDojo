@@ -5,7 +5,7 @@ import { type LessonType } from "@gitdojo/shared-types";
 export type AccountLessons = Record<string, CompletionRecord>;
 
 export type AccountProgressResult =
-  | { status: "ok"; accountId: string; lessons: AccountLessons }
+  | { status: "ok"; accountId: string; lessons: AccountLessons; challenges?: AccountLessons }
   /** No valid session (never signed in, signed out, or the session ended). */
   | { status: "signed-out" }
   /** The account service could not answer: identity provider or database unavailable. */
@@ -19,6 +19,12 @@ export type LessonUploadResult =
   | { status: "rejected" };
 
 const LESSON_TYPES: readonly string[] = ["concept", "interactive", "challenge"];
+
+interface ApiChallenge {
+  challengeId?: unknown;
+  xp?: unknown;
+  completedAt?: unknown;
+}
 
 interface ApiLesson {
   lessonId?: unknown;
@@ -65,6 +71,7 @@ export async function fetchAccountProgress(
     const body = (await response.json()) as {
       account?: { id?: unknown };
       completedLessons?: unknown;
+      completedChallenges?: ApiChallenge[];
     };
     const accountId = body.account?.id;
     if (typeof accountId !== "string" || !Array.isArray(body.completedLessons)) {
@@ -75,7 +82,12 @@ export async function fetchAccountProgress(
       const entry = toRecord(lesson);
       if (entry) lessons[entry[0]] = entry[1];
     }
-    return { status: "ok", accountId, lessons };
+    const challenges: AccountLessons = {};
+    for (const challenge of body.completedChallenges ?? []) {
+      const entry = toRecord({ ...challenge, lessonId: challenge.challengeId, type: "challenge" });
+      if (entry) challenges[entry[0]] = entry[1];
+    }
+    return { status: "ok", accountId, lessons, challenges };
   } catch {
     return { status: "unavailable" };
   }
@@ -88,19 +100,27 @@ export async function fetchAccountProgress(
 export async function uploadLessonCompletion(
   lessonId: string,
   fetcher: typeof fetch = fetch,
+  kind: "lesson" | "challenge" = "lesson",
 ): Promise<LessonUploadResult> {
   try {
-    const response = await fetcher("/api/progress/lessons", {
-      ...REQUEST,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lessonId }),
-    });
+    const response = await fetcher(
+      kind === "challenge" ? "/api/progress/challenges" : "/api/progress/lessons",
+      {
+        ...REQUEST,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(kind === "challenge" ? { challengeId: lessonId } : { lessonId }),
+      },
+    );
     if (response.status === 401) return { status: "signed-out" };
     if (response.status >= 500 || response.status === 429) return { status: "unavailable" };
     if (!response.ok) return { status: "rejected" };
-    const body = (await response.json()) as { lesson?: ApiLesson };
-    const entry = body.lesson ? toRecord(body.lesson) : null;
+    const body = (await response.json()) as { lesson?: ApiLesson; challenge?: ApiChallenge };
+    const record =
+      kind === "challenge" && body.challenge
+        ? { ...body.challenge, lessonId: body.challenge.challengeId, type: "challenge" }
+        : body.lesson;
+    const entry = record ? toRecord(record) : null;
     return entry ? { status: "ok", lessonId: entry[0], record: entry[1] } : { status: "rejected" };
   } catch {
     return { status: "unavailable" };
