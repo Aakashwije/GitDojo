@@ -11,7 +11,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { getProgress, recordLessonCompletion } from "./api";
+import { getProgress, recordChallengeCompletion, recordLessonCompletion } from "./api";
 import { createPostgresProgressStore, insertCompletion, upsertUser } from "./store";
 import { ADA, ADA_ELSEWHERE, apiDeps, GRACE, postLesson } from "./testing";
 
@@ -45,7 +45,7 @@ function testDatabaseUrl(value: string): string {
 }
 
 const resetTables = (sql: postgres.Sql) =>
-  sql`DROP TABLE IF EXISTS lesson_completions, users, gitdojo_schema_migrations`;
+  sql`DROP TABLE IF EXISTS challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
 
 describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
   let sql: postgres.Sql;
@@ -182,6 +182,32 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
     const deps = (who: Parameters<typeof apiDeps>[0]) =>
       apiDeps(who, createPostgresProgressStore(sql));
     const body = async (response: Response) => (await response.json()) as Record<string, unknown>;
+
+    it("persists standalone challenge XP once under concurrent requests and isolates accounts", async () => {
+      const learner = identity("challenge-learner");
+      const replies = await Promise.all(
+        Array.from({ length: 8 }, () =>
+          recordChallengeCompletion(postLesson({ challengeId: "detached-head" }), deps(learner)),
+        ),
+      );
+      expect(replies.filter((reply) => reply.status === 201)).toHaveLength(1);
+      expect(replies.filter((reply) => reply.status === 200)).toHaveLength(7);
+      expect(await body(await getProgress(deps(learner)))).toMatchObject({
+        completedLessons: [],
+        completedChallenges: [{ challengeId: "detached-head", xp: 100 }],
+        totalXp: 100,
+      });
+      expect(
+        await body(await getProgress(deps(identity("other-challenge-learner")))),
+      ).toMatchObject({
+        completedChallenges: [],
+        totalXp: 0,
+      });
+      const rows =
+        await sql`SELECT xp FROM challenge_completions JOIN users ON users.id = user_id WHERE subject = ${learner.subject}`;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.xp).toBe(100);
+    });
 
     it("records and returns an account's lessons, keeping the first completion", async () => {
       const learner = identity("api-learner");

@@ -76,9 +76,10 @@ export function createMemoryProgressStore(): AccountProgressStore & {
     },
     recordLesson(identity, completion) {
       const user = userRows(identity);
-      const existing = user.get(completion.lessonId);
+      const key = `${completion.kind ?? "lesson"}:${completion.lessonId}`;
+      const existing = user.get(key);
       const stored = existing ?? { ...completion, completedAt: new Date() };
-      if (!existing) user.set(completion.lessonId, stored);
+      if (!existing) user.set(key, stored);
       return Promise.resolve({
         created: !existing,
         completion: stored,

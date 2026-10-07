@@ -306,6 +306,7 @@ describe("resolveBrowserAccount", () => {
     expect(await resolveBrowserAccount(fetcher)).toEqual({
       kind: "account",
       accountId: "account-ada",
+      challenges: {},
       lessons: { "git-init": { completedAt: Date.parse(FIRST), xp: 50, type: "interactive" } },
     });
   });

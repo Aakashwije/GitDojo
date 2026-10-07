@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
   // it). Pages are prerendered at build time and don't need it.
   outputFileTracingIncludes: {
     "/api/progress": ["../../content/**/*.yaml"],
+    "/api/progress/challenges": ["../../content/**/*.yaml"],
     "/api/progress/lessons": ["../../content/**/*.yaml"],
   },
   // Workspace packages ship TypeScript source; Next compiles them like app code.

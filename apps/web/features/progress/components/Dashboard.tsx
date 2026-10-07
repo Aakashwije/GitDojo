@@ -113,7 +113,7 @@ function DashboardContent({
           </h2>
           <p className="mt-2 max-w-xl text-body text-fg-secondary">
             Nothing here yet. Complete lessons and challenges to earn XP, and your progress shows up
-            here, saved in this browser.
+            here.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             {target ? (

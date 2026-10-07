@@ -27,6 +27,12 @@ export interface ProgressResponse {
   /** Opaque and stable per account; the browser keys its local cache by it. */
   account: { id: string };
   completedLessons: CompletedLesson[];
+  completedChallenges: {
+    challengeId: string;
+    title: string | null;
+    xp: number;
+    completedAt: string;
+  }[];
   totalXp: number;
 }
 
@@ -131,7 +137,17 @@ export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
     const lessons = indexLessons(catalog);
     const body: ProgressResponse = {
       account: { id: accountId },
-      completedLessons: completions.map((completion) => present(completion, lessons)),
+      completedLessons: completions
+        .filter((c) => c.kind !== "challenge")
+        .map((c) => present(c, lessons)),
+      completedChallenges: completions
+        .filter((c) => c.kind === "challenge")
+        .map((c) => ({
+          challengeId: c.lessonId,
+          title: catalog.challenges.find((item) => item.id === c.lessonId)?.title ?? null,
+          xp: c.xp,
+          completedAt: c.completedAt.toISOString(),
+        })),
       totalXp: sumXp(completions),
     };
     return json(body);
@@ -163,7 +179,10 @@ async function readBody(request: Request, limit: number): Promise<string | null>
 
 type ParsedBody = { ok: true; lessonId: string } | { ok: false; response: Response };
 
-async function parseRecordBody(request: Request): Promise<ParsedBody> {
+async function parseRecordBody(
+  request: Request,
+  field: "lessonId" | "challengeId" = "lessonId",
+): Promise<ParsedBody> {
   const invalid = (status: number, code: string, message: string): ParsedBody => ({
     ok: false,
     response: error(status, code, message),
@@ -183,23 +202,27 @@ async function parseRecordBody(request: Request): Promise<ParsedBody> {
     return invalid(400, "invalid_json", "The request body is not valid JSON.");
   }
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return invalid(400, "invalid_body", 'Send an object such as {"lessonId": "git-init"}.');
+    return invalid(400, "invalid_body", "Send a JSON object with the content id.");
   }
-  const unexpected = Object.keys(body).filter((key) => key !== "lessonId");
+  const unexpected = Object.keys(body).filter((key) => key !== field);
   if (unexpected.length > 0) {
     return invalid(
       400,
       "unexpected_fields",
-      `Only lessonId may be sent; XP, ownership and timestamps are set by the server (got: ${unexpected.slice(0, 5).join(", ")}).`,
+      `Only ${field} may be sent; XP, ownership and timestamps are set by the server (got: ${unexpected.slice(0, 5).join(", ")}).`,
     );
   }
-  const { lessonId } = body as { lessonId?: unknown };
+  const lessonId = (body as Record<string, unknown>)[field];
   if (
     typeof lessonId !== "string" ||
     lessonId.length > MAX_LESSON_ID_LENGTH ||
     !LESSON_ID.test(lessonId)
   ) {
-    return invalid(400, "invalid_lesson_id", "lessonId must be a lesson id such as git-init.");
+    return invalid(
+      400,
+      `invalid_${field === "challengeId" ? "challenge" : "lesson"}_id`,
+      `${field} must be a content id such as git-init.`,
+    );
   }
   return { ok: true, lessonId };
 }
@@ -247,6 +270,49 @@ export async function recordLessonCompletion(
       totalXp: sumXp(result.completions),
     };
     return json(body, result.created ? 201 : 200);
+  } catch (cause) {
+    return failure(cause);
+  }
+}
+
+/** Records a standalone challenge, with ownership and XP determined on the server. */
+export async function recordChallengeCompletion(
+  request: Request,
+  deps: ProgressApiDeps,
+): Promise<Response> {
+  if (!isSameOriginRequest(request.headers))
+    return error(403, "cross_origin", "Cross-origin requests are not allowed.");
+  const verified = await deps.verifyIdentity();
+  if (verified.status === "unauthenticated") return unauthenticated();
+  if (verified.status === "unavailable") return identityUnavailable();
+  const parsed = await parseRecordBody(request, "challengeId");
+  if (!parsed.ok) return parsed.response;
+  try {
+    const catalog = await progressStep("catalog", () => deps.catalog());
+    const challenge = catalog.challenges.find((item) => item.id === parsed.lessonId);
+    if (!challenge) return error(422, "unknown_challenge", "There is no challenge with that id.");
+    const result = await progressStep("database", () =>
+      deps.store().recordLesson(verified.identity, {
+        kind: "challenge",
+        lessonId: challenge.id,
+        lessonType: "challenge",
+        courseId: null,
+        xp: completionXp({ kind: "challenge", id: challenge.id }),
+      }),
+    );
+    return json(
+      {
+        challenge: {
+          challengeId: challenge.id,
+          title: challenge.title,
+          xp: result.completion.xp,
+          completedAt: result.completion.completedAt.toISOString(),
+        },
+        alreadyCompleted: !result.created,
+        totalXp: sumXp(result.completions),
+      },
+      result.created ? 201 : 200,
+    );
   } catch (cause) {
     return failure(cause);
   }

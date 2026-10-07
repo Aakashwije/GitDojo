@@ -31,7 +31,11 @@ export type ProgressAction =
    * the same lessons (the account's first completion and XP win); lessons completed only here
    * are kept until they are uploaded.
    */
-  | { type: "account-lessons"; lessons: Record<string, CompletionRecord> };
+  | {
+      type: "account-lessons";
+      lessons: Record<string, CompletionRecord>;
+      challenges?: Record<string, CompletionRecord>;
+    };
 
 /** Git subcommand names: lowercase words and dashes. Anything else is ignored. */
 const COMMAND_NAME = /^[a-z][a-z-]{0,31}$/;
@@ -144,8 +148,20 @@ export function applyProgressAction(
         completedLessons[id] = record;
         changed = true;
       }
+      const completedChallenges = { ...progress.completedChallenges };
+      for (const [id, record] of Object.entries(action.challenges ?? {})) {
+        const current = completedChallenges[id];
+        if (
+          current?.completedAt === record.completedAt &&
+          current.xp === record.xp &&
+          current.type === record.type
+        )
+          continue;
+        completedChallenges[id] = record;
+        changed = true;
+      }
       if (!changed) return progress;
-      const next = { ...progress, completedLessons };
+      const next = { ...progress, completedLessons, completedChallenges };
       return touch({ ...next, xp: totalXp(next) }, now);
     }
 
