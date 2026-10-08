@@ -2,5 +2,9 @@
 
 export { LessonCompleteDialog } from "./components/LessonCompleteDialog";
 export { LessonPanel } from "./components/LessonPanel";
-export { LessonContent } from "./components/content/LessonContent";
+export {
+  contentSections,
+  LessonContent,
+  type ContentSection,
+} from "./components/content/LessonContent";
 export { useLessonStore } from "./state/use-lesson-store";

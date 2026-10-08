@@ -14,7 +14,7 @@ export function AsciiDiagram({ text }: { text: string }) {
 export function LessonVisualView({ visual }: { visual: LessonVisual }) {
   if (visual.graph) {
     return (
-      <div className="rounded-md border border-border-subtle bg-surface px-2 py-1">
+      <div className="overflow-x-auto rounded-md border border-border-subtle bg-editor px-3 py-2">
         <DemoGraphView graph={visual.graph} />
       </div>
     );

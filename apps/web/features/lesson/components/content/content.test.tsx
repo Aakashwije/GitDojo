@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { DemoGraphView, describeGraph } from "./DemoGraphView";
 import { DemoPlayer } from "./DemoPlayer";
-import { LessonContent } from "./LessonContent";
+import { contentSections, LessonContent } from "./LessonContent";
 
 const diverged: DemoGraph = {
   commits: [
@@ -74,6 +74,30 @@ describe("DemoPlayer", () => {
     await userEvent.click(screen.getByRole("button", { name: "Go to step 2" }));
     expect(screen.getByText("Stage one.")).toBeInTheDocument();
   });
+
+  it("shows progress and announces the step it is on", () => {
+    render(<DemoPlayer title="Staging" steps={steps} />);
+    const progress = screen.getByRole("progressbar", { name: "Demonstration progress" });
+    expect(progress).toHaveAttribute("aria-valuenow", "1");
+    expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 2. Two modified files.");
+  });
+
+  it("walks the steps with the arrow keys from the step dots", async () => {
+    render(<DemoPlayer title="Staging" steps={steps} />);
+    const first = screen.getByRole("button", { name: "Go to step 1" });
+    // Roving tabindex: only the current dot is a tab stop.
+    expect(first).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("button", { name: "Go to step 2" })).toHaveAttribute("tabindex", "-1");
+
+    first.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByTestId("demo-step")).toHaveTextContent("Step 2 of 2");
+    expect(screen.getByRole("button", { name: "Go to step 2" })).toHaveFocus();
+
+    await userEvent.keyboard("{Home}");
+    expect(screen.getByTestId("demo-step")).toHaveTextContent("Step 1 of 2");
+    expect(screen.getByRole("button", { name: "Go to step 1" })).toHaveFocus();
+  });
 });
 
 describe("LessonContent", () => {
@@ -101,6 +125,42 @@ describe("LessonContent", () => {
     expect(screen.getByText("git status")).toBeInTheDocument();
     expect(screen.getByText("On branch main")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "GitHub" })).toHaveTextContent("Hosted");
-    expect(screen.getByRole("complementary", { name: "Tip" })).toBeInTheDocument();
+    // The tone is spelled out, so it never depends on colour alone.
+    expect(screen.getByRole("complementary", { name: "Tip" })).toHaveTextContent("Tip");
+  });
+
+  it("colours added and removed lines of example output", () => {
+    render(
+      <LessonContent
+        blocks={[
+          {
+            type: "example",
+            command: "git diff",
+            output: "--- a/price.js\n+++ b/price.js\n@@ -1 +1 @@\n-old line\n+new line\n",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("+new line")).toHaveClass("text-success");
+    expect(screen.getByText("-old line")).toHaveClass("text-danger");
+    expect(screen.getByText("@@ -1 +1 @@")).toHaveClass("text-info");
+    // The file headers are noise, not changes.
+    expect(screen.getByText("+++ b/price.js")).toHaveClass("text-fg-muted");
+  });
+
+  it("anchors titled sections so a lesson can link to its own headings", () => {
+    const blocks = [
+      { type: "text", title: "A branch is a label", body: "Text." },
+      { type: "callout", tone: "tip", title: "Handy", body: "Tip." },
+      { type: "text", title: "A branch is a label", body: "More." },
+    ] as const;
+    expect(contentSections(blocks)).toEqual([
+      { id: "a-branch-is-a-label", title: "A branch is a label" },
+      { id: "a-branch-is-a-label-2", title: "A branch is a label" },
+    ]);
+
+    const { container } = render(<LessonContent blocks={blocks} />);
+    expect(container.querySelector("#a-branch-is-a-label")).toBeInTheDocument();
+    expect(container.querySelector("#a-branch-is-a-label-2")).toBeInTheDocument();
   });
 });

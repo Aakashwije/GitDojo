@@ -1,6 +1,6 @@
 import { HINT_LEVELS, nextHint, visibleHints } from "@gitdojo/hints";
 import { type Hint, type HintLevel, type HintState } from "@gitdojo/shared-types";
-import { Badge, Button, type BadgeProps } from "@gitdojo/ui";
+import { Badge, Button, cn, type BadgeProps } from "@gitdojo/ui";
 import { CircleDashed, Lightbulb } from "lucide-react";
 import { useState } from "react";
 import { renderInline } from "@/components/content/rich-text";
@@ -11,6 +11,7 @@ export interface HintPanelProps {
   onReveal: () => void;
   /** Why the current objective is not met yet, straight from its validator. */
   missing?: string | null;
+  className?: string;
 }
 
 const TONES: Record<HintLevel, BadgeProps["tone"]> = { 1: "neutral", 2: "accent", 3: "warning" };
@@ -25,7 +26,7 @@ const REVEAL_LABELS: Record<HintLevel, string> = {
  * Progressive help for the current objective: a concept first, then the command family, and only
  * on request (and a second click) the exact command.
  */
-export function HintPanel({ hints, state, onReveal, missing }: HintPanelProps) {
+export function HintPanel({ hints, state, onReveal, missing, className }: HintPanelProps) {
   const [confirming, setConfirming] = useState(false);
   if (hints.length === 0 && !missing) return null;
   const shown = visibleHints(hints, state);
@@ -45,7 +46,7 @@ export function HintPanel({ hints, state, onReveal, missing }: HintPanelProps) {
     <section
       aria-labelledby="hints-heading"
       data-testid="hint-panel"
-      className="rounded-lg border border-border-subtle bg-panel p-3"
+      className={cn("rounded-md border border-border-subtle bg-panel p-3", className)}
     >
       <div className="flex items-center justify-between gap-2">
         <h2
@@ -66,7 +67,9 @@ export function HintPanel({ hints, state, onReveal, missing }: HintPanelProps) {
 
       {missing ? (
         <p
-          className="mt-2 flex items-start gap-2 text-caption text-fg-muted"
+          role="status"
+          aria-live="polite"
+          className="mt-2 flex items-start gap-2 rounded-sm border border-border-subtle bg-surface px-2 py-1.5 text-caption text-fg-muted"
           data-testid="hint-missing"
         >
           <CircleDashed className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

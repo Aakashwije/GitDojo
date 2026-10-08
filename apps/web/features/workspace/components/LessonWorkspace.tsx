@@ -89,6 +89,12 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
         : { href: courseHref(course.slug), label: "Back to course" }
       : undefined;
 
+  // Phones show one panel at a time: the lesson panel can send the learner to the terminal.
+  const goToTerminal = useCallback(() => {
+    useEditorStore.getState().setView("terminal");
+    setTab("terminal");
+  }, []);
+
   const resetLesson = useCallback(async () => {
     useConflictEditorStore.getState().close();
     useEditorStore.getState().reset();
@@ -125,6 +131,7 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
             onPracticeAgain={() => void resetLesson()}
             content={content}
             onHintRevealed={recordHint}
+            onGoToTerminal={goToTerminal}
             className={cn(visibleOn("lesson"), "md:h-[480px] lg:h-auto")}
           />
           <WorkbenchPanel

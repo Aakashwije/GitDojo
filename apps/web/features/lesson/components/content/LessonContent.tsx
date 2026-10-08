@@ -13,6 +13,50 @@ export interface LessonContentProps {
   className?: string;
 }
 
+export interface ContentSection {
+  /** Anchor on the rendered section, so a lesson's own headings can be linked to. */
+  id: string;
+  title: string;
+}
+
+function slugify(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "section"
+  );
+}
+
+/** Callouts are asides rather than sections, and untitled blocks have nothing to link to. */
+function isSection(block: LessonContentBlock): boolean {
+  return block.title !== undefined && block.type !== "callout";
+}
+
+/** One anchor per block, in order; `undefined` where the block is not a linkable section. */
+function anchors(blocks: readonly LessonContentBlock[]): (string | undefined)[] {
+  const used = new Map<string, number>();
+  return blocks.map((block) => {
+    if (!isSection(block) || block.title === undefined) return undefined;
+    const base = slugify(block.title);
+    const seen = used.get(base) ?? 0;
+    used.set(base, seen + 1);
+    return seen === 0 ? base : `${base}-${String(seen + 1)}`;
+  });
+}
+
+/**
+ * The lesson's own headings, in order, with a unique anchor each. Derived from the authored block
+ * titles, so a reading page can offer "In this lesson" without any extra YAML.
+ */
+export function contentSections(blocks: readonly LessonContentBlock[]): ContentSection[] {
+  const ids = anchors(blocks);
+  return blocks.flatMap((block, index) => {
+    const id = ids[index];
+    return id !== undefined && block.title !== undefined ? [{ id, title: block.title }] : [];
+  });
+}
+
 function BlockBody({ block }: { block: LessonContentBlock }) {
   switch (block.type) {
     case "text":
@@ -41,21 +85,36 @@ function BlockBody({ block }: { block: LessonContentBlock }) {
 
 /** Explanations, diagrams, examples and demos authored in a lesson's `content`. */
 export function LessonContent({ blocks, headingLevel = 2, className }: LessonContentProps) {
+  const ids = anchors(blocks);
+
   return (
     <div className={cn("space-y-8", className)}>
-      {blocks.map((block, index) => (
-        <section key={index} data-block={block.type} className="space-y-3">
-          {/* Demos and callouts show their own titles. */}
-          {block.title && block.type !== "demo" && block.type !== "callout"
-            ? createElement(
-                `h${String(headingLevel)}`,
-                { className: "text-h4 font-semibold text-fg" },
-                block.title,
-              )
-            : null}
-          <BlockBody block={block} />
-        </section>
-      ))}
+      {blocks.map((block, index) => {
+        const id = ids[index];
+        return (
+          <section
+            key={index}
+            data-block={block.type}
+            className={cn("space-y-3", id !== undefined && "scroll-mt-20")}
+            {...(id === undefined ? {} : { id })}
+          >
+            {/* Demos and callouts show their own titles. */}
+            {block.title && block.type !== "demo" && block.type !== "callout"
+              ? createElement(
+                  `h${String(headingLevel)}`,
+                  {
+                    className: cn(
+                      "font-semibold text-fg",
+                      headingLevel === 2 ? "text-h4 sm:text-h3" : "text-h4",
+                    ),
+                  },
+                  block.title,
+                )
+              : null}
+            <BlockBody block={block} />
+          </section>
+        );
+      })}
     </div>
   );
 }
