@@ -98,8 +98,12 @@ const SCOPES = {
   ),
 };
 
-const owns = (scope, owner) =>
-  new RegExp(`^${owner.replace(/[().]/g, "\\$&").replaceAll("*", "[^/]+")}(/|$)`).test(scope);
+const owns = (scope, owner) => {
+  const escapedOwner = owner
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\\\*/g, "[^/]+");
+  return new RegExp(`^${escapedOwner}(/|$)`).test(scope);
+};
 
 function restrictions(scope) {
   const patterns = FACADES.filter(({ owners }) => !owners.some((owner) => owns(scope, owner))).map(
