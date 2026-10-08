@@ -2,7 +2,7 @@
 
 import { type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types";
 import { Button } from "@gitdojo/ui";
-import { ArrowRight, Check, CircleCheck } from "lucide-react";
+import { ArrowRight, Check, CircleCheck, Target } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 import {
@@ -20,7 +20,7 @@ import {
   XpAward,
 } from "@/features/progress";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { LessonContent } from "@/features/lesson";
+import { contentSections, LessonContent } from "@/features/lesson";
 import { renderInline, RichText } from "@/components/content/rich-text";
 
 /**
@@ -43,6 +43,10 @@ export function ConceptLesson({
     void recordProgress({ type: "visit-lesson", courseId, lessonId: lesson.id });
   }, [courseId, lesson.id]);
   const next = position?.next ?? null;
+  const blocks = lesson.content ?? [];
+  // "In this lesson" is worth it once there is enough to skim; it comes from the block titles.
+  const sections = contentSections(blocks);
+  const outline = sections.length >= 3 ? sections : [];
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -53,7 +57,8 @@ export function ConceptLesson({
             <div className="flex flex-wrap items-center gap-2">
               {position ? (
                 <span className="font-mono text-caption text-fg-muted">
-                  Lesson {formatLessonNumber(position.lesson.number)}
+                  Lesson {formatLessonNumber(position.lesson.number)} of{" "}
+                  {formatLessonNumber(course.lessons.length)}
                 </span>
               ) : null}
               <LessonTypeBadge type="concept" />
@@ -67,14 +72,46 @@ export function ConceptLesson({
               {lesson.title}
             </h1>
             {lesson.goal ? (
-              <p className="mt-3 text-body-lg text-fg-secondary">{renderInline(lesson.goal)}</p>
+              <p className="mt-4 flex gap-2.5 rounded-lg border border-border-subtle bg-panel p-4 text-body-lg text-fg">
+                <Target className="mt-1.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+                <span>
+                  <span className="sr-only">Goal: </span>
+                  {renderInline(lesson.goal)}
+                </span>
+              </p>
             ) : null}
             {lesson.description ? (
-              <RichText text={lesson.description} className="mt-4 text-body text-fg-secondary" />
+              <RichText text={lesson.description} className="mt-5 text-body text-fg-secondary" />
             ) : null}
           </header>
 
-          <LessonContent blocks={lesson.content ?? []} className="mt-10" />
+          {outline.length > 0 ? (
+            <nav aria-labelledby="lesson-outline-heading" className="mt-8" data-testid="in-lesson">
+              <h2
+                id="lesson-outline-heading"
+                className="text-micro font-semibold tracking-wider text-fg-muted uppercase"
+              >
+                In this lesson
+              </h2>
+              <ol className="mt-2 space-y-1 text-small">
+                {outline.map((section, index) => (
+                  <li key={section.id} className="flex gap-2">
+                    <span aria-hidden="true" className="font-mono text-caption text-fg-muted">
+                      {formatLessonNumber(index + 1)}
+                    </span>
+                    <Link
+                      href={`#${section.id}`}
+                      className="rounded-sm text-fg-secondary underline decoration-border-strong underline-offset-2 hover:text-fg hover:decoration-fg-muted"
+                    >
+                      {section.title}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          ) : null}
+
+          <LessonContent blocks={blocks} className="mt-10" />
         </article>
 
         <section
@@ -102,7 +139,12 @@ export function ConceptLesson({
             </>
           ) : (
             <>
-              <p className="text-small text-fg-secondary">Finished reading?</p>
+              <div>
+                <p className="text-small font-medium text-fg">Finished reading?</p>
+                <p className="mt-0.5 text-caption text-fg-muted">
+                  Marking it complete records your progress and XP for this lesson.
+                </p>
+              </div>
               <Button
                 variant="primary"
                 disabled={!hydrated}

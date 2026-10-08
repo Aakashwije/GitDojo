@@ -1,0 +1,19 @@
+# Course: Everyday Git
+# Lessons live in content/lessons/everyday-git/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: everyday-git
+slug: everyday-git
+title: Everyday Git
+
+description: >
+  The housekeeping commands you reach for every week: keeping generated files and secrets out of
+  the repository, renaming files, reading what a commit changed, and fixing the commit you just
+  made.
+
+difficulty: beginner
+order: 6
+
+lessons:
+  - gitignore
+  - git-mv
+  - git-show
+  - git-commit-amend

@@ -3,6 +3,7 @@ import { type LessonObjective } from "@gitdojo/shared-types";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { CurrentObjective } from "./CurrentObjective";
 import { HintPanel } from "./HintPanel";
 import { ObjectiveList } from "./ObjectiveList";
 import { RichText } from "@/components/content/rich-text";
@@ -31,6 +32,57 @@ describe("ObjectiveList", () => {
     expect(screen.getByTestId("objective-commit")).toHaveAttribute("data-state", "upcoming");
     expect(screen.getByText("(Completed)", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("1/3")).toBeInTheDocument();
+  });
+
+  it("numbers the steps and reports progress as a progress bar", () => {
+    render(
+      <ObjectiveList objectives={objectives} completedIds={["initialize"]} currentId="stage" />,
+    );
+    const progress = screen.getByRole("progressbar", { name: "Objectives completed" });
+    expect(progress).toHaveAttribute("aria-valuenow", "1");
+    expect(progress).toHaveAttribute("aria-valuemax", "3");
+    // The first objective is done, so only the remaining steps still show their number.
+    expect(screen.getByTestId("objective-stage")).toHaveTextContent("2");
+    expect(screen.getByTestId("objective-commit")).toHaveTextContent("3");
+  });
+
+  it("announces an objective that has just been completed", () => {
+    const { rerender } = render(
+      <ObjectiveList objectives={objectives} completedIds={[]} currentId="initialize" />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+
+    rerender(
+      <ObjectiveList objectives={objectives} completedIds={["initialize"]} currentId="stage" />,
+    );
+    expect(status).toHaveTextContent("Objective complete: Initialize the repository. 1 of 3 done.");
+  });
+});
+
+describe("CurrentObjective", () => {
+  it("names the step and offers the terminal on phones", async () => {
+    const onGoToTerminal = vi.fn();
+    render(
+      <CurrentObjective
+        description="Stage `README.md`."
+        number={2}
+        total={3}
+        onGoToTerminal={onGoToTerminal}
+      />,
+    );
+    const card = screen.getByTestId("current-objective");
+    expect(card).toHaveAccessibleName(/Your task now/);
+    expect(card).toHaveTextContent("Step 2 of 3");
+    expect(screen.getByText("README.md").tagName).toBe("CODE");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open the terminal" }));
+    expect(onGoToTerminal).toHaveBeenCalledOnce();
+  });
+
+  it("leaves out the terminal shortcut when there is nowhere to go", () => {
+    render(<CurrentObjective description="Commit." number={1} total={1} />);
+    expect(screen.queryByTestId("go-to-terminal")).not.toBeInTheDocument();
   });
 });
 

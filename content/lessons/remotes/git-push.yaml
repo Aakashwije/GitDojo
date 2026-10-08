@@ -1,0 +1,132 @@
+# Lesson: Push a Branch
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-push
+slug: git-push
+title: Push a Branch
+type: concept
+
+goal: Publish a local branch with `git push`, set its upstream, and read the message when a push is rejected.
+
+description: |
+  Pushing is the mirror image of fetching: it sends your commits to the remote and asks it to
+  move its branch to match yours.
+
+  The remote only agrees if that move is a **fast-forward** — if your branch already contains
+  everything the server has. That one rule explains every rejected push you will ever see.
+
+difficulty: intermediate
+
+concepts:
+  - push
+  - upstream
+  - remotes
+
+content:
+  - type: text
+    title: Publishing a branch for the first time
+    body: |
+      A new local branch exists only on your machine. `git push -u origin feature/search` does
+      three things:
+
+      - uploads the commits that `feature/search` has and `origin` does not
+      - creates `feature/search` on the server
+      - sets your branch's **upstream** to `origin/feature/search`, so later you can type just
+        `git push` and `git pull`
+
+      `-u` is short for `--set-upstream`. You only need it the first time.
+
+  - type: demo
+    title: What a successful push moves
+    steps:
+      - caption: >-
+          Two commits of yours are not on the server yet: `main` is two ahead of `origin/main`.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+            - { id: D, parent: C, message: Add unit toggle }
+          branches: { main: D, origin/main: B }
+          head: main
+      - caption: >-
+          The push uploads C and D, the server moves its `main`, and Git moves your `origin/main`
+          to match. Nothing about your commits changes — pushing never rewrites anything.
+        command: git push
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+            - { id: D, parent: C, message: Add unit toggle }
+          branches: { main: D, origin/main: D }
+          head: main
+
+  - type: example
+    title: A first push, with its upstream
+    command: git push -u origin feature/search
+    output: |
+      Enumerating objects: 7, done.
+      To https://github.com/acme/weather-app.git
+       * [new branch]      feature/search -> feature/search
+      branch 'feature/search' set up to track 'origin/feature/search'.
+    explanation: >-
+      `[new branch]` means the remote did not have it before. The last line is `-u` doing its
+      work: from now on `git push` on this branch knows where to go.
+
+  - type: example
+    title: A rejected push
+    command: git push
+    output: |
+      To https://github.com/acme/weather-app.git
+       ! [rejected]        main -> main (fetch first)
+      error: failed to push some refs to 'https://github.com/acme/weather-app.git'
+      hint: Updates were rejected because the remote contains work that you do
+      hint: not have locally. This is usually caused by another repository pushing
+      hint: to the same ref. You may want to first integrate the remote changes
+      hint: (e.g., 'git pull ...') before pushing again.
+    explanation: >-
+      Nothing is broken and nothing was lost. Someone pushed a commit you do not have, so moving
+      the server's `main` to yours would drop their work. Git refuses. Run `git pull` (or
+      `git fetch` then `git rebase origin/main`), then push again.
+
+  - type: comparison
+    title: Three ways out of a rejected push
+    columns:
+      - title: git pull
+        items:
+          - Merges their work into yours
+          - Adds a merge commit when both moved
+          - Always safe
+      - title: git pull --rebase
+        items:
+          - Replays your commits on top of theirs
+          - Keeps the history a straight line
+          - Fine while your commits are unpushed
+      - title: git push --force
+        items:
+          - Overwrites the remote branch
+          - Discards commits you do not have
+          - Almost never the right answer
+
+  - type: callout
+    tone: warning
+    title: Force pushing is how work gets lost
+    body: >-
+      `--force` tells the server to move its branch even though that throws commits away. If you
+      genuinely must rewrite a branch you own, use `--force-with-lease`: it refuses when the
+      remote has moved since you last fetched, which is exactly the case you were trying to avoid.
+
+  - type: text
+    title: Other everyday pushes
+    body: |
+      - `git push` — the current branch to its upstream
+      - `git push origin main` — a named branch to a named remote
+      - `git push --delete origin feature/old-nav` — delete a branch on the server
+      - `git push --tags` — publish your tags, which are not pushed by default
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's sandbox runs entirely in your browser, with no network and no server, so
+      `git push` is not available in the terminal. Everything the remote does when it accepts a
+      push, though, is just the fast-forward you have already practised in **Merging**.

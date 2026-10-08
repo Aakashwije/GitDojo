@@ -1,0 +1,115 @@
+# Lesson: Amend Your Last Commit
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-commit-amend
+slug: git-commit-amend
+title: Amend Your Last Commit
+type: concept
+
+goal: Correct a recent commit with `git commit --amend`, and know when it is safe to do so.
+
+description: |
+  You commit, and a second later you see it: a typo in the message, or a file you forgot to
+  stage. You could add a second commit called "oops", or you could fix the last one.
+
+  `git commit --amend` replaces the most recent commit with a new one. It is the tidiest way to
+  fix a mistake you have not shared yet.
+
+difficulty: intermediate
+
+concepts:
+  - amend
+  - commits
+  - history
+
+content:
+  - type: text
+    title: Amending replaces, it does not edit
+    body: |
+      Commits are immutable: their id is a hash of their contents, so changing anything changes
+      the id. `--amend` therefore does not edit the last commit. It builds a **new** commit from
+      the same parent, using the current staging area and the message you give it, and moves the
+      branch onto it.
+
+      The original commit is still in the repository for a while, reachable through
+      `git reflog`, but nothing points at it any more.
+
+  - type: demo
+    title: Fixing a forgotten file
+    steps:
+      - caption: >-
+          "Add login form" is committed, but `login.css` was never staged. It is still sitting in
+          the working tree.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+          branches: { main: C }
+          head: main
+      - caption: Stage the file that should have been part of it.
+        command: git add login.css
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add login form }
+          branches: { main: C }
+          head: main
+      - caption: >-
+          Amending builds a replacement commit, C', from the same parent B. `main` moves to it and
+          the history stays three commits long: no "oops" commit, no merge.
+        command: git commit --amend --no-edit
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C', parent: B, message: Add login form }
+          branches: { main: C' }
+          head: main
+
+  - type: comparison
+    title: The two jobs it does
+    columns:
+      - title: Fix the message
+        items:
+          - '`git commit --amend -m "Add login form"`'
+          - Nothing staged, so only the message changes
+          - Useful for typos and missing context
+      - title: Fix the contents
+        items:
+          - "`git add` the file, then `git commit --amend --no-edit`"
+          - "`--no-edit` keeps the existing message"
+          - Folds the forgotten change into the commit where it belongs
+
+  - type: example
+    title: What the reflog shows afterwards
+    command: git reflog
+    output: |
+      8d4c21e (HEAD -> main) HEAD@{0}: commit (amend): Add login form
+      3af09b7 HEAD@{1}: commit: Add login form
+      1b7e55c HEAD@{2}: commit: Add homepage
+    explanation: >-
+      Two entries, two different ids, the same message. `HEAD@{1}` is the commit you replaced, so
+      `git reset --hard HEAD@{1}` undoes the amend if you change your mind.
+
+  - type: callout
+    tone: warning
+    title: Only amend what you have not pushed
+    body: >-
+      Amending rewrites history. If the original commit is already on a shared branch, everyone
+      else still has it, and your branch and theirs have diverged. Push will be rejected, and
+      forcing it over their work is how teams lose commits. For a commit others already have,
+      add a new commit, or use `git revert`.
+
+  - type: callout
+    tone: tip
+    body: >-
+      `--amend` only ever touches the most recent commit. To fix something further back, reach
+      for `git rebase -i` (interactive rebase) or `git revert`.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's terminal does not accept `--amend` yet. The same shape of fix is covered
+      hands-on in **Undo and Recover**: `git reset --soft HEAD~1` puts the last commit's changes
+      back in the staging area, ready to be committed again with a better message.

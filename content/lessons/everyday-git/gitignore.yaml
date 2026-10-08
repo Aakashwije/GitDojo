@@ -1,0 +1,142 @@
+# Lesson: Ignore Files with .gitignore
+# Schema and authoring guide: docs/lesson-authoring.md
+id: gitignore
+slug: gitignore
+title: Ignore Files with .gitignore
+type: interactive
+
+goal: Keep generated files and secrets out of version control by listing them in `.gitignore`.
+
+description: |
+  Not everything in a project folder belongs in its history. Installed packages can be
+  reinstalled, logs are noise, and API keys must never be committed at all.
+
+  A `.gitignore` file lists the paths Git should pretend it cannot see. This repository has
+  collected a log file, a secrets file and a `node_modules` folder: teach Git to ignore all three.
+
+difficulty: beginner
+
+concepts:
+  - gitignore
+  - staging
+  - untracked-files
+
+commands:
+  - git status
+  - git add
+  - git commit
+
+content:
+  - type: text
+    title: One pattern per line
+    body: |
+      `.gitignore` is a plain text file in the project root. Each line is a pattern:
+
+      - `debug.log` ignores exactly that file
+      - `*.log` ignores every file ending in `.log`
+      - `node_modules/` ignores a whole folder, trailing slash and all
+      - `build/*.css` ignores CSS files in `build`, but nothing deeper
+      - `!keep.log` makes an exception to an earlier pattern
+
+      Blank lines are skipped and lines starting with `#` are comments.
+
+  - type: example
+    title: Before and after
+    command: git status
+    output: |
+      On branch main
+      Untracked files:
+        (use "git add <file>..." to include in what will be committed)
+      	.env
+      	debug.log
+      	node_modules/
+    explanation: >-
+      Once those three paths are listed in `.gitignore`, the same command reports
+      `nothing to commit, working tree clean`. Git has not deleted anything: the files are still
+      on disk, it has simply stopped offering them.
+
+  - type: comparison
+    title: Three states a file can be in
+    columns:
+      - title: Tracked
+        items:
+          - Git has it in a commit
+          - Changes show up as `modified`
+      - title: Untracked
+        items:
+          - Git can see it but has never recorded it
+          - Listed by `git status` every time
+      - title: Ignored
+        items:
+          - Matched by a pattern in `.gitignore`
+          - Never listed, never staged by `git add .`
+
+  - type: callout
+    tone: warning
+    title: Ignoring is not forgetting
+    body: >-
+      `.gitignore` only affects files Git is **not** already tracking. A secret that has already
+      been committed stays in the history until it is rewritten, so add the pattern before the
+      first commit, and rotate anything that leaked.
+
+  - type: callout
+    tone: tip
+    body: >-
+      Commit `.gitignore` itself. It is the one generated-file rule everyone on the team should
+      share, and it belongs to the project, not to your machine.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather App
+        src/app.js: |
+          export function start() {}
+  files:
+    debug.log: |
+      listening on port 3000
+    .env: |
+      WEATHER_API_KEY=ab12cd34
+    node_modules/left-pad/index.js: |
+      module.exports = () => {};
+
+objectives:
+  - id: create-ignore
+    description: Create a `.gitignore` file in the project root.
+    validator:
+      type: file_exists
+      file: .gitignore
+
+  - id: commit-ignore
+    description: Commit `.gitignore`, so the rules belong to the project.
+    validator:
+      type: file_committed
+      file: .gitignore
+
+  - id: secrets-safe
+    description: "`.env` is not tracked by Git."
+    validator:
+      type: file_not_tracked
+      file: .env
+
+  - id: clean
+    description: "`git status` is clean: the log, the secrets and `node_modules` are all ignored."
+    validator:
+      type: clean_worktree
+
+hints:
+  create-ignore:
+    - Git needs a list of the paths it should stop offering you.
+    - { level: 2, text: "Switch to the **Editor** tab and create a file named `.gitignore`." }
+  commit-ignore:
+    - The rules only reach your teammates once they are recorded in the repository.
+    - Stage the new file, then record it.
+    - Run `git add .gitignore` and then `git commit -m "Ignore logs, node_modules and .env"`.
+  secrets-safe:
+    - A key in the history is a leaked key. This one has never been committed; keep it that way.
+    - Add a line for `.env` to `.gitignore`.
+  clean:
+    - "`git status` still lists whatever Git can see and you have not committed."
+    - One pattern per line. A trailing slash ignores a folder, and `*.log` matches every log file.

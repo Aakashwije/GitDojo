@@ -1,0 +1,134 @@
+# Lesson: Pull Changes
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-pull
+slug: git-pull
+title: Pull Changes
+type: concept
+
+goal: Bring a remote's new commits into your current branch with `git pull`, and choose between merging and rebasing.
+
+description: |
+  `git pull` is two commands in one: a `git fetch`, then a `git merge` (or a `git rebase`) of the
+  upstream branch into the branch you are on.
+
+  That second half is the part that moves your files, so everything you know about merging —
+  fast-forwards, merge commits, conflicts — applies unchanged.
+
+difficulty: intermediate
+
+concepts:
+  - pull
+  - fetch
+  - merging
+  - rebase
+
+content:
+  - type: text
+    title: Pull is fetch plus integrate
+    body: |
+      Running `git pull` on `main` is equivalent to:
+
+      - `git fetch origin` — download and move `origin/main`
+      - `git merge origin/main` — join those commits into your `main`
+
+      If your branch has no commits of its own, the merge is a **fast-forward**: your `main` label
+      simply slides along to `origin/main`, with no merge commit. That is the quiet, everyday
+      case.
+
+  - type: demo
+    title: Pulling onto a branch that has moved too
+    steps:
+      - caption: >-
+          Your `main` has one commit the server does not; the server has one you do not. The
+          branches have diverged, and a fetch has already shown you both.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+            - { id: D, parent: B, message: Fix units in header }
+          branches: { main: C, origin/main: D }
+          head: main
+      - caption: >-
+          The default pull merges: it makes a merge commit M with both lines of work as parents,
+          and `main` moves onto it. Your commit keeps its id, and the history records that the two
+          happened in parallel.
+        command: git pull
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+            - { id: D, parent: B, message: Fix units in header }
+            - { id: M, parent: C, merge: D, message: "Merge branch 'main' of origin" }
+          branches: { main: M, origin/main: D }
+          head: main
+      - caption: >-
+          Back at the diverged state, `git pull --rebase` replays your commit on top of theirs
+          instead, as C'. One straight
+          line, no merge commit — and a new id for your commit, because it now has a different
+          parent.
+        command: git pull --rebase
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: D, parent: B, message: Fix units in header }
+            - { id: C', parent: D, message: Add forecast panel }
+          branches: { main: C', origin/main: D }
+          head: main
+
+  - type: comparison
+    title: Merge or rebase when pulling?
+    columns:
+      - title: git pull
+        items:
+          - Merges the upstream branch in
+          - Adds a merge commit when both sides moved
+          - History shows exactly what happened
+      - title: git pull --rebase
+        items:
+          - Replays your commits on top of theirs
+          - No merge commit, straight history
+          - Rewrites your unpushed commits
+      - title: git pull --ff-only
+        items:
+          - Refuses unless it is a clean fast-forward
+          - Stops and lets you decide
+          - The safest default for a shared branch
+
+  - type: example
+    title: An everyday fast-forward pull
+    command: git pull
+    output: |
+      From https://github.com/acme/weather-app
+         1b7e55c..8d4c21e  main       -> origin/main
+      Updating 1b7e55c..8d4c21e
+      Fast-forward
+       src/header.js | 4 ++--
+       1 file changed, 2 insertions(+), 2 deletions(-)
+    explanation: >-
+      The first two lines are the fetch; the rest is the merge. "Fast-forward" means your branch
+      had nothing of its own, so Git only had to move the label and update the files.
+
+  - type: callout
+    tone: warning
+    title: Pull with a dirty working tree
+    body: >-
+      If an incoming change touches a file you have edited but not committed, Git refuses to pull
+      rather than overwrite your work: **"Your local changes would be overwritten by merge."**
+      Commit the work, or shelve it with `git stash`, then pull and `git stash pop`.
+
+  - type: callout
+    tone: tip
+    body: >-
+      A pull can stop with a conflict, exactly like any merge, because that is all it is. Resolve
+      the files, `git add` them, and `git commit` — or `git merge --abort` to go back to how
+      things were.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's sandbox has no remote, so `git pull` is not available in the terminal — but its
+      second half is. **Merging** and **Merge Conflicts** have you do, hands-on, the exact work a
+      pull does once the download is finished.
