@@ -2,7 +2,7 @@ import { toCourseOutline } from "@gitdojo/lesson-engine";
 import { lessonTypeOf } from "@gitdojo/shared-types";
 import { type Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ConceptLesson } from "@/features/lesson/components/ConceptLesson";
+import { ConceptLesson } from "@/features/workspace/components/ConceptLesson";
 import { LessonWorkspace } from "@/features/workspace/components/LessonWorkspace";
 import { loadAllCourses, loadCourse } from "@/lib/lessons";
 

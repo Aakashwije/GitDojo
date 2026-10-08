@@ -1,6 +1,6 @@
 import { type Metadata } from "next";
 import { SiteHeader } from "@/components/site/site-header";
-import { Dashboard } from "@/features/progress/components/Dashboard";
+import { Dashboard } from "@/features/dashboard/components/Dashboard";
 import { loadProgressCatalog } from "@/lib/progress-catalog";
 
 export const metadata: Metadata = {

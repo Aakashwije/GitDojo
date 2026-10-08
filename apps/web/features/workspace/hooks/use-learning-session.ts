@@ -4,11 +4,10 @@ import { type CommandExecutionResult } from "@gitdojo/command-parser";
 import { type LessonEnvironment } from "@gitdojo/lesson-engine";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { explainOutcome } from "@/features/errors/services/explain-outcome";
-import { useExplanationStore } from "@/features/errors/state/use-explanation-store";
-import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
-import { recordCommand } from "@/features/progress/services/record-command";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { explainOutcome, useExplanationStore } from "@/features/errors";
+import { useLessonStore } from "@/features/lesson";
+import { recordCommand } from "@/features/progress";
+import { useRepositoryStore } from "@/features/repository";
 import { createBrowserLessonEnvironment } from "../services/browser-environment";
 import { LearningSession, type SessionSnapshot } from "../services/learning-session";
 

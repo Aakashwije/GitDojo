@@ -4,7 +4,7 @@ import { type ChallengeSummary } from "@gitdojo/shared-types";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useProgressStore } from "@/features/progress/state/use-progress-store";
+import { useProgressStore } from "@/features/progress";
 import { ChallengeBrowser } from "./components/ChallengeBrowser";
 import { describeMissing, nextChallenge } from "./services/challenge-navigation";
 

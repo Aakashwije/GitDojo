@@ -4,11 +4,10 @@ import { type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types
 import { SegmentedProgress } from "@gitdojo/ui";
 import Link from "next/link";
 import { LogoMark } from "@/components/site/logo";
-import { AccountControls } from "@/features/auth/components/AccountControls";
-import { CourseNavigationDialog } from "@/features/course/components/CourseNavigationDialog";
-import { type ChallengeContext } from "@/features/challenges/services/challenge-navigation";
-import { lessonNeighbors } from "@/features/course/services/course-navigation";
-import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
+import { AccountControls } from "@/features/auth";
+import { CourseNavigationDialog, lessonNeighbors } from "@/features/course";
+import type { ChallengeContext } from "@/features/challenges";
+import { useLessonStore } from "@/features/lesson";
 import { HelpDialog } from "./HelpDialog";
 import { ResetLessonButton } from "./ResetLessonDialog";
 

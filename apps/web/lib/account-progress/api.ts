@@ -1,16 +1,20 @@
-import { completionXp, indexLessons, type ProgressCatalog } from "@gitdojo/progress";
-import { type IdentityResult } from "@/lib/auth/identity";
+import { indexLessons, type ProgressCatalog } from "@gitdojo/progress";
+import { type VerifiedIdentity } from "@/lib/auth/identity";
 import { DatabaseNotConfiguredError } from "@/lib/db/client";
 import { isSameOriginRequest } from "@/lib/http/same-origin";
-import { type AccountProgressStore, type StoredCompletion } from "./store";
+import { type CompletionKind, type ProgressApiDeps, type StoredCompletion } from "./ports";
+import {
+  ProgressStepError,
+  readAccountProgress,
+  recordCompletion,
+  type RecordOutcome,
+} from "./service";
 
-/** Everything the progress endpoints depend on, injectable for tests. */
-export interface ProgressApiDeps {
-  verifyIdentity: () => Promise<IdentityResult>;
-  /** Throws {@link DatabaseNotConfiguredError} without `DATABASE_URL`. */
-  store: () => AccountProgressStore;
-  catalog: () => Promise<ProgressCatalog>;
-}
+/**
+ * The HTTP adapter for account progress: parses and checks requests, runs the use cases in
+ * `service.ts`, and maps their results and failures to responses. Route handlers in
+ * `app/api/progress` only wire this to the real dependencies (`deps.ts`).
+ */
 
 /** A completed lesson as the API returns it; metadata comes from the current content. */
 export interface CompletedLesson {
@@ -27,18 +31,28 @@ export interface ProgressResponse {
   /** Opaque and stable per account; the browser keys its local cache by it. */
   account: { id: string };
   completedLessons: CompletedLesson[];
-  completedChallenges: {
-    challengeId: string;
-    title: string | null;
-    xp: number;
-    completedAt: string;
-  }[];
+  completedChallenges: CompletedChallenge[];
   totalXp: number;
+}
+
+export interface CompletedChallenge {
+  challengeId: string;
+  /** Null when the challenge no longer exists in the content. */
+  title: string | null;
+  xp: number;
+  completedAt: string;
 }
 
 export interface RecordLessonResponse {
   lesson: CompletedLesson;
   /** True when the lesson had been completed before: nothing changed. */
+  alreadyCompleted: boolean;
+  totalXp: number;
+}
+
+export interface RecordChallengeResponse {
+  challenge: CompletedChallenge;
+  /** True when the challenge had been completed before: nothing changed. */
   alreadyCompleted: boolean;
   totalXp: number;
 }
@@ -64,26 +78,6 @@ const unauthenticated = () =>
 
 const identityUnavailable = () =>
   error(503, "identity_unavailable", "We couldn't confirm your sign-in. Try again shortly.");
-
-class ProgressStepError extends Error {
-  constructor(
-    readonly step: "database" | "catalog",
-    cause: unknown,
-  ) {
-    super("Progress dependency failed", { cause });
-  }
-}
-
-async function progressStep<T>(
-  step: "database" | "catalog",
-  operation: () => T | Promise<T>,
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (cause) {
-    throw new ProgressStepError(step, cause);
-  }
-}
 
 /** Database and other unexpected failures: a generic message, logged without details or data. */
 function failure(cause: unknown): Response {
@@ -120,20 +114,38 @@ function present(
   };
 }
 
-const sumXp = (completions: StoredCompletion[]) =>
-  completions.reduce((sum, completion) => sum + completion.xp, 0);
+function presentChallenge(
+  completion: StoredCompletion,
+  catalog: ProgressCatalog,
+): CompletedChallenge {
+  return {
+    challengeId: completion.lessonId,
+    title: catalog.challenges.find((item) => item.id === completion.lessonId)?.title ?? null,
+    xp: completion.xp,
+    completedAt: completion.completedAt.toISOString(),
+  };
+}
+
+/** The verified identity, or the response that refuses the request. */
+async function verify(
+  deps: ProgressApiDeps,
+): Promise<{ ok: true; identity: VerifiedIdentity } | { ok: false; response: Response }> {
+  const verified = await deps.verifyIdentity();
+  if (verified.status === "unauthenticated") return { ok: false, response: unauthenticated() };
+  if (verified.status === "unavailable") return { ok: false, response: identityUnavailable() };
+  return { ok: true, identity: verified.identity };
+}
 
 /** `GET /api/progress`: the signed-in learner's completed lessons and total XP. */
 export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
-  const verified = await deps.verifyIdentity();
-  if (verified.status === "unauthenticated") return unauthenticated();
-  if (verified.status === "unavailable") return identityUnavailable();
+  const verified = await verify(deps);
+  if (!verified.ok) return verified.response;
 
   try {
-    const [{ accountId, completions }, catalog] = await Promise.all([
-      progressStep("database", () => deps.store().read(verified.identity)),
-      progressStep("catalog", () => deps.catalog()),
-    ]);
+    const { accountId, completions, catalog, totalXp } = await readAccountProgress(
+      deps,
+      verified.identity,
+    );
     const lessons = indexLessons(catalog);
     const body: ProgressResponse = {
       account: { id: accountId },
@@ -142,13 +154,8 @@ export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
         .map((c) => present(c, lessons)),
       completedChallenges: completions
         .filter((c) => c.kind === "challenge")
-        .map((c) => ({
-          challengeId: c.lessonId,
-          title: catalog.challenges.find((item) => item.id === c.lessonId)?.title ?? null,
-          xp: c.xp,
-          completedAt: c.completedAt.toISOString(),
-        })),
-      totalXp: sumXp(completions),
+        .map((c) => presentChallenge(c, catalog)),
+      totalXp,
     };
     return json(body);
   } catch (cause) {
@@ -177,11 +184,12 @@ async function readBody(request: Request, limit: number): Promise<string | null>
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-type ParsedBody = { ok: true; lessonId: string } | { ok: false; response: Response };
+type ParsedBody = { ok: true; id: string } | { ok: false; response: Response };
 
+/** The content id from a record request's body: exactly `{ [field]: "<content-id>" }`. */
 async function parseRecordBody(
   request: Request,
-  field: "lessonId" | "challengeId" = "lessonId",
+  field: "lessonId" | "challengeId",
 ): Promise<ParsedBody> {
   const invalid = (status: number, code: string, message: string): ParsedBody => ({
     ok: false,
@@ -212,19 +220,74 @@ async function parseRecordBody(
       `Only ${field} may be sent; XP, ownership and timestamps are set by the server (got: ${unexpected.slice(0, 5).join(", ")}).`,
     );
   }
-  const lessonId = (body as Record<string, unknown>)[field];
-  if (
-    typeof lessonId !== "string" ||
-    lessonId.length > MAX_LESSON_ID_LENGTH ||
-    !LESSON_ID.test(lessonId)
-  ) {
+  const id = (body as Record<string, unknown>)[field];
+  if (typeof id !== "string" || id.length > MAX_LESSON_ID_LENGTH || !LESSON_ID.test(id)) {
     return invalid(
       400,
       `invalid_${field === "challengeId" ? "challenge" : "lesson"}_id`,
       `${field} must be a content id such as git-init.`,
     );
   }
-  return { ok: true, lessonId };
+  return { ok: true, id };
+}
+
+type Recorded = Extract<RecordOutcome, { status: "recorded" }>;
+
+/** How each completion kind appears in the HTTP API. Adding a completable kind starts in `service.ts`. */
+const RECORD_ENDPOINTS: Record<
+  CompletionKind,
+  {
+    field: "lessonId" | "challengeId";
+    unknown: { code: string; message: string };
+    present: (outcome: Recorded) => object;
+  }
+> = {
+  lesson: {
+    field: "lessonId",
+    unknown: { code: "unknown_lesson", message: "There is no lesson with that id." },
+    present: (outcome): RecordLessonResponse => ({
+      lesson: present(outcome.completion, indexLessons(outcome.catalog)),
+      alreadyCompleted: !outcome.created,
+      totalXp: outcome.totalXp,
+    }),
+  },
+  challenge: {
+    field: "challengeId",
+    unknown: { code: "unknown_challenge", message: "There is no challenge with that id." },
+    present: (outcome): RecordChallengeResponse => ({
+      challenge: presentChallenge(outcome.completion, outcome.catalog),
+      alreadyCompleted: !outcome.created,
+      totalXp: outcome.totalXp,
+    }),
+  },
+};
+
+async function recordCompletionRequest(
+  kind: CompletionKind,
+  request: Request,
+  deps: ProgressApiDeps,
+): Promise<Response> {
+  // Before anything else: a cross-site page must not be able to write with the learner's cookie.
+  if (!isSameOriginRequest(request.headers)) {
+    return error(403, "cross_origin", "Cross-origin requests are not allowed.");
+  }
+
+  const verified = await verify(deps);
+  if (!verified.ok) return verified.response;
+
+  const endpoint = RECORD_ENDPOINTS[kind];
+  const parsed = await parseRecordBody(request, endpoint.field);
+  if (!parsed.ok) return parsed.response;
+
+  try {
+    const outcome = await recordCompletion(deps, verified.identity, kind, parsed.id);
+    if (outcome.status === "unknown") {
+      return error(422, endpoint.unknown.code, endpoint.unknown.message);
+    }
+    return json(endpoint.present(outcome), outcome.created ? 201 : 200);
+  } catch (cause) {
+    return failure(cause);
+  }
 }
 
 /**
@@ -235,85 +298,17 @@ async function parseRecordBody(
  * This is learner-reported progress: the server checks that the lesson exists, not that its
  * exercises were solved.
  */
-export async function recordLessonCompletion(
-  request: Request,
-  deps: ProgressApiDeps,
-): Promise<Response> {
-  // Before anything else: a cross-site page must not be able to write with the learner's cookie.
-  if (!isSameOriginRequest(request.headers)) {
-    return error(403, "cross_origin", "Cross-origin requests are not allowed.");
-  }
-
-  const verified = await deps.verifyIdentity();
-  if (verified.status === "unauthenticated") return unauthenticated();
-  if (verified.status === "unavailable") return identityUnavailable();
-
-  const parsed = await parseRecordBody(request);
-  if (!parsed.ok) return parsed.response;
-
-  try {
-    const lessons = indexLessons(await progressStep("catalog", () => deps.catalog()));
-    const lesson = lessons.get(parsed.lessonId);
-    if (!lesson) return error(422, "unknown_lesson", "There is no lesson with that id.");
-
-    const result = await progressStep("database", () =>
-      deps.store().recordLesson(verified.identity, {
-        lessonId: lesson.id,
-        lessonType: lesson.type,
-        courseId: lesson.course?.id ?? null,
-        xp: completionXp({ kind: "lesson", id: lesson.id, type: lesson.type }),
-      }),
-    );
-    const body: RecordLessonResponse = {
-      lesson: present(result.completion, lessons),
-      alreadyCompleted: !result.created,
-      totalXp: sumXp(result.completions),
-    };
-    return json(body, result.created ? 201 : 200);
-  } catch (cause) {
-    return failure(cause);
-  }
+export function recordLessonCompletion(request: Request, deps: ProgressApiDeps): Promise<Response> {
+  return recordCompletionRequest("lesson", request, deps);
 }
 
-/** Records a standalone challenge, with ownership and XP determined on the server. */
-export async function recordChallengeCompletion(
+/**
+ * `POST /api/progress/challenges` with `{"challengeId": "..."}`: the same for a standalone
+ * challenge, with ownership and XP determined on the server.
+ */
+export function recordChallengeCompletion(
   request: Request,
   deps: ProgressApiDeps,
 ): Promise<Response> {
-  if (!isSameOriginRequest(request.headers))
-    return error(403, "cross_origin", "Cross-origin requests are not allowed.");
-  const verified = await deps.verifyIdentity();
-  if (verified.status === "unauthenticated") return unauthenticated();
-  if (verified.status === "unavailable") return identityUnavailable();
-  const parsed = await parseRecordBody(request, "challengeId");
-  if (!parsed.ok) return parsed.response;
-  try {
-    const catalog = await progressStep("catalog", () => deps.catalog());
-    const challenge = catalog.challenges.find((item) => item.id === parsed.lessonId);
-    if (!challenge) return error(422, "unknown_challenge", "There is no challenge with that id.");
-    const result = await progressStep("database", () =>
-      deps.store().recordLesson(verified.identity, {
-        kind: "challenge",
-        lessonId: challenge.id,
-        lessonType: "challenge",
-        courseId: null,
-        xp: completionXp({ kind: "challenge", id: challenge.id }),
-      }),
-    );
-    return json(
-      {
-        challenge: {
-          challengeId: challenge.id,
-          title: challenge.title,
-          xp: result.completion.xp,
-          completedAt: result.completion.completedAt.toISOString(),
-        },
-        alreadyCompleted: !result.created,
-        totalXp: sumXp(result.completions),
-      },
-      result.created ? 201 : 200,
-    );
-  } catch (cause) {
-    return failure(cause);
-  }
+  return recordCompletionRequest("challenge", request, deps);
 }

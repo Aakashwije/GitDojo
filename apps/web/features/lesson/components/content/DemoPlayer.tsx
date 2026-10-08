@@ -4,7 +4,7 @@ import { type DemoStep } from "@gitdojo/shared-types";
 import { Button, cn } from "@gitdojo/ui";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { renderInline } from "../RichText";
+import { renderInline } from "@/components/content/rich-text";
 import { LessonVisualView } from "./LessonVisualView";
 import { CommandLine } from "./ContentBlocks";
 

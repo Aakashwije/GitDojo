@@ -6,7 +6,7 @@ import { type LessonDefinition } from "@gitdojo/shared-types";
 import { Button } from "@gitdojo/ui";
 import { RotateCcw, Trophy } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { XpAward } from "@/features/progress/components/XpAward";
+import { XpAward } from "@/features/progress";
 import { useLessonStore } from "../state/use-lesson-store";
 
 /** "Solved without hints" / "3 hints used", for the completion card and dialog. */

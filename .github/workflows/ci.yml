@@ -56,8 +56,17 @@ jobs:
       - name: Typecheck
         if: matrix.check == 'typecheck'
         run: pnpm typecheck
+      # A Go that satisfies actionlint's `go` directive, so `go install` never auto-downloads a
+      # toolchain from golang.org (which can advertise versions it cannot serve yet).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: matrix.check == 'workflows'
+        with:
+          go-version: "1.25"
+          cache: false
       - name: Validate GitHub Actions workflows
         if: matrix.check == 'workflows'
+        env:
+          GOTOOLCHAIN: local
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)/bin/actionlint" -color

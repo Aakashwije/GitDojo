@@ -4,7 +4,7 @@ import { Badge, cn, IconButton, Tooltip } from "@gitdojo/ui";
 import { CircleAlert, FileCode, Lock, PanelLeft } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { useRepositoryStore } from "@/features/repository";
 import { EditorController, type WorkspaceFileActions } from "../services/editor-controller";
 import { languageForPath, languageLabel } from "../services/file-language";
 import { explorerFiles } from "../services/file-status";

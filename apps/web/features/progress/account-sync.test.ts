@@ -7,7 +7,7 @@ import {
 } from "@gitdojo/progress";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetAccountSessionForTests } from "@/features/auth/state/use-account-session";
+import { resetAccountSessionForTests } from "@/features/auth";
 import {
   initProgress,
   recordCompletion,

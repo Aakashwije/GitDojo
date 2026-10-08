@@ -12,7 +12,7 @@ import {
 } from "@gitdojo/ui";
 import { FolderGit2 } from "lucide-react";
 import { useState } from "react";
-import { renderInline } from "@/features/lesson/components/RichText";
+import { renderInline } from "@/components/content/rich-text";
 
 export interface ScenarioDialogProps {
   scenarios: readonly PlaygroundScenario[];

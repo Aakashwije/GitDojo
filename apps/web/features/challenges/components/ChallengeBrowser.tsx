@@ -4,7 +4,7 @@ import { type ChallengeCategoryInfo } from "@gitdojo/challenge-engine";
 import { type ChallengeSummary, type LessonDifficulty } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { useState } from "react";
-import { useCompletedChallenges } from "@/features/progress/state/use-progress-store";
+import { useCompletedChallenges } from "@/features/progress";
 import { isPlayable } from "../services/challenge-navigation";
 import { ChallengeCard } from "./ChallengeCard";
 

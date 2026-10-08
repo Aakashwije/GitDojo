@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { useRepositoryStore } from "@/features/repository";
 import { type WorkspaceFileActions } from "../services/editor-controller";
 import { useEditorStore } from "../state/use-editor-store";
 import { EditorView } from "./EditorView";

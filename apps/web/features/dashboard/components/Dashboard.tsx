@@ -26,12 +26,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { CourseProgressBar } from "@/features/course/components/CourseProgressBar";
-import { courseHref, lessonHref } from "@/features/course/services/course-navigation";
-import { challengeHref } from "@/features/challenges/services/challenge-navigation";
+import { courseHref, CourseProgressBar, lessonHref } from "@/features/course";
+import { challengeHref } from "@/features/challenges";
 import { formatRelativeTime, formatTimestamp } from "@/lib/time";
-import { useProgressStore } from "../state/use-progress-store";
-import { ProgressManagement } from "./ProgressManagement";
+import { ProgressManagement, useProgressStore } from "@/features/progress";
 
 /** True for a learner who has not done anything yet. */
 function isNewLearner(progress: LocalProgress): boolean {

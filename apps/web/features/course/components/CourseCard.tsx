@@ -10,7 +10,7 @@ import {
   lessonHref,
   nextLessonToStudy,
 } from "../services/course-navigation";
-import { useCompletedLessons } from "@/features/progress/state/use-progress-store";
+import { useCompletedLessons } from "@/features/progress";
 import { CourseProgressBar } from "./CourseProgressBar";
 
 export function CourseCard({ course }: { course: CourseOutline }) {

@@ -1,13 +1,13 @@
 import { type DemoGraph } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
-import { RefLabels } from "@/features/repository/components/RefLabels";
 import {
   assignLanes,
   laneColor,
   laneEdgePath,
   MERGE_COLOR,
+  RefLabels,
   tipsInLaneOrder,
-} from "@/features/repository/services/lanes";
+} from "@/features/repository";
 
 const ROW_HEIGHT = 36;
 const LANE_WIDTH = 22;

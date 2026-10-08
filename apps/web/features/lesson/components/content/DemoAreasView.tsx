@@ -1,6 +1,6 @@
 import { type DemoAreas, type DemoFile } from "@gitdojo/shared-types";
 import { Database, FileText, FolderOpen, Layers, type LucideIcon } from "lucide-react";
-import { GitStatusBadge } from "@/features/repository/components/GitStatusBadge";
+import { GitStatusBadge } from "@/features/repository";
 
 const AREAS: { key: keyof DemoAreas; title: string; icon: LucideIcon }[] = [
   { key: "workingTree", title: "Working Tree", icon: FolderOpen },

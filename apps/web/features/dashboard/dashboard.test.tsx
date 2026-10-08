@@ -16,7 +16,7 @@ import {
   recordProgress,
   resetProgressStoreForTests,
   useProgressStore,
-} from "./state/use-progress-store";
+} from "@/features/progress";
 
 const CATALOG: ProgressCatalog = {
   courses: [

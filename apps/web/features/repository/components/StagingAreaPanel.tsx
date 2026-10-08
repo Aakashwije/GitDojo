@@ -1,15 +1,19 @@
 "use client";
 
 import { Inbox, Layers } from "lucide-react";
-import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { EmptyState } from "./EmptyState";
 import { FileAreaPanel } from "./FileAreaPanel";
 import { FileRow } from "./FileRow";
 
-export function StagingAreaPanel({ className }: { className?: string }) {
+export interface StagingAreaPanelProps {
+  className?: string;
+  /** Opens a staged file; without it, rows are not clickable. Wired by the workspace. */
+  onOpenFile?: (path: string) => void;
+}
+
+export function StagingAreaPanel({ className, onOpenFile }: StagingAreaPanelProps) {
   const staged = useRepositoryStore((state) => state.repositoryState.stagedFiles);
-  const openFile = useEditorStore((state) => state.openFile);
 
   return (
     <FileAreaPanel
@@ -31,7 +35,7 @@ export function StagingAreaPanel({ className }: { className?: string }) {
               key={`${file.path}:${file.change ?? ""}`}
               file={file}
               animation="move-in"
-              onOpen={file.change === "deleted" ? undefined : openFile}
+              onOpen={file.change === "deleted" ? undefined : onOpenFile}
             />
           ))}
         </ul>

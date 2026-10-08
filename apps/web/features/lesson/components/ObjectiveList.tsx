@@ -1,7 +1,7 @@
 import { type LessonObjective } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { Circle, CircleCheck, CircleDot } from "lucide-react";
-import { renderInline } from "./RichText";
+import { renderInline } from "@/components/content/rich-text";
 
 export type ObjectiveState = "completed" | "current" | "upcoming";
 

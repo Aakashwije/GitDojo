@@ -2,8 +2,7 @@ import "server-only";
 
 import { readAuthConfig } from "./config";
 import { defaultSessionDeps, forgetProfile, type SessionDeps } from "./session";
-
-const USERINFO_TIMEOUT_MS = 5000;
+import { fetchUserInfo } from "./userinfo";
 
 /** Who the learner is, as verified by the identity provider. Server-side only. */
 export interface VerifiedIdentity {
@@ -77,20 +76,15 @@ export async function getVerifiedIdentity(deps?: SessionDeps): Promise<IdentityR
   if (typeof accessToken !== "string" || accessToken === "") return { status: "unauthenticated" };
 
   try {
-    const response = await resolved.fetch(`${config.baseUrl}/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
-      cache: "no-store",
-      // A slow provider must not hold the request open until the platform times it out.
-      signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
-    });
+    const userInfo = await fetchUserInfo(resolved.fetch, config.baseUrl, accessToken);
     // The provider no longer accepts the token: the session has ended.
-    if (response.status === 401 || response.status === 403) {
+    if (userInfo.status === "rejected") {
       forgetProfile(sessionId);
       return { status: "unauthenticated" };
     }
-    if (!response.ok) return { status: "unavailable" };
+    if (userInfo.status === "failed") return { status: "unavailable" };
 
-    const claims: unknown = await response.json();
+    const { claims } = userInfo;
     if (typeof claims !== "object" || claims === null) return { status: "unavailable" };
     const { sub, name, given_name, family_name, email } = claims as Record<string, unknown>;
     if (!validSubject(sub)) {

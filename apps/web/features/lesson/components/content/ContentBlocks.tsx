@@ -1,7 +1,7 @@
 import { type LessonContentBlock } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { Info, Lightbulb, TriangleAlert, type LucideIcon } from "lucide-react";
-import { renderInline, RichText } from "../RichText";
+import { renderInline, RichText } from "@/components/content/rich-text";
 
 type BlockOf<T extends LessonContentBlock["type"]> = Extract<LessonContentBlock, { type: T }>;
 

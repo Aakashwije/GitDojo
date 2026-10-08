@@ -3,34 +3,19 @@
 import { lessonTypeOf, type CourseOutline, type LessonDefinition } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  courseHref,
-  lessonHref,
-  lessonNeighbors,
-} from "@/features/course/services/course-navigation";
-import { ConflictBanner } from "@/features/conflicts/components/ConflictBanner";
-import { ConflictEditorDialog } from "@/features/conflicts/components/ConflictEditorDialog";
-import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
-import {
-  challengeHref,
-  type ChallengeContext,
-} from "@/features/challenges/services/challenge-navigation";
-import { type WorkspaceFileActions } from "@/features/editor/services/editor-controller";
-import { ErrorExplanation } from "@/features/errors/components/ErrorExplanation";
-import { useEditorStore } from "@/features/editor/state/use-editor-store";
-import { LessonCompleteDialog } from "@/features/lesson/components/LessonCompleteDialog";
-import { LessonPanel } from "@/features/lesson/components/LessonPanel";
-import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
-import { useLessonProgress } from "@/features/progress/hooks/use-lesson-progress";
-import { RepositoryGraphPanel } from "@/features/repository/components/RepositoryGraphPanel";
-import { RepositoryPanel } from "@/features/repository/components/RepositoryPanel";
-import { StagingAreaPanel } from "@/features/repository/components/StagingAreaPanel";
-import { WorkingTreePanel } from "@/features/repository/components/WorkingTreePanel";
-import { type TerminalHandle } from "@/features/terminal/hooks/use-terminal";
-import { createTerminalExecutor } from "@/features/terminal/services/terminal-executor";
+import { courseHref, lessonHref, lessonNeighbors } from "@/features/course";
+import { ConflictBanner, ConflictEditorDialog, useConflictEditorStore } from "@/features/conflicts";
+import { type ChallengeContext, challengeHref } from "@/features/challenges";
+import { useEditorStore, type WorkspaceFileActions } from "@/features/editor";
+import { ErrorExplanation } from "@/features/errors";
+import { LessonCompleteDialog, LessonPanel, useLessonStore } from "@/features/lesson";
+import { useLessonProgress } from "@/features/progress";
+import { RepositoryGraphPanel } from "@/features/repository";
+import { createTerminalExecutor, type TerminalHandle } from "@/features/terminal";
 import { useLearningSession } from "../hooks/use-learning-session";
 import { LESSON_TABS, MobileTabs, type WorkspaceTab } from "./MobileTabs";
 import { WorkspaceError } from "./WorkspaceError";
+import { WorkspaceFilePanels } from "./WorkspaceFilePanels";
 import { WorkbenchPanel } from "./WorkbenchPanel";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
@@ -164,9 +149,7 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
               "grid gap-3 md:col-span-2 md:grid-cols-3 lg:col-span-3 lg:min-h-0",
             )}
           >
-            <WorkingTreePanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
-            <StagingAreaPanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
-            <RepositoryPanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
+            <WorkspaceFilePanels />
           </div>
         </main>
       )}

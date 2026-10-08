@@ -3,7 +3,7 @@
 import { type MergeState } from "@gitdojo/shared-types";
 import { Button, cn } from "@gitdojo/ui";
 import { CircleCheck, FileWarning, TriangleAlert } from "lucide-react";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { useRepositoryStore } from "@/features/repository";
 import { useConflictEditorStore } from "../state/use-conflict-editor-store";
 
 const FINISH: Record<MergeState["kind"], string> = {
