@@ -16,7 +16,7 @@ accessibility review and the performance scenarios with their measurements.
 | `pnpm build`                              | Production build (also loads and validates all content)                                                             |
 | `pnpm test:e2e`                           | Build, then Playwright on desktop Chrome and a Pixel 7 profile, including axe accessibility scans                   |
 | `pnpm perf`                               | Stress scenarios in Node (weekly/manual CI; prints a timing table)                                                  |
-| `pnpm --filter @gitdojo/web perf:browser` | The commit-graph scenario in a real browser (needs a build, like e2e)                                               |
+| `pnpm --filter @gitdojo/web perf:browser` | The commit-graph and lesson-UI scenarios in a real browser (needs a build, like e2e)                                |
 
 Install a browser once before the first e2e run:
 `pnpm --filter @gitdojo/web exec playwright install chromium`.
@@ -111,11 +111,13 @@ animations are disabled under `prefers-reduced-motion`.
 
 ## Performance
 
-`apps/web/perf/scenarios.perf.ts` runs the hot paths at well beyond lesson size and checks the
-results are still correct (ordering, the latest edit saved, counts). Each scenario also has a
-budget (`BUDGETS_MS` in the file; 2 s for the browser's command → graph update, 1 s for selecting
-a commit), set at roughly 10–30× the timings below so that only order-of-magnitude regressions
-fail, not slower CI machines. CI runs them weekly and on request. Measured on an Apple Silicon laptop, Node 24, `fake-indexeddb`;
+`apps/web/perf/scenarios.perf.ts` runs the engine's hot paths at well beyond lesson size, and
+`apps/web/perf/lesson-ui.perf.tsx` renders the lesson UI at the same scale (it opts into jsdom with
+a `@vitest-environment` comment; the rest run in Node). Both check the results are still correct
+(ordering, the latest edit saved, counts, the announcement text) and share the harness in
+`apps/web/perf/harness.ts`, where every budget lives in `BUDGETS_MS` (2 s for the browser's
+command → graph update, 1 s for selecting a commit). Budgets are roughly 10–30× the timings below,
+so only order-of-magnitude regressions fail, not slower CI machines. CI runs them weekly and on request. Measured on an Apple Silicon laptop, Node 24, `fake-indexeddb`;
 "Before" is the same scenario before the fixes described below:
 
 | Scenario                              | Size                             | Before (ms) | After (ms) |
@@ -139,6 +141,23 @@ fail, not slower CI machines. CI runs them weekly and on request. Measured on an
 | Progress updates, each awaited        | 200 updates                      |          14 |         14 |
 | Progress updates, burst               | 1000 updates                     |         0.7 |        0.7 |
 
+The lesson UI, rendered in jsdom at the same size as the YAML parsing scenario. Lesson content is
+authored and validated in CI, so it never grows the way a learner's repository does; these guard
+the parts whose cost is proportional to content, or to how often a lesson re-renders:
+
+| Scenario                           | Size                             |   ms |
+| ---------------------------------- | -------------------------------- | ---: |
+| Lesson outline from content blocks | 400 blocks                       |  0.4 |
+| Render lesson content              | 400 blocks, 80 diffs of 21 lines |  221 |
+| Render objectives                  | 60 objectives                    |    9 |
+| Advance every objective in turn    | 60 completions                   |  460 |
+| Step through a demo                | 50 steps, 11 files each          | 1223 |
+
+"Render lesson content" covers the per-line elements that let example output colour added and
+removed lines. "Advance every objective in turn" re-renders the list once per command, the way the
+workspace does, so a render loop or an O(n²) completion announcement blows the budget instead of
+failing silently.
+
 `git add .` scaling, before → after: 125 files 143 → 75 ms, 250 files 223 → 93 ms, 500 files
 567 → 201 ms, 1000 files 1411 → 541 ms.
 
@@ -151,6 +170,19 @@ a command to its commit being drawn in the graph:
 | Command → graph updated | 100 commits |    98 |
 | Command → graph updated | 150 commits |   108 |
 | Select a commit         | 50–150      | 12–31 |
+
+And the lesson UI (`perf/lesson-ui.pw.ts`), on the same build:
+
+| Browser scenario              | Size             |  ms |
+| ----------------------------- | ---------------- | --: |
+| Open a concept lesson         | 6 sections       | 142 |
+| Jump to a section             | 6 sections       |  81 |
+| Demo step → visual updated    | worst of 4 steps |  39 |
+| Command → objective completed | 3 objectives     | 122 |
+| Reveal a hint                 | 3 objectives     |  30 |
+
+"Command → objective completed" is the one that matters: from pressing Enter to the objective
+showing as done and the task card moving on to the next step.
 
 ### Bottlenecks fixed
 
