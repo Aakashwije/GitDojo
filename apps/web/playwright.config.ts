@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { REQUIRED_AUTH_ENV, SESSION_SECRET_ENV } from "./lib/auth/config";
 
 const PORT = Number(process.env.PORT ?? 3100);
 const baseURL = `http://localhost:${String(PORT)}`;
@@ -19,10 +20,23 @@ export const e2eDatabaseUrl = process.env.E2E_DATABASE_URL?.trim() ?? "";
 
 const ACCOUNT_SPECS = ["auth-flow.spec.ts", "account-progress.spec.ts"];
 
+/**
+ * Blanks every variable that would switch accounts or the database on, so the default server is
+ * the unconfigured build `auth.spec.ts` describes even on a developer machine that has real
+ * credentials in `.env.local`. Next only applies a `.env` value to a variable that is not
+ * already set, and an empty string counts as set, so these win.
+ */
+const WITHOUT_ACCOUNTS: Record<string, string> = {
+  ...Object.fromEntries(REQUIRED_AUTH_ENV.map((name) => [name, ""])),
+  [SESSION_SECRET_ENV]: "",
+  DATABASE_URL: "",
+};
+
 /** The production server most tests run against (no accounts configured, as in CI). */
 export const appServer = {
   command: `pnpm exec next start --port ${String(PORT)}`,
   url: baseURL,
+  env: WITHOUT_ACCOUNTS,
   reuseExistingServer: !process.env.CI,
   timeout: 120_000,
 };
