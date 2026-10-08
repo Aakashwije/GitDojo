@@ -99,9 +99,7 @@ const SCOPES = {
 };
 
 const owns = (scope, owner) => {
-  const escapedOwner = owner
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\\\*/g, "[^/]+");
+  const escapedOwner = owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, "[^/]+");
   return new RegExp(`^${escapedOwner}(/|$)`).test(scope);
 };
 
