@@ -17,7 +17,7 @@ import {
 } from "@gitdojo/progress";
 import { useMemo } from "react";
 import { create } from "zustand";
-import { loadAccountSession, useAccountSession } from "@/features/auth/state/use-account-session";
+import { loadAccountSession, useAccountSession } from "@/features/auth";
 import {
   fetchAccountProgress,
   uploadLessonCompletion,

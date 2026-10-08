@@ -17,6 +17,39 @@ type GitHandler = (
   context: CommandExecutionContext,
 ) => Promise<GitCommandResult>;
 
+type StashHandler = (
+  parsed: ParsedCommand,
+  /** The stash entry (`stash@{1}`) or pathspec after the subcommand. */
+  reference: string | undefined,
+  context: CommandExecutionContext,
+) => Promise<GitCommandResult>;
+
+const pushStash: StashHandler = (parsed, reference, { git }) => {
+  if (reference !== undefined) {
+    return invalidArgument("fatal: GitDojo stashes all changes; pathspecs are not supported");
+  }
+  const message = parsed.flags.m;
+  return git.stashPush({
+    ...(typeof message === "string" ? { message } : {}),
+    includeUntracked: parsed.flags.u === true,
+  });
+};
+
+/** `git stash <subcommand>`; a bare `git stash` is `push`. */
+const stashSubcommands = {
+  push: pushStash,
+  save: pushStash,
+  list: (_parsed, _reference, { git }) => git.stashList(),
+  apply: (_parsed, reference, { git }) => git.stashApply(reference),
+  pop: (_parsed, reference, { git }) => git.stashApply(reference, { pop: true }),
+  drop: (_parsed, reference, { git }) => git.stashDrop(reference),
+  show: (_parsed, reference, { git }) => git.stashShow(reference),
+} satisfies Record<string, StashHandler>;
+
+function isStashSubcommand(name: string): name is keyof typeof stashSubcommands {
+  return Object.hasOwn(stashSubcommands, name);
+}
+
 const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
   init: (_parsed, { git }) => git.init(),
   status: (_parsed, { git }) => git.status(),
@@ -120,35 +153,15 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
     if (action) return git.sequencer("cherry-pick", action);
     return git.cherryPick(parsed.args[0] ?? "");
   },
-  stash: (parsed, { git }) => {
+  stash: (parsed, context) => {
     const [first, reference] = parsed.args;
     const subcommand = first ?? "push";
-    const message = parsed.flags.m;
-    switch (subcommand) {
-      case "push":
-      case "save":
-        if (reference !== undefined) {
-          return invalidArgument("fatal: GitDojo stashes all changes; pathspecs are not supported");
-        }
-        return git.stashPush({
-          ...(typeof message === "string" ? { message } : {}),
-          includeUntracked: parsed.flags.u === true,
-        });
-      case "list":
-        return git.stashList();
-      case "apply":
-        return git.stashApply(reference);
-      case "pop":
-        return git.stashApply(reference, { pop: true });
-      case "drop":
-        return git.stashDrop(reference);
-      case "show":
-        return git.stashShow(reference);
-      default:
-        return invalidArgument(
-          `error: unknown subcommand: \`${subcommand}'\nusage: ${GIT_COMMAND_SPECS.stash.usage}`,
-        );
+    if (!isStashSubcommand(subcommand)) {
+      return invalidArgument(
+        `error: unknown subcommand: \`${subcommand}'\nusage: ${GIT_COMMAND_SPECS.stash.usage}`,
+      );
     }
+    return stashSubcommands[subcommand](parsed, reference, context);
   },
   reflog: (parsed, { git }) => {
     const [first, second] = parsed.args;

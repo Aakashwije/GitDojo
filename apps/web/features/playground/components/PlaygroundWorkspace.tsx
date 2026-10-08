@@ -13,24 +13,20 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogoMark } from "@/components/site/logo";
-import { AccountControls } from "@/features/auth/components/AccountControls";
-import { ConflictBanner } from "@/features/conflicts/components/ConflictBanner";
-import { ConflictEditorDialog } from "@/features/conflicts/components/ConflictEditorDialog";
-import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
-import { EditorPanel } from "@/features/editor/components/EditorPanel";
-import { ErrorExplanation } from "@/features/errors/components/ErrorExplanation";
-import { useEditorStore } from "@/features/editor/state/use-editor-store";
-import { RepositoryGraphPanel } from "@/features/repository/components/RepositoryGraphPanel";
-import { RepositoryPanel } from "@/features/repository/components/RepositoryPanel";
-import { StagingAreaPanel } from "@/features/repository/components/StagingAreaPanel";
-import { WorkingTreePanel } from "@/features/repository/components/WorkingTreePanel";
-import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
-import { type TerminalHandle } from "@/features/terminal/hooks/use-terminal";
-import { createTerminalExecutor } from "@/features/terminal/services/terminal-executor";
-import { HelpDialog } from "@/features/workspace/components/HelpDialog";
-import { MobileTabs, type MobileTab } from "@/features/workspace/components/MobileTabs";
-import { ResetLessonButton } from "@/features/workspace/components/ResetLessonDialog";
-import { WorkspaceError } from "@/features/workspace/components/WorkspaceError";
+import { AccountControls } from "@/features/auth";
+import { ConflictBanner, ConflictEditorDialog, useConflictEditorStore } from "@/features/conflicts";
+import { EditorPanel, useEditorStore } from "@/features/editor";
+import { ErrorExplanation } from "@/features/errors";
+import { RepositoryGraphPanel } from "@/features/repository";
+import { createTerminalExecutor, type TerminalHandle, TerminalPanel } from "@/features/terminal";
+import {
+  HelpDialog,
+  type MobileTab,
+  MobileTabs,
+  ResetLessonButton,
+  WorkspaceError,
+  WorkspaceFilePanels,
+} from "@/features/workspace";
 import { usePlaygroundSession } from "../hooks/use-playground-session";
 import { usePlaygroundStore } from "../state/use-playground-store";
 import { ScenarioDialog } from "./ScenarioDialog";
@@ -197,9 +193,7 @@ export function PlaygroundWorkspace({ scenarios }: { scenarios: PlaygroundScenar
               "grid gap-3 md:col-span-2 md:grid-cols-3 lg:col-span-3 lg:min-h-0",
             )}
           >
-            <WorkingTreePanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
-            <StagingAreaPanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
-            <RepositoryPanel className="max-md:min-h-40 md:h-[240px] lg:h-auto" />
+            <WorkspaceFilePanels />
           </div>
         </main>
       )}

@@ -5,23 +5,23 @@ import { Button } from "@gitdojo/ui";
 import { ArrowRight, Check, CircleCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
-import { LessonPager } from "@/features/course/components/LessonPager";
-import { LessonTypeBadge } from "@/features/course/components/LessonTypeBadge";
 import {
   courseHref,
   formatLessonNumber,
   lessonHref,
   lessonNeighbors,
-} from "@/features/course/services/course-navigation";
-import { XpAward } from "@/features/progress/components/XpAward";
+  LessonPager,
+  LessonTypeBadge,
+} from "@/features/course";
 import {
   recordCompletion,
   recordProgress,
   useCompletedLessons,
-} from "@/features/progress/state/use-progress-store";
-import { WorkspaceTopbar } from "@/features/workspace/components/WorkspaceTopbar";
-import { LessonContent } from "./content/LessonContent";
-import { renderInline, RichText } from "./RichText";
+  XpAward,
+} from "@/features/progress";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { LessonContent } from "@/features/lesson";
+import { renderInline, RichText } from "@/components/content/rich-text";
 
 /**
  * A concept lesson: explanations, diagrams and step-through demos in a reading layout, with no

@@ -3,7 +3,7 @@ import { type Hint, type HintLevel, type HintState } from "@gitdojo/shared-types
 import { Badge, Button, type BadgeProps } from "@gitdojo/ui";
 import { CircleDashed, Lightbulb } from "lucide-react";
 import { useState } from "react";
-import { renderInline } from "./RichText";
+import { renderInline } from "@/components/content/rich-text";
 
 export interface HintPanelProps {
   hints: readonly Hint[];

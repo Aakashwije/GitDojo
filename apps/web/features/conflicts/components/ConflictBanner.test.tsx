@@ -1,7 +1,7 @@
 import { EMPTY_REPOSITORY_STATE, type MergeState } from "@gitdojo/shared-types";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { useRepositoryStore } from "@/features/repository";
 import { ConflictBanner } from "./ConflictBanner";
 
 function show(merge: MergeState, resolved: boolean) {

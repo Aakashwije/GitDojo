@@ -12,7 +12,7 @@ import { promisify } from "node:util";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { getProgress, recordChallengeCompletion, recordLessonCompletion } from "./api";
-import { createPostgresProgressStore, insertCompletion, upsertUser } from "./store";
+import { createPostgresProgressStore, insertCompletion, upsertUser } from "./postgres-store";
 import { ADA, ADA_ELSEWHERE, apiDeps, GRACE, postLesson } from "./testing";
 
 vi.mock("server-only", () => ({}));

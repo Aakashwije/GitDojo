@@ -12,8 +12,8 @@ import { createRepositoryStateReader } from "@gitdojo/repository-state";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useLessonStore } from "@/features/lesson/state/use-lesson-store";
-import { useLearningSession } from "@/features/workspace/hooks/use-learning-session";
+import { useLessonStore } from "@/features/lesson";
+import { useLearningSession } from "@/features/workspace";
 import { ProgressStatusNotice } from "./components/ProgressProvider";
 import { useLessonProgress } from "./hooks/use-lesson-progress";
 import {

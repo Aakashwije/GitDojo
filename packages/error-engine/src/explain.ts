@@ -1,4 +1,4 @@
-import { GIT_COMMAND_SPECS, tokenize } from "@gitdojo/command-parser";
+import { GIT_COMMAND_SPECS, tokenize, type CommandErrorCode } from "@gitdojo/command-parser";
 import { type GitEducationalError, type RepositoryState } from "@gitdojo/shared-types";
 import { closestMatches } from "./suggest";
 
@@ -576,75 +576,67 @@ const EXPLANATIONS: Record<EducationalCode, (ctx: Context) => Explanation> = {
   }),
 };
 
+type ErrorMapping = EducationalCode | ((output: string) => EducationalCode | null) | null;
+
+/**
+ * Which explanation each engine or parser error code gets: one entry per code, so a new code
+ * does not compile until it is given an explanation (or `null`, for "nothing to add").
+ */
+const ERROR_CODE_EXPLANATIONS: Record<CommandErrorCode, ErrorMapping> = {
+  NOT_A_REPOSITORY: "NOT_A_REPOSITORY",
+  NOTHING_TO_COMMIT: "NOTHING_TO_COMMIT",
+  BRANCH_NOT_FOUND: "UNKNOWN_BRANCH",
+  CHECKOUT_CONFLICT: "UNSTAGED_CHANGES",
+  LOCAL_CHANGES: "UNSTAGED_CHANGES",
+  MERGE_CONFLICT: "MERGE_CONFLICT",
+  NOT_FAST_FORWARD: "NON_FAST_FORWARD",
+  INVALID_REVISION: "INVALID_COMMIT",
+  BRANCH_EXISTS: "BRANCH_ALREADY_EXISTS",
+  FILE_NOT_FOUND: "PATH_NOT_FOUND",
+  UNRESOLVED_CONFLICTS: "UNRESOLVED_CONFLICTS",
+  MERGE_IN_PROGRESS: "OPERATION_IN_PROGRESS",
+  OPERATION_IN_PROGRESS: "OPERATION_IN_PROGRESS",
+  NO_MERGE: "NO_OPERATION",
+  NO_OPERATION: "NO_OPERATION",
+  NO_COMMITS: "NO_COMMITS_YET",
+  INVALID_BRANCH_NAME: "INVALID_BRANCH_NAME",
+  BRANCH_NOT_MERGED: "BRANCH_NOT_MERGED",
+  BRANCH_CHECKED_OUT: "BRANCH_CHECKED_OUT",
+  NO_STASH: "NO_STASH",
+  EMPTY_COMMIT: "EMPTY_COMMIT",
+  UNMERGED_PATH: "UNMERGED_PATH",
+  NOT_ON_BRANCH: "NOT_ON_BRANCH",
+  // One engine code for many argument problems: the output says which.
+  INVALID_ARGUMENT: (output) => {
+    if (output.includes("commit message is required")) return "COMMIT_MESSAGE_REQUIRED";
+    if (output.startsWith("Nothing specified") || output.includes("you must specify path")) {
+      return "NOTHING_SPECIFIED";
+    }
+    if (output.includes("is outside repository")) return "PATH_NOT_FOUND";
+    return null;
+  },
+  UNSUPPORTED_PROGRAM: "COMMAND_NOT_FOUND",
+  UNSUPPORTED_GIT_COMMAND: "UNKNOWN_GIT_COMMAND",
+  UNKNOWN_FLAG: "UNSUPPORTED_OPTION",
+  MISSING_FLAG_VALUE: "MISSING_VALUE",
+  UNEXPECTED_ARGUMENT: "TOO_MANY_ARGUMENTS",
+  MALFORMED_QUOTES: "UNCLOSED_QUOTE",
+  EMPTY_COMMAND: null,
+  MISSING_GIT_COMMAND: null,
+  MISSING_REQUIRED_FLAG: null,
+  UNKNOWN: null,
+  INTERNAL: null,
+};
+
+function isCommandErrorCode(code: string | undefined): code is CommandErrorCode {
+  return code !== undefined && Object.hasOwn(ERROR_CODE_EXPLANATIONS, code);
+}
+
 /** Maps an engine or parser error code (plus the output) to the explanation to show. */
-function educationalCode(input: ExplainInput): EducationalCode | null {
-  const { errorCode, output } = input;
-  switch (errorCode) {
-    case "NOT_A_REPOSITORY":
-      return "NOT_A_REPOSITORY";
-    case "NOTHING_TO_COMMIT":
-      return "NOTHING_TO_COMMIT";
-    case "BRANCH_NOT_FOUND":
-      return "UNKNOWN_BRANCH";
-    case "CHECKOUT_CONFLICT":
-    case "LOCAL_CHANGES":
-      return "UNSTAGED_CHANGES";
-    case "MERGE_CONFLICT":
-      return "MERGE_CONFLICT";
-    case "NOT_FAST_FORWARD":
-      return "NON_FAST_FORWARD";
-    case "INVALID_REVISION":
-      return "INVALID_COMMIT";
-    case "BRANCH_EXISTS":
-      return "BRANCH_ALREADY_EXISTS";
-    case "FILE_NOT_FOUND":
-      return "PATH_NOT_FOUND";
-    case "UNRESOLVED_CONFLICTS":
-      return "UNRESOLVED_CONFLICTS";
-    case "MERGE_IN_PROGRESS":
-    case "OPERATION_IN_PROGRESS":
-      return "OPERATION_IN_PROGRESS";
-    case "NO_MERGE":
-    case "NO_OPERATION":
-      return "NO_OPERATION";
-    case "NO_COMMITS":
-      return "NO_COMMITS_YET";
-    case "INVALID_BRANCH_NAME":
-      return "INVALID_BRANCH_NAME";
-    case "BRANCH_NOT_MERGED":
-      return "BRANCH_NOT_MERGED";
-    case "BRANCH_CHECKED_OUT":
-      return "BRANCH_CHECKED_OUT";
-    case "NO_STASH":
-      return "NO_STASH";
-    case "EMPTY_COMMIT":
-      return "EMPTY_COMMIT";
-    case "UNMERGED_PATH":
-      return "UNMERGED_PATH";
-    case "NOT_ON_BRANCH":
-      return "NOT_ON_BRANCH";
-    case "INVALID_ARGUMENT":
-      if (output.includes("commit message is required")) return "COMMIT_MESSAGE_REQUIRED";
-      if (output.startsWith("Nothing specified") || output.includes("you must specify path")) {
-        return "NOTHING_SPECIFIED";
-      }
-      if (output.includes("is outside repository")) return "PATH_NOT_FOUND";
-      return null;
-    case "UNSUPPORTED_PROGRAM":
-      return "COMMAND_NOT_FOUND";
-    case "UNSUPPORTED_GIT_COMMAND":
-      return "UNKNOWN_GIT_COMMAND";
-    case "UNKNOWN_FLAG":
-      return "UNSUPPORTED_OPTION";
-    case "MISSING_FLAG_VALUE":
-      return "MISSING_VALUE";
-    case "UNEXPECTED_ARGUMENT":
-      return "TOO_MANY_ARGUMENTS";
-    case "MALFORMED_QUOTES":
-      return "UNCLOSED_QUOTE";
-    default:
-      return null;
-  }
+function educationalCode({ errorCode, output }: ExplainInput): EducationalCode | null {
+  if (!isCommandErrorCode(errorCode)) return null;
+  const mapping = ERROR_CODE_EXPLANATIONS[errorCode];
+  return typeof mapping === "function" ? mapping(output) : mapping;
 }
 
 /** Notices for commands that worked but deserve a word, e.g. entering a detached HEAD. */

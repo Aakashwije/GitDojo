@@ -28,6 +28,18 @@ export default tseslint.config(
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
       "no-empty": ["error", { allowEmptyCatch: false }],
       "no-console": ["warn", { allow: ["warn", "error"] }],
+      // Facade: GitEngine (@gitdojo/git-engine) is the only code that talks to isomorphic-git.
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["isomorphic-git", "@isomorphic-git/*"],
+              message: "Only @gitdojo/git-engine talks to isomorphic-git: use its GitEngine.",
+            },
+          ],
+        },
+      ],
     },
   },
   prettier,

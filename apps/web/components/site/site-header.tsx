@@ -1,6 +1,6 @@
 import { Button } from "@gitdojo/ui";
 import Link from "next/link";
-import { AccountControls } from "@/features/auth/components/AccountControls";
+import { AccountControls } from "@/features/auth";
 import { SITE } from "@/lib/site";
 import { GitHubIcon } from "./github-icon";
 import { Logo } from "./logo";

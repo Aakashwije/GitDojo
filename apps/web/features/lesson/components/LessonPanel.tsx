@@ -5,17 +5,13 @@ import { type ContentRef } from "@gitdojo/progress";
 import { lessonTypeOf, type LessonDefinition } from "@gitdojo/shared-types";
 import { Badge, cn, Panel, PanelBody, PanelFooter, PanelHeader, PanelTitle } from "@gitdojo/ui";
 import { BookOpen, Flag } from "lucide-react";
-import { LessonPager } from "@/features/course/components/LessonPager";
-import {
-  formatLessonNumber,
-  type LessonNeighbors,
-} from "@/features/course/services/course-navigation";
+import { formatLessonNumber, type LessonNeighbors, LessonPager } from "@/features/course";
 import { useLessonStore } from "../state/use-lesson-store";
 import { CompletionCard } from "./CompletionCard";
 import { LessonContent } from "./content/LessonContent";
 import { HintPanel } from "./HintPanel";
 import { ObjectiveList } from "./ObjectiveList";
-import { renderInline, RichText } from "./RichText";
+import { renderInline, RichText } from "@/components/content/rich-text";
 
 export interface LessonPanelProps {
   lesson: LessonDefinition;

@@ -2,8 +2,6 @@
 
 import { Button } from "@gitdojo/ui";
 import { CircleCheck, FolderOpen } from "lucide-react";
-import { useConflictEditorStore } from "@/features/conflicts/state/use-conflict-editor-store";
-import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { EmptyState } from "./EmptyState";
 import { FileAreaPanel } from "./FileAreaPanel";
@@ -11,10 +9,25 @@ import { FileRow } from "./FileRow";
 
 const UNSTAGED_STATUSES = new Set(["conflicted", "untracked", "modified", "deleted"]);
 
-export function WorkingTreePanel({ className }: { className?: string }) {
+export interface WorkingTreePanelProps {
+  className?: string;
+  /** Opens a changed file; without it, rows are not clickable. Wired by the workspace. */
+  onOpenFile?: (path: string) => void;
+  /** Starts resolving a conflicted file; without it, no "Resolve" action is offered. */
+  onResolveConflict?: (path: string) => void;
+}
+
+/**
+ * Files changed in the working tree. The panel only reads repository state: what opening a file
+ * or resolving a conflict does is passed in, so the repository feature never depends on the
+ * editor or conflict features.
+ */
+export function WorkingTreePanel({
+  className,
+  onOpenFile,
+  onResolveConflict,
+}: WorkingTreePanelProps) {
   const repository = useRepositoryStore((state) => state.repositoryState);
-  const openConflict = useConflictEditorStore((state) => state.open);
-  const openFile = useEditorStore((state) => state.openFile);
   const changed = repository.files.filter((file) => UNSTAGED_STATUSES.has(file.status));
 
   return (
@@ -37,15 +50,15 @@ export function WorkingTreePanel({ className }: { className?: string }) {
               key={`${file.path}:${file.status}`}
               file={file}
               animation="enter"
-              onOpen={file.status === "deleted" ? undefined : openFile}
+              onOpen={file.status === "deleted" ? undefined : onOpenFile}
               action={
-                file.status === "conflicted" ? (
+                file.status === "conflicted" && onResolveConflict ? (
                   <Button
                     size="sm"
                     variant="ghost"
                     className="h-6 px-2 text-danger"
                     onClick={() => {
-                      openConflict(file.path);
+                      onResolveConflict(file.path);
                     }}
                   >
                     Resolve

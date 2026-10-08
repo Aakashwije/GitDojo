@@ -1,7 +1,7 @@
 import { type LessonContentBlock } from "@gitdojo/shared-types";
 import { cn } from "@gitdojo/ui";
 import { createElement } from "react";
-import { renderInline, RichText } from "../RichText";
+import { renderInline, RichText } from "@/components/content/rich-text";
 import { CalloutBlock, ComparisonBlock, ExampleBlock } from "./ContentBlocks";
 import { DemoPlayer } from "./DemoPlayer";
 import { LessonVisualView } from "./LessonVisualView";

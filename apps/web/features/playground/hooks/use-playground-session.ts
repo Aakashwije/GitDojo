@@ -4,14 +4,11 @@ import { type CommandExecutionResult } from "@gitdojo/command-parser";
 import { type LessonEnvironment } from "@gitdojo/lesson-engine";
 import { type PlaygroundScenario } from "@gitdojo/shared-types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type WorkspaceFileActions } from "@/features/editor/services/editor-controller";
-import { useEditorStore } from "@/features/editor/state/use-editor-store";
-import { explainOutcome } from "@/features/errors/services/explain-outcome";
-import { useExplanationStore } from "@/features/errors/state/use-explanation-store";
-import { recordCommand } from "@/features/progress/services/record-command";
-import { recordProgress } from "@/features/progress/state/use-progress-store";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
-import { createBrowserLessonEnvironment } from "@/features/workspace/services/browser-environment";
+import { useEditorStore, type WorkspaceFileActions } from "@/features/editor";
+import { explainOutcome, useExplanationStore } from "@/features/errors";
+import { recordCommand, recordProgress } from "@/features/progress";
+import { useRepositoryStore } from "@/features/repository";
+import { createBrowserLessonEnvironment } from "@/features/workspace";
 import {
   NEW_REPOSITORY_SETUP,
   PlaygroundSession,

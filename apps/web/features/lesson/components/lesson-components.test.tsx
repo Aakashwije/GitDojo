@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { HintPanel } from "./HintPanel";
 import { ObjectiveList } from "./ObjectiveList";
-import { RichText } from "./RichText";
+import { RichText } from "@/components/content/rich-text";
 
 const objectives: LessonObjective[] = [
   {

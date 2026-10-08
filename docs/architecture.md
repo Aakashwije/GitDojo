@@ -189,6 +189,111 @@ libraries.
    validators pass; command usage is counted from what the router actually ran
    (`CommandExecutionResult.gitCommand`), never by matching the typed line.
 
+## Design patterns
+
+GitDojo is a **modular monolith**: one deployable app, split into packages and features with
+explicit public APIs and one-way dependencies. Five patterns carry it, and each is applied the
+same way everywhere. Rules marked **(lint)** are enforced by ESLint (`apps/web/eslint.config.js`,
+`packages/config/eslint/base.js`), so a violation fails CI.
+
+### 1. Ports and adapters (server)
+
+Use cases depend on interfaces (ports); infrastructure implements them (adapters); a composition
+root wires the two. Account progress is the reference layout:
+
+```text
+lib/account-progress/
+├── ports.ts            AccountProgressStore, ProgressApiDeps, domain types   (no I/O)
+├── service.ts          use cases: readAccountProgress, recordCompletion        (no HTTP, no SQL)
+├── api.ts              HTTP adapter: parse and check requests, map results to responses
+├── postgres-store.ts   PostgreSQL adapter for AccountProgressStore            (all the SQL)
+├── deps.ts             composition root: the real identity provider, database and catalog
+└── testing.ts          test adapters: in-memory store, fixed identity and catalog
+```
+
+Route handlers in `app/api/**` only call an `api.ts` function with `deps()`. The same split holds
+elsewhere: `lib/health.ts` (HTTP) over `lib/db/probe.ts` (database), and `lib/auth/session.ts` /
+`identity.ts` over the `SessionDeps` port and the `lib/auth/userinfo.ts` adapter.
+
+**Adding a server feature:** write `ports.ts` first, then the use cases against it, then the
+adapters. Tests use in-memory adapters; only `*.db.test.ts` touches PostgreSQL.
+
+### 2. Pipeline (learner actions)
+
+Every learner action — a command, a file save, a reset — goes through `WorkspaceSession`: parse →
+route → GitEngine → read state → validate → progress (see [The core loop](#the-core-loop)).
+Only `features/workspace/services` imports `@gitdojo/git-engine`, `@gitdojo/repository-state`
+and `@gitdojo/validator` at runtime **(lint)**, so nothing can change the repository without the
+state, validation and progress being recomputed. New behavior plugs in as a stage, or as a
+subscriber to the session's snapshot, never as a side channel.
+
+### 3. Command + reducer (state changes)
+
+State changes are described as data and applied by a pure function. Progress is the reference:
+`ProgressAction` + `applyProgressAction` (`@gitdojo/progress`); actions, not snapshots, are
+saved, so a stale tab can never overwrite newer progress. The server mirrors this: a completion
+is recorded once (`ON CONFLICT DO NOTHING`), so retries and duplicates are harmless. A reducer
+`switch` over an action union is the one place a `switch` is preferred to a registry: the action
+shapes differ, and TypeScript checks it is exhaustive.
+
+### 4. Registry / strategy (extension points)
+
+Where the set of things grows — validators, Git commands, `git stash` subcommands, error
+explanations, completion kinds — behavior lives in a typed table keyed by name, and adding one
+means adding an entry, not editing a `switch`. Tables are typed `Record<Union, Handler>` so a new
+union member does not compile until it has an entry:
+
+| Registry                                     | Key                    | Adding one                   |
+| -------------------------------------------- | ---------------------- | ---------------------------- |
+| `validatorRegistry` (`@gitdojo/validator`)   | `ValidatorType`        | a file in `src/validators/`  |
+| `GIT_COMMAND_SPECS` + `gitHandlers` (router) | `SupportedGitCommand`  | a spec, then a handler       |
+| `stashSubcommands` (router)                  | `git stash` subcommand | an entry                     |
+| `ERROR_CODE_EXPLANATIONS` + `EXPLANATIONS`   | `CommandErrorCode`     | a mapping and an explanation |
+| `COMPLETION_KINDS` / `RECORD_ENDPOINTS`      | `CompletionKind`       | a resolver and an endpoint   |
+| `HINT_LEVELS`, `CHALLENGE_CATEGORIES`        | level / category       | an entry                     |
+
+### 5. Facade (third-party code)
+
+Each third-party SDK is imported in one place, so replacing or upgrading it touches one module
+**(lint)**:
+
+| Dependency                    | Only imported by                                                           |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `isomorphic-git`, LightningFS | `@gitdojo/git-engine` (`GitEngine`)                                        |
+| `postgres`                    | `lib/db/`, `lib/account-progress/postgres-store.ts`                        |
+| `@asgardeo/nextjs`            | `lib/auth/`, `features/auth/services/`, `proxy.ts`, `(account)/layout.tsx` |
+| `zustand`                     | `features/*/state/`                                                        |
+| `@xyflow/react`               | `features/repository/`                                                     |
+| `@xterm/*`                    | `features/terminal/`                                                       |
+| `monaco-editor`               | `features/editor/`                                                         |
+
+### Module boundaries
+
+- **Public API only (lint).** A feature is imported only through its `index.ts`
+  (`@/features/<name>`); inside a feature, use relative imports. Packages expose one entry
+  through `package.json#exports`.
+- **One-way layers (lint).** A feature may import only features in a **lower** layer, so the
+  dependency graph cannot have a cycle:
+
+  | Layer | Features                                      |
+  | ----- | --------------------------------------------- |
+  | 5     | `playground`                                  |
+  | 4     | `workspace`, `dashboard` (page shells)        |
+  | 3     | `lesson`, `errors`                            |
+  | 2     | `course`, `challenges`, `editor`, `conflicts` |
+  | 1     | `progress`, `repository`, `terminal`          |
+  | 0     | `auth`                                        |
+
+  When a lower feature needs to trigger something in a higher one, invert the dependency: the
+  repository panels take `onOpenFile` / `onResolveConflict` callbacks, and the workspace
+  (`WorkspaceFilePanels`) wires them to the editor and conflict editor.
+
+- **Server code imports only types from features (lint).** `lib/` may share a feature's types
+  (the API contract), never its browser code.
+- **Routes are the composition root.** `app/**` server components import a page's entry
+  component by path, so the server never loads a feature's browser-only modules through its
+  barrel. Shared, dependency-free UI lives in `components/` (e.g. `components/content/rich-text`).
+
 ## Safety model
 
 - **No real shell.** Unsupported programs (`ls`, `rm`, ...) are rejected by the parser with
@@ -235,12 +340,13 @@ work without any configuration. Headers learn the account state from `/api/auth/
 validates the session on the server. `proxy.ts` refreshes sessions and guards `/account` on
 account routes only. Signing in never reads or changes anonymous local progress.
 
-With `DATABASE_URL` set, `GET /api/progress` and `POST /api/progress/lessons` store signed-in
-learners' lesson completions in PostgreSQL ([account-progress.md](./account-progress.md)). The
+With `DATABASE_URL` set, `GET /api/progress`, `POST /api/progress/lessons` and
+`POST /api/progress/challenges` store signed-in learners' completions in PostgreSQL ([account-progress.md](./account-progress.md)). The
 account is identified by the provider's OIDC `sub` from the userinfo endpoint, namespaced by
 issuer; XP and lesson metadata come from the content catalog on the server. Route handlers stay
-thin: `lib/auth/identity.ts` verifies the learner, `lib/account-progress/` holds the endpoint
-logic and SQL, and `lib/db/client.ts` the connection pool (settings in `lib/db/connection.mjs`).
+thin: `lib/auth/identity.ts` verifies the learner, `lib/account-progress/` holds the use cases,
+HTTP adapter and SQL adapter (see [Ports and adapters](#1-ports-and-adapters-server)), and
+`lib/db/client.ts` the connection pool (settings in `lib/db/connection.mjs`).
 In the browser, `ProgressProvider` shows a signed-in learner's account progress (cached per
 account in IndexedDB, separate from anonymous progress) and uploads first completions. Releases
 and hosting: [deployment.md](./deployment.md).
@@ -252,8 +358,8 @@ apps/web/
 ├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo,
 │                               /playground, /challenges, /challenges/[slug], /dashboard,
 │                               (account)/: /sign-in, /sign-up, /account, /auth/*; /api/auth/session
-├── components/                 site chrome and landing page
-├── features/
+├── components/                 site chrome, landing page, shared content (RichText)
+├── features/                   each with an index.ts public API; layers in "Module boundaries"
 │   ├── terminal/               xterm host, line editor, history, output highlighting
 │   ├── repository/             graph (React Flow), working tree / staging / repository panels
 │   ├── challenges/             challenge browser, cards, navigation
@@ -261,12 +367,16 @@ apps/web/
 │   ├── editor/                 Monaco editor, file explorer, tabs, EditorController
 │   ├── errors/                 "Why did this happen?" explanation panel
 │   ├── course/                 course outline and navigation
-│   ├── progress/               progress store, ProgressProvider, dashboard, lesson tracking hook
+│   ├── progress/               progress store, ProgressProvider, XP award, lesson tracking hook
+│   ├── dashboard/              the dashboard page (progress, courses and challenges together)
 │   ├── auth/                   account controls, sign-in/up/out components, session store
-│   ├── lesson/                 lesson panel, objectives, hints, completion, concept content
+│   ├── lesson/                 lesson panel, objectives, hints, completion, lesson content
 │   ├── playground/             PlaygroundSession, scenario picker, playground layout
-│   └── workspace/              WorkspaceSession, LearningSession, browser environment, layout
+│   └── workspace/              WorkspaceSession, LearningSession, browser environment, layouts
+│                               (lesson workspace, concept lessons, file panels)
+├── lib/account-progress/       ports, use cases, HTTP adapter, PostgreSQL adapter, composition root
 ├── lib/auth/                   auth config, return-path validation, server session (SDK boundary)
+├── lib/db/                     connection pool, migrations metadata, health probe
 ├── proxy.ts                    session refresh and /account guard (account routes only)
 ├── e2e/                        Playwright tests (desktop + mobile), axe scans, mock identity provider
 └── perf/                       stress scenarios (`pnpm perf`, `pnpm perf:browser`)

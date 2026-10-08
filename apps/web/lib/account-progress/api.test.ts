@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { DatabaseNotConfiguredError } from "@/lib/db/client";
-import { getProgress, recordLessonCompletion, type ProgressApiDeps } from "./api";
+import { getProgress, recordLessonCompletion } from "./api";
+import { type ProgressApiDeps } from "./ports";
 import {
   ADA,
   ADA_ELSEWHERE,
@@ -22,7 +23,7 @@ const errorCode = async (response: Response) =>
 function failingStore(cause: Error): ProgressApiDeps["store"] {
   return () => ({
     read: () => Promise.reject(cause),
-    recordLesson: () => Promise.reject(cause),
+    recordCompletion: () => Promise.reject(cause),
   });
 }
 

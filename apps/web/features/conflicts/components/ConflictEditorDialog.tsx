@@ -12,7 +12,7 @@ import {
 } from "@gitdojo/ui";
 import { CircleCheck, Save, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useRepositoryStore } from "@/features/repository/state/use-repository-store";
+import { useRepositoryStore } from "@/features/repository";
 import { countConflictBlocks, hasMarkerLines } from "../services/conflict-lines";
 import { useConflictEditorStore } from "../state/use-conflict-editor-store";
 import { ConflictTextEditor } from "./ConflictTextEditor";

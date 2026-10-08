@@ -4,7 +4,7 @@ import {
   type PlaygroundScenario,
   type RepositoryState,
 } from "@gitdojo/shared-types";
-import { WorkspaceSession } from "@/features/workspace/services/workspace-session";
+import { WorkspaceSession } from "@/features/workspace";
 
 export const PLAYGROUND_WORKSPACE = "playground";
 

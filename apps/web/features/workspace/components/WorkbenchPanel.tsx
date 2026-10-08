@@ -3,17 +3,19 @@
 import { cn, Panel, PanelHeader } from "@gitdojo/ui";
 import { FileCode, SquareTerminal, type LucideIcon } from "lucide-react";
 import { useEffect, type ReactNode, type RefObject } from "react";
-import { EditorView } from "@/features/editor/components/EditorView";
-import { type WorkspaceFileActions } from "@/features/editor/services/editor-controller";
 import {
+  EditorView,
   isDirty,
   useEditorStore,
   type WorkbenchView,
-} from "@/features/editor/state/use-editor-store";
-import { Terminal } from "@/features/terminal/components/Terminal";
-import { TerminalActions } from "@/features/terminal/components/TerminalPanel";
-import { type TerminalHandle } from "@/features/terminal/hooks/use-terminal";
-import { type TerminalExecutor } from "@/features/terminal/services/terminal-executor";
+  type WorkspaceFileActions,
+} from "@/features/editor";
+import {
+  Terminal,
+  TerminalActions,
+  type TerminalExecutor,
+  type TerminalHandle,
+} from "@/features/terminal";
 
 export interface WorkbenchPanelProps {
   executor: TerminalExecutor;

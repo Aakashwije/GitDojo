@@ -10,7 +10,7 @@ import {
 } from "@gitdojo/ui";
 import { ArrowRight, Trophy } from "lucide-react";
 import Link from "next/link";
-import { XpAward } from "@/features/progress/components/XpAward";
+import { XpAward } from "@/features/progress";
 import { HintSummary } from "./CompletionCard";
 
 export interface LessonCompleteDialogProps {

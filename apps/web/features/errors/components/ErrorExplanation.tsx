@@ -3,8 +3,8 @@
 import { Button, cn, IconButton } from "@gitdojo/ui";
 import { ArrowUpRight, ChevronDown, CircleHelp, Info, X } from "lucide-react";
 import Link from "next/link";
-import { lessonHref } from "@/features/course/services/course-navigation";
-import { renderInline } from "@/features/lesson/components/RichText";
+import { lessonHref } from "@/features/course";
+import { renderInline } from "@/components/content/rich-text";
 import { useExplanationStore } from "../state/use-explanation-store";
 
 /**

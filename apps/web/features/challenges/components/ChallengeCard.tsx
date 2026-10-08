@@ -4,7 +4,7 @@ import { type ChallengeSummary } from "@gitdojo/shared-types";
 import { Badge, Button, cn } from "@gitdojo/ui";
 import { ArrowRight, CircleCheck, Lock } from "lucide-react";
 import Link from "next/link";
-import { renderInline } from "@/features/lesson/components/RichText";
+import { renderInline } from "@/components/content/rich-text";
 import { challengeHref, describeMissing, isPlayable } from "../services/challenge-navigation";
 
 export function ChallengeCard({

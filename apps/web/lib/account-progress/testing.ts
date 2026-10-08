@@ -1,8 +1,7 @@
 // Shared fixtures for the account progress tests. Test use only.
 import { type ProgressCatalog } from "@gitdojo/progress";
 import { type IdentityResult, type VerifiedIdentity } from "@/lib/auth/identity";
-import { type ProgressApiDeps } from "./api";
-import { type AccountProgressStore, type StoredCompletion } from "./store";
+import { type AccountProgressStore, type ProgressApiDeps, type StoredCompletion } from "./ports";
 
 export const CATALOG: ProgressCatalog = {
   courses: [
@@ -74,7 +73,7 @@ export function createMemoryProgressStore(): AccountProgressStore & {
         completions: [...userRows(identity).values()],
       });
     },
-    recordLesson(identity, completion) {
+    recordCompletion(identity, completion) {
       const user = userRows(identity);
       const key = `${completion.kind ?? "lesson"}:${completion.lessonId}`;
       const existing = user.get(key);

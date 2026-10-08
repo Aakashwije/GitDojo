@@ -1,49 +1,9 @@
 import { type LessonType } from "@gitdojo/shared-types";
 import type postgres from "postgres";
 import { type VerifiedIdentity } from "@/lib/auth/identity";
+import { type AccountProgressStore, type NewCompletion, type StoredCompletion } from "./ports";
 
-/** One lesson an account has completed, as stored. */
-export interface StoredCompletion {
-  kind?: "challenge";
-  lessonId: string;
-  lessonType: LessonType;
-  courseId: string | null;
-  xp: number;
-  /** The first completion. */
-  completedAt: Date;
-}
-
-/** A completion to record. Everything here is computed by the server from the content catalog. */
-export interface NewCompletion {
-  kind?: "challenge";
-  lessonId: string;
-  lessonType: LessonType;
-  courseId: string | null;
-  xp: number;
-}
-
-export interface AccountRecords {
-  /** The internal user id. The browser uses it only to keep each account's cache separate. */
-  accountId: string;
-  completions: StoredCompletion[];
-}
-
-export interface RecordResult {
-  /** False when the lesson was already completed: nothing changed and no XP was added. */
-  created: boolean;
-  completion: StoredCompletion;
-  /** Every completion of the account, after this one. */
-  completions: StoredCompletion[];
-}
-
-/**
- * Account progress storage. Every call is scoped by a verified identity, never by an id from
- * the request, so one learner can never read or write another's records.
- */
-export interface AccountProgressStore {
-  read(identity: VerifiedIdentity): Promise<AccountRecords>;
-  recordLesson(identity: VerifiedIdentity, completion: NewCompletion): Promise<RecordResult>;
-}
+// The PostgreSQL adapter for the AccountProgressStore port. All SQL for account progress is here.
 
 type Queryable = postgres.Sql | postgres.TransactionSql;
 
@@ -163,7 +123,7 @@ export function createPostgresProgressStore(sql: postgres.Sql): AccountProgressS
         return { accountId, completions: await listCompletions(tx, accountId) };
       });
     },
-    async recordLesson(identity, completion) {
+    async recordCompletion(identity, completion) {
       return sql.begin(async (tx) => {
         const userId = await upsertUser(tx, identity);
         const result = await insertCompletion(tx, userId, completion);

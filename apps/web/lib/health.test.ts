@@ -4,7 +4,11 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DatabaseNotConfiguredError, type Database } from "@/lib/db/client";
 import { LATEST_MIGRATION } from "@/lib/db/schema";
-import { getHealth } from "./health";
+import { probeDatabase } from "@/lib/db/probe";
+import { getHealth as getHealthFor } from "./health";
+
+/** The health endpoint over the real database probe, with a fake connection. */
+const getHealth = (database: () => Database) => getHealthFor(() => probeDatabase(database));
 
 vi.mock("server-only", () => ({}));
 

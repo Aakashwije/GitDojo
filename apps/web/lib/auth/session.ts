@@ -1,12 +1,14 @@
 import "server-only";
 
 import { asgardeo } from "@asgardeo/nextjs/server";
-import { type AccountSession, type AccountUser } from "@/features/auth/types";
+import type { AccountSession, AccountUser } from "@/features/auth";
 import { readAuthConfig, type AuthConfig } from "./config";
+import { fetchUserInfo } from "./userinfo";
 
-const USERINFO_TIMEOUT_MS = 5000;
-
-/** The SDK session boundary, injectable so tests stay deterministic. */
+/**
+ * The session port: the SDK boundary, injectable so tests stay deterministic. `defaultSessionDeps`
+ * is the one adapter that binds it to `@asgardeo/nextjs`.
+ */
 export interface SessionDeps {
   config: AuthConfig;
   /** The session id from the signed session cookie, verified (signature and expiry) by the SDK. */
@@ -100,24 +102,17 @@ export async function getAccountSession(
     }
 
     const accessToken = await resolved.getAccessToken(sessionId);
-    // The standard OIDC userinfo endpoint: needs only the openid/profile/email scopes.
-    const response = await resolved.fetch(`${config.baseUrl}/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
-      cache: "no-store",
-      // A slow provider must not hold the request open until the platform times it out.
-      signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
-    });
+    const userInfo = await fetchUserInfo(resolved.fetch, config.baseUrl, accessToken);
     // A revoked or expired token: the session is no longer usable.
-    if (response.status === 401 || response.status === 403) return { status: "signed-out" };
-    const user = response.ok
-      ? toAccountUser((await response.json()) as UserInfo)
-      : toAccountUser({});
+    if (userInfo.status === "rejected") return { status: "signed-out" };
+    const user = toAccountUser(userInfo.status === "ok" ? (userInfo.claims as UserInfo) : {});
 
     if (profiles.size >= MAX_CACHED) {
       const oldest = profiles.keys().next().value;
       if (oldest !== undefined) profiles.delete(oldest);
     }
-    if (response.ok) profiles.set(sessionId, { user, expires: Date.now() + PROFILE_TTL_MS });
+    if (userInfo.status === "ok")
+      profiles.set(sessionId, { user, expires: Date.now() + PROFILE_TTL_MS });
     return { status: "signed-in", user };
   } catch (error) {
     console.warn(
