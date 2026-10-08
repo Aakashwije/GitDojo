@@ -1,0 +1,114 @@
+# Lesson: Fetch Updates from a Remote
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-fetch
+slug: git-fetch
+title: Fetch Updates from a Remote
+type: concept
+
+goal: Download remote history with `git fetch` without changing a single file in your working tree.
+
+description: |
+  `git fetch` is the safest command in Git. It asks the remote what it has, downloads anything
+  new, and moves your remote-tracking branches to match.
+
+  What it never does is touch your branch, your working tree or your staging area. Fetching can
+  surprise you with information, never with changes.
+
+difficulty: intermediate
+
+concepts:
+  - fetch
+  - remotes
+  - remote-tracking-branches
+
+content:
+  - type: demo
+    title: Fetching while a teammate pushes
+    steps:
+      - caption: >-
+          You committed "Add forecast panel", so your `main` is one ahead of `origin/main`.
+          Meanwhile a teammate pushed a fix of their own — but nothing in your repository knows
+          about it yet, and `git status` still reports only your own commit.
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+          branches: { main: C, origin/main: B }
+          head: main
+      - caption: >-
+          `git fetch` downloads their commit and moves `origin/main` onto it. Your `main` has not
+          moved, and no file on disk changed: the two lines of work have simply diverged, and now
+          you can see it.
+        command: git fetch
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: C, parent: B, message: Add forecast panel }
+            - { id: D, parent: B, message: Fix units in header }
+          branches: { main: C, origin/main: D }
+          head: main
+
+  - type: example
+    title: What a fetch prints
+    command: git fetch
+    output: |
+      remote: Enumerating objects: 5, done.
+      From https://github.com/acme/weather-app
+         1b7e55c..8d4c21e  main       -> origin/main
+    explanation: >-
+      The last line is the important one: `origin/main` moved from `1b7e55c` to `8d4c21e`. The
+      arrow is Git telling you which local name it updated to match which remote branch.
+
+  - type: text
+    title: Look before you leap
+    body: |
+      Fetching first, deciding second, is the habit worth building:
+
+      - `git fetch` — download, update `origin/*`, change nothing else
+      - `git log --oneline main..origin/main` — the commits they have that you do not
+      - `git log --oneline origin/main..main` — the commits you have that they do not
+      - `git diff main origin/main` — what the two actually differ by
+
+      Only then do you choose how to combine them: `git merge origin/main`, or
+      `git rebase origin/main`.
+
+  - type: comparison
+    title: Fetch and pull are not the same
+    columns:
+      - title: git fetch
+        items:
+          - Updates `origin/main` only
+          - Working tree untouched, always
+          - Can never cause a conflict
+      - title: git pull
+        items:
+          - Fetches, then merges or rebases
+          - Moves your branch and your files
+          - Can stop halfway with a conflict
+
+  - type: example
+    title: Useful variations
+    command: git fetch --all --prune
+    output: |
+      Fetching origin
+       - [deleted]         (none)     -> origin/feature/old-nav
+         1b7e55c..8d4c21e  main       -> origin/main
+    explanation: >-
+      `--all` fetches from every remote, and `--prune` deletes remote-tracking branches whose
+      branch no longer exists on the server. Without `--prune`, `origin/feature/old-nav` would
+      linger for ever after the branch was merged and deleted.
+
+  - type: callout
+    tone: tip
+    body: >-
+      Fetch freely. Because it cannot change your work, `git fetch` is the right command to run
+      when you simply want to know what has happened: before standup, before starting a branch,
+      or any time `git status` looks suspiciously quiet.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's sandbox has no network, so `git fetch` is not available in the terminal. The
+      diagrams above show exactly which arrow moves, which is the part most people get wrong.

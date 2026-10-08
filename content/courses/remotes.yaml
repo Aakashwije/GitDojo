@@ -1,0 +1,18 @@
+# Course: Remotes and Collaboration
+# Lessons live in content/lessons/remotes/<slug>.yaml. Authoring guide: docs/lesson-authoring.md
+id: remotes
+slug: remotes
+title: Remotes and Collaboration
+
+description: >
+  Work with other people: how local branches relate to origin/main, fetching without changing
+  anything, pulling changes in, pushing a branch, and reading a rejected push.
+
+difficulty: intermediate
+order: 7
+
+lessons:
+  - remote-branches
+  - git-fetch
+  - git-pull
+  - git-push

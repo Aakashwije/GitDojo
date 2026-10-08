@@ -1,0 +1,123 @@
+# Lesson: Read a Commit's Changes
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-show
+slug: git-show
+title: Read a Commit's Changes
+type: concept
+
+goal: Use `git show` to see exactly what one commit changed, and why that is different from `git log`.
+
+description: |
+  `git log` tells you **that** something happened: who committed what message, and when.
+  `git show` tells you **what** happened: the full diff a single commit introduced.
+
+  It is the command you reach for when a line of code looks wrong and you want to know which
+  commit put it there, and what else that commit touched.
+
+difficulty: beginner
+
+concepts:
+  - git-show
+  - history
+  - diff
+
+content:
+  - type: text
+    title: One commit, header and diff
+    body: |
+      `git show` takes any way of naming a commit and prints two things: the commit's metadata,
+      then the diff against its parent.
+
+      With no argument it shows `HEAD`, the commit you are currently on.
+
+  - type: example
+    title: The anatomy of git show
+    command: git show HEAD
+    output: |
+      commit 7c1f9ab3e5d2c4089b16e0f7a2d3c5e81b9f4a60
+      Author: Dana Rivers <dana@example.com>
+      Date:   Tue Mar 4 11:02:18 2025 +0000
+
+          Fix total for empty carts
+
+      diff --git a/src/price.js b/src/price.js
+      index 3b18e51..8f1c2a0 100644
+      --- a/src/price.js
+      +++ b/src/price.js
+      @@ -1,3 +1,3 @@
+       export function total(items) {
+      -  return items.reduce((sum, item) => sum + item.price);
+      +  return items.reduce((sum, item) => sum + item.price, 0);
+       }
+    explanation: >-
+      The header is the same information `git log` would show for this commit. Below it, the diff
+      is read exactly like any other: `-` lines left, `+` lines arrived, and the unprefixed lines
+      are unchanged context.
+
+  - type: text
+    title: Naming the commit you mean
+    body: |
+      Anything that resolves to a commit works as an argument:
+
+      - `git show` — the commit `HEAD` points at
+      - `git show HEAD~2` — two commits back along the first parent
+      - `git show 7c1f9ab` — by abbreviated id, as printed by `git log --oneline`
+      - `git show main` — the tip of a branch
+      - `git show HEAD@{1}` — where `HEAD` was before the last move
+
+  - type: diagram
+    title: Which commit each name picks
+    graph:
+      commits:
+        - { id: A, message: Initial commit }
+        - { id: B, parent: A, message: Add price helpers }
+        - { id: C, parent: B, message: Add checkout page }
+        - { id: D, parent: C, message: Fix total for empty carts }
+      branches: { main: D }
+      head: main
+    caption: >-
+      `git show` and `git show main` both print "Fix total for empty carts". `git show HEAD~1` is
+      "Add checkout page", and `git show HEAD~3` the initial commit.
+
+  - type: comparison
+    title: Which command answers which question
+    columns:
+      - title: git log
+        items:
+          - Many commits, no file contents
+          - "**Which** commit changed this?"
+          - "`--oneline` for a compact list"
+      - title: git show
+        items:
+          - One commit, with its full diff
+          - "**What** did that commit change?"
+          - Works on a branch name, id or `HEAD~n`
+      - title: git diff
+        items:
+          - The gap between two states
+          - "What is different **right now**?"
+          - Working tree, staging area, or two commits
+
+  - type: example
+    title: Just one file from a commit
+    command: git show HEAD:src/price.js
+    output: |
+      export function total(items) {
+        return items.reduce((sum, item) => sum + item.price, 0);
+      }
+    explanation: >-
+      With `<commit>:<path>` Git prints the file's whole contents as of that commit, instead of a
+      diff. It is the quickest way to read an old version without checking anything out.
+
+  - type: callout
+    tone: tip
+    body: >-
+      A merge commit has two parents, so there is no single diff to show; `git show` prints only
+      the header by default. Pass `--first-parent` or look at `git log -p` to inspect what a merge
+      brought in.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's terminal does not run `git show` yet. Until it does, `git log` names the commits
+      and clicking a commit in the **Graph** panel opens its details.

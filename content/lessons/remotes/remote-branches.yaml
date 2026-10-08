@@ -1,0 +1,125 @@
+# Lesson: Work with Remote Branches
+# Schema and authoring guide: docs/lesson-authoring.md
+id: remote-branches
+slug: remote-branches
+title: Work with Remote Branches
+type: concept
+
+goal: Understand how local branch names, remote-tracking names like `origin/main`, and the branches on the server relate.
+
+description: |
+  As soon as a repository has somewhere to push to, three things called "main" exist: your `main`,
+  the server's `main`, and your local record of where the server's `main` was the last time you
+  looked.
+
+  Keeping those three apart is the single most useful idea in collaborative Git. Almost every
+  confusing message about pushing and pulling makes sense once you can tell them apart.
+
+difficulty: intermediate
+
+concepts:
+  - remotes
+  - remote-tracking-branches
+  - upstream
+
+content:
+  - type: text
+    title: A remote is a nickname for a URL
+    body: |
+      A **remote** is a name your repository gives to another copy of itself.
+      `origin` is the conventional name for the one you cloned from; there is nothing special
+      about the word.
+
+      Remotes are just configuration: adding one does not copy anything, and nothing about your
+      history changes.
+
+  - type: example
+    title: Listing what your repository knows about
+    command: git remote -v
+    output: |
+      origin	https://github.com/acme/weather-app.git (fetch)
+      origin	https://github.com/acme/weather-app.git (push)
+    explanation: >-
+      One remote, with the same URL for reading and writing. `git remote add upstream <url>` adds
+      a second, which is how you track the original repository after forking it.
+
+  - type: text
+    title: Three kinds of branch name
+    body: |
+      - **Local branch** — `main`. Yours. `git switch` moves onto it, commits move it forward.
+      - **Remote-tracking branch** — `origin/main`. A read-only bookmark recording where
+        `origin`'s `main` was the last time you talked to the server. You never commit to it; it
+        moves only when you fetch, pull or push.
+      - **The branch on the server** — the real `main` in the remote repository. You cannot see it
+        without asking over the network.
+
+  - type: diagram
+    title: After a fetch, before you commit
+    graph:
+      commits:
+        - { id: A, message: Initial commit }
+        - { id: B, parent: A, message: Add homepage }
+        - { id: C, parent: B, message: Add forecast panel }
+      branches: { main: C, origin/main: C }
+      head: main
+    caption: >-
+      Both names point at the same commit, so you are "up to date with origin/main". Make a
+      commit and `main` moves on while `origin/main` stays put: you are then one commit ahead.
+
+  - type: comparison
+    title: Who moves which name
+    columns:
+      - title: main
+        items:
+          - Moves when you commit
+          - Moves when you merge, rebase or reset
+          - Only you change it
+      - title: origin/main
+        items:
+          - Moves when you `git fetch` or `git pull`
+          - Moves when your `git push` succeeds
+          - Never moves on its own
+
+  - type: example
+    title: How git status reports the gap
+    command: git status
+    output: |
+      On branch main
+      Your branch is ahead of 'origin/main' by 2 commits.
+        (use "git push" to publish your local commits)
+
+      nothing to commit, working tree clean
+    explanation: >-
+      "Ahead", "behind" and "diverged" are all comparisons between your branch and its
+      **upstream**: the remote-tracking branch it is paired with. The count is only as fresh as
+      your last fetch.
+
+  - type: text
+    title: Seeing them all
+    body: |
+      - `git branch` — your local branches
+      - `git branch -r` — remote-tracking branches, such as `origin/main`
+      - `git branch -a` — both, so you can see what exists where
+      - `git branch -vv` — each local branch with its upstream and how far ahead or behind it is
+
+  - type: callout
+    tone: tip
+    title: Starting work on someone else's branch
+    body: >-
+      `git switch feature/search` works even when you have no such local branch, as long as
+      exactly one remote has one: Git creates the local branch for you and sets its upstream to
+      `origin/feature/search`.
+
+  - type: callout
+    tone: warning
+    body: >-
+      `origin/main` is a cache, not a live view. If a teammate pushed five minutes ago and you
+      have not fetched since, your repository will happily tell you that you are up to date.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's sandbox has no network and no server to talk to, so this course walks through
+      remotes with diagrams and real command output rather than hands-on exercises. Every other
+      idea you have practised here — branches, merges, conflicts, `HEAD` — works exactly the same
+      way once a remote is involved.

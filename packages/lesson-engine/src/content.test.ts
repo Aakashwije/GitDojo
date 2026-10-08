@@ -59,6 +59,8 @@ describe("courses", () => {
       "merging",
       "merge-conflicts",
       "recovery",
+      "everyday-git",
+      "remotes",
     ]);
   });
 
@@ -282,6 +284,11 @@ const SOLUTIONS: Record<string, PlayStep[]> = {
   "git-cherry-pick": ["git log --oneline feature/charts", "git cherry-pick feature/charts~1"],
   "git-reflog": ["git reflog", "git reset --hard HEAD@{1}"],
   "git-rebase": ["git rebase main"],
+  gitignore: [
+    { write: ".gitignore", content: "node_modules/\n*.log\n.env\n" },
+    "git add .gitignore",
+    'git commit -m "Ignore logs, node_modules and .env"',
+  ],
   "recovery-challenge": [
     "git reflog",
     "git reset --hard HEAD@{1}",

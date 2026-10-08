@@ -1,0 +1,107 @@
+# Lesson: Rename or Move a File
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-mv
+slug: git-mv
+title: Rename or Move a File
+type: concept
+
+goal: Track file renames with `git mv`, and understand why Git has no rename to track.
+
+description: |
+  Projects get tidied up: `utils.js` becomes `src/lib/format.js`, `readme.txt` becomes
+  `README.md`. Git handles this well, but not in the way most people expect.
+
+difficulty: beginner
+
+concepts:
+  - git-mv
+  - staging
+  - renames
+
+content:
+  - type: text
+    title: Git does not store renames
+    body: |
+      A commit is a **snapshot of file contents at paths**, not a list of edits. There is no
+      "rename" entry to record. When you move a file, Git simply sees one path disappear and
+      another appear with the same contents.
+
+      Git works the rename out afterwards, when it shows you history, by noticing that the deleted
+      and added files are identical (or nearly so). This is called **rename detection**, and it is
+      why renaming a file and heavily editing it in the same commit can show up as a delete plus
+      an add.
+
+  - type: demo
+    title: What the three areas see
+    steps:
+      - caption: "`notes.txt` is committed and unchanged."
+        areas:
+          workingTree: []
+          staging: []
+          repository: [notes.txt]
+      - caption: >-
+          `git mv notes.txt docs/notes.md` renames the file on disk **and** stages both halves of
+          the change in one step: the old path is staged as deleted, the new one as added.
+        command: git mv notes.txt docs/notes.md
+        areas:
+          workingTree: []
+          staging:
+            - { path: notes.txt, status: deleted }
+            - { path: docs/notes.md, status: staged }
+          repository: [notes.txt]
+      - caption: >-
+          One commit records the rename. `git log --follow docs/notes.md` can still walk back
+          through the file's older name.
+        command: git commit -m "Move notes into docs"
+        areas:
+          workingTree: []
+          staging: []
+          repository: [docs/notes.md]
+
+  - type: example
+    title: What git status says after a staged rename
+    command: git status
+    output: |
+      On branch main
+      Changes to be committed:
+        (use "git restore --staged <file>..." to unstage)
+      	renamed:    notes.txt -> docs/notes.md
+    explanation: >-
+      Git prints `renamed:` because the staged delete and the staged add have identical contents.
+      Change the file as well and the same state is reported as a separate `deleted:` and
+      `new file:`.
+
+  - type: comparison
+    title: Two ways to do the same thing
+    columns:
+      - title: git mv old new
+        items:
+          - Moves the file and stages the change
+          - One command, nothing left half-done
+          - Refuses to overwrite an existing file unless you pass `-f`
+      - title: Move it in your editor
+        items:
+          - Git sees an untracked file and a missing one
+          - You then run `git add old new`, or `git add .`
+          - Exactly the same commit in the end
+
+  - type: callout
+    tone: tip
+    title: Renames that only change case
+    body: >-
+      On macOS and Windows the filesystem usually treats `Readme.md` and `README.md` as the same
+      name, so your editor cannot make the change stick. `git mv Readme.md README.md` goes through
+      Git's index and does the right thing.
+
+  - type: callout
+    tone: warning
+    body: >-
+      `git mv` stages the change immediately. If you want to look before committing, run
+      `git status` or `git diff --staged`, not `git diff`, which only shows unstaged work.
+
+  - type: callout
+    tone: note
+    body: >-
+      GitDojo's terminal does not run `git mv` yet, so this lesson is a walkthrough rather than a
+      hands-on exercise. In the **Playground** you can get to the same commit by hand: create the
+      file at its new path, delete the old one, and stage both changes with `git add .`.
