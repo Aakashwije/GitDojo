@@ -55,6 +55,8 @@ interface Row {
 function fakeAccount() {
   const devices = new Map<string, Row>();
   const hints = new Set<string>();
+  /** Release → earliest time seen, as the `seen_releases` table keeps it. */
+  const seenReleases = new Map<string, string>();
   let lastLesson: { courseId: string; lessonId: string; visitedAt: string } | null = null;
   const state = { status: 200, uploads: 0 };
 
@@ -80,7 +82,13 @@ function fakeAccount() {
       const [key, hint] = entry.split("|");
       if (key && hint) (revealedHints[key] ??= []).push(hint);
     }
-    return { commandStats, playgroundSessions, revealedHints, lastLesson };
+    return {
+      commandStats,
+      playgroundSessions,
+      revealedHints,
+      lastLesson,
+      seenReleases: Object.fromEntries(seenReleases),
+    };
   };
 
   const fetcher = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -96,7 +104,12 @@ function fakeAccount() {
         playgroundSessions: number;
         revealedHints: Record<string, string[]>;
         lastLesson: { courseId: string; lessonId: string; visitedAt: string } | null;
+        seenReleases?: Record<string, string>;
       };
+      for (const [version, seenAt] of Object.entries(body.seenReleases ?? {})) {
+        const current = seenReleases.get(version);
+        if (!current || seenAt < current) seenReleases.set(version, seenAt);
+      }
       // Counters never go backwards, and only this device's row is touched.
       const row = devices.get(body.deviceId) ?? { commandStats: {}, playgroundSessions: 0 };
       for (const [command, stat] of Object.entries(body.commandStats)) {
@@ -135,7 +148,7 @@ function fakeAccount() {
     return Promise.reject(new TypeError(`unexpected request ${url}`));
   });
 
-  return { devices, state, fetcher, view };
+  return { devices, seenReleases, state, fetcher, view };
 }
 
 /** One page load on one device: its own storage, the shared account. */
@@ -338,6 +351,97 @@ describe("activity sync across devices", () => {
   });
 });
 
+describe("seen release announcements across devices", () => {
+  const seen = (version: string) =>
+    useProgressStore.getState().progress?.seenReleases[version] !== undefined;
+
+  it("hides a release dismissed on one device on the learner's others", async () => {
+    const account = fakeAccount();
+    const laptop = createMemoryStorage();
+    const phone = createMemoryStorage();
+
+    await visit(laptop, account.fetcher);
+    await settled();
+    await recordProgress({ type: "see-release", version: "v0.1.12" });
+    await syncNow();
+    await settled();
+    expect(account.seenReleases.has("v0.1.12")).toBe(true);
+
+    // A device that never saw the banner hears about it on its first load.
+    await visit(phone, account.fetcher);
+    await settled();
+    expect(seen("v0.1.12")).toBe(true);
+    // A later release is a separate entry, so its banner still shows.
+    expect(seen("v0.1.13")).toBe(false);
+  });
+
+  it("keeps a dismissal made offline and sends it once the account is reachable", async () => {
+    const account = fakeAccount();
+    const laptop = createMemoryStorage();
+    await visit(laptop, account.fetcher);
+    await settled();
+
+    account.state.status = 503;
+    await recordProgress({ type: "see-release", version: "v0.1.12" });
+    await syncNow();
+    await settled();
+    expect(useProgressStore.getState().sync).toBe("paused");
+    expect(seen("v0.1.12")).toBe(true);
+    expect(account.seenReleases.size).toBe(0);
+
+    // A reload while still offline keeps it: it is in this device's copy of the account.
+    await visit(laptop, account.fetcher);
+    account.state.status = 503;
+    await settled();
+    expect(seen("v0.1.12")).toBe(true);
+
+    account.state.status = 200;
+    await syncNow();
+    await settled();
+    expect(account.seenReleases.has("v0.1.12")).toBe(true);
+  });
+
+  it("agrees on the first time seen, whichever device reports last", async () => {
+    const account = fakeAccount();
+    const laptop = createMemoryStorage();
+    const phone = createMemoryStorage();
+    await visit(phone, account.fetcher);
+    await recordProgress({ type: "see-release", version: "v0.1.12" });
+    await syncNow();
+    await settled();
+    const first = useProgressStore.getState().progress?.seenReleases["v0.1.12"];
+
+    await visit(laptop, account.fetcher);
+    await settled();
+    // Opening the page again here changes nothing: the account already has it.
+    await recordProgress({ type: "see-release", version: "v0.1.12" });
+    await syncNow();
+    await settled();
+    expect(useProgressStore.getState().progress?.seenReleases["v0.1.12"]).toBe(first);
+    expect(account.seenReleases.size).toBe(1);
+  });
+
+  it("keeps an anonymous learner's choice in this browser and never uploads it", async () => {
+    const account = fakeAccount();
+    const storage = createMemoryStorage();
+    const anonymously = async () => {
+      resetProgressStoreForTests();
+      await initProgress(
+        CATALOG,
+        (catalog, owner: ProgressOwner) => new ProgressRepository({ storage, catalog, owner }),
+        { resolveAccount: () => Promise.resolve({ kind: "anonymous" }), fetcher: account.fetcher },
+      );
+    };
+    await anonymously();
+    await recordProgress({ type: "see-release", version: "v0.1.12" });
+    await syncNow();
+    await settled();
+    await anonymously();
+    expect(seen("v0.1.12")).toBe(true);
+    expect(account.fetcher).not.toHaveBeenCalled();
+  });
+});
+
 describe("the upload payload", () => {
   it("sends this device's absolute counters, not a delta", () => {
     const progress = {
@@ -382,11 +486,12 @@ describe("the upload payload", () => {
   });
 });
 
-/** A bare version 2 record, for payload tests that do not need storage. */
+/** A bare record, for payload tests that do not need storage. */
 function emptyish() {
   const now = Date.UTC(2026, 0, 1);
   return {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
+    seenReleases: {},
     owner: { kind: "account" as const, accountId: "ada" },
     deviceId: "laptop",
     completedLessons: {},

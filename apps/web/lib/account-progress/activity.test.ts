@@ -40,6 +40,7 @@ const activityOf = async (response: Response) =>
     playgroundSessions: number;
     revealedHints: Record<string, string[]>;
     lastLesson: { courseId: string; lessonId: string; visitedAt: string } | null;
+    seenReleases: Record<string, string>;
   };
 
 describe("parseDeviceActivity", () => {
@@ -149,6 +150,41 @@ describe("parseDeviceActivity", () => {
     }
     // Explicitly having no last lesson is fine.
     expect(parseDeviceActivity(payload({ lastLesson: null }), NOW).ok).toBe(true);
+  });
+});
+
+describe("seen releases in an upload", () => {
+  it("accepts release tags with the time each was first seen", () => {
+    const parsed = parseDeviceActivity(
+      payload({ schemaVersion: 3, seenReleases: { "v0.1.12": AT(-1000), "v0.1.11": AT(-9000) } }),
+      NOW,
+    );
+    expect(parsed.ok && parsed.activity.seenReleases).toEqual({
+      "v0.1.12": new Date(NOW - 1000),
+      "v0.1.11": new Date(NOW - 9000),
+    });
+    // An older client sends none, which is the same as an empty set.
+    const older = parseDeviceActivity(payload(), NOW);
+    expect(older.ok && older.activity.seenReleases).toEqual({});
+  });
+
+  it.each([
+    ["not an object", ["v0.1.12"]],
+    ["a version that is not a release tag", { latest: AT() }],
+    ["a tag with a suffix", { "v0.1.12-beta": AT() }],
+    ["a missing time", { "v0.1.12": null }],
+    ["a time far in the future", { "v0.1.12": AT(10 * 24 * 3600_000) }],
+    [
+      "too many releases",
+      Object.fromEntries(
+        Array.from({ length: SYNC_LIMITS.seenReleases + 1 }, (_, i) => [`v0.1.${String(i)}`, AT()]),
+      ),
+    ],
+  ])("rejects %s", (_name, seenReleases) => {
+    expect(parseDeviceActivity(payload({ seenReleases }), NOW)).toMatchObject({
+      ok: false,
+      code: "invalid_seen_releases",
+    });
   });
 });
 
@@ -332,6 +368,38 @@ describe("POST /api/progress/sync", () => {
       ),
     );
     expect(late.lastLesson).toMatchObject({ lessonId: "what-is-git" });
+  });
+
+  it("merges seen releases as a set across devices, keeping the earliest time", async () => {
+    const deps = apiDeps(ADA, createMemoryProgressStore());
+    await syncProgress(
+      postSync(payload({ deviceId: "laptop", seenReleases: { "v0.1.12": AT(-60_000) } })),
+      deps,
+    );
+    // The phone never dismissed it, yet hears that the account has seen it.
+    const phone = await activityOf(
+      await syncProgress(postSync(payload({ deviceId: "phone" })), deps),
+    );
+    expect(phone.seenReleases).toEqual({ "v0.1.12": AT(-60_000) });
+
+    // The same release seen later on the phone, and a retry: still one entry, earliest time.
+    await syncProgress(
+      postSync(payload({ deviceId: "phone", seenReleases: { "v0.1.12": AT(-1000) } })),
+      deps,
+    );
+    const again = await activityOf(
+      await syncProgress(
+        postSync(payload({ deviceId: "laptop", seenReleases: { "v0.1.12": AT(-60_000) } })),
+        deps,
+      ),
+    );
+    expect(again.seenReleases).toEqual({ "v0.1.12": AT(-60_000) });
+
+    // Another learner sees nothing of it.
+    const other = await activityOf(
+      await syncProgress(postSync(payload()), apiDeps(ADA_ELSEWHERE, createMemoryProgressStore())),
+    );
+    expect(other.seenReleases).toEqual({});
   });
 
   it("breaks a tie on the visit time deterministically, so devices agree", async () => {

@@ -47,8 +47,14 @@ push to main ── CI ──(success, newest main commit only)──▶ Release
 - **Built by Vercel, from source.** Each environment builds with its own variables. CI's build
   artifact contains the mock identity provider's public settings and is never deployed.
 - **Approval is publishing.** Staging must pass before a draft appears in **GitHub → Releases**.
-  Review the tag and generated notes, edit them if needed, then click **Publish release**. A
-  published release starts `.github/workflows/publish.yml`; a draft never deploys production.
+  Review the tag and generated notes, and write 1–5 learner-focused bullets under
+  `## Highlights for learners` at the top ([release-notes.md](./release-notes.md)). Then click
+  **Publish release**. This is your approval. A published release starts
+  `.github/workflows/publish.yml`; a draft never deploys production.
+- **Learner highlights are required.** The first job of **Publish release** checks the
+  highlights before production is requested and stops with one error per problem when they are
+  missing or not learner-facing. Edit the release and re-run the workflow; it reads the edited
+  notes.
 - **Exact approved source.** The published tag is checked out for production. The workflow confirms
   it points to a commit on `main` with passing CI and the successful `GitDojo staging` commit
   status, and rejects older releases published out of order.
@@ -142,7 +148,7 @@ GRANT CONNECT ON DATABASE neondb TO gitdojo_app;
 GRANT USAGE ON SCHEMA public TO gitdojo_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   users, lesson_completions, challenge_completions,
-  command_stats, device_activity, revealed_hints, last_lessons
+  command_stats, device_activity, revealed_hints, last_lessons, seen_releases
 TO gitdojo_app;
 GRANT SELECT ON gitdojo_schema_migrations TO gitdojo_app; -- for /api/health
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
@@ -205,10 +211,13 @@ Protect `main` with the rulesets in [ci.md](./ci.md#repository-settings).
 5. Merge this configuration to `main`. CI runs; when it passes, **Release** migrates and deploys
    staging, then opens a draft under **GitHub → Releases**. Without staging settings, the release
    workflow reports which values are missing; production is never deployed.
-6. Check staging by hand, review the draft release notes, then click **Publish release**. This is
-   your approval. GitHub starts **Publish release**, which deploys the approved tag to production.
+6. Check staging by hand, write the learner highlights in the draft release notes
+   ([release-notes.md](./release-notes.md)), then click **Publish release**. This is your
+   approval. GitHub starts **Publish release**, which checks the highlights and deploys the
+   approved tag to production.
 7. After the production smoke test passes, the app shows a small release banner throughout the
-   site; **What’s new** opens the version, date and release highlights from the approved notes.
+   site until each learner opens **What’s new** or dismisses it. **What’s new** shows the version,
+   date and only the learner highlights; the generated changelog stays on GitHub.
 
 The existing production deployment stays live until the first promotion replaces it.
 

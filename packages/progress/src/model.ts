@@ -7,8 +7,11 @@ import { type LessonType } from "@gitdojo/shared-types";
  * - 2: adds {@link LocalProgress.remoteCounters} and `syncedAt` for account sync across devices.
  *   A version 1 record upgrades by simply having neither, which is also the correct starting
  *   point: nothing has been synced yet.
+ * - 3: adds {@link LocalProgress.seenReleases}. A version 2 record upgrades with none seen. The
+ *   bump matters for tabs still running the previous version: they refuse a newer record rather
+ *   than rewriting it without the field, so a dismissed announcement cannot come back.
  */
-export const PROGRESS_SCHEMA_VERSION = 2;
+export const PROGRESS_SCHEMA_VERSION = 3;
 
 /**
  * Whose progress a record holds. Only anonymous progress exists today; signed-in accounts
@@ -91,6 +94,11 @@ export interface LocalProgress {
   remoteCounters?: RemoteCounters;
   /** When this device's progress last reached the account, if ever. */
   syncedAt?: number;
+  /**
+   * Release version (`v0.1.12`) → when the learner first opened its "What's new" page or dismissed
+   * its announcement. Not learning progress: a reset keeps it.
+   */
+  seenReleases: Record<string, number>;
   /** One-off data migrations already applied (name → when), so none runs twice. */
   migrations: Record<string, number>;
   createdAt: number;
@@ -122,6 +130,13 @@ export type ContentRef =
   | { kind: "lesson"; id: string; type: LessonType; courseId?: string }
   | { kind: "challenge"; id: string };
 
+/** A published GitDojo release tag, such as `v0.1.12`. */
+export const RELEASE_VERSION = /^v\d{1,4}\.\d{1,4}\.\d{1,6}$/;
+
+export function isReleaseVersion(value: unknown): value is string {
+  return typeof value === "string" && RELEASE_VERSION.test(value);
+}
+
 /** Lessons and challenges may share ids (`first-commit`), so keys carry the kind. */
 export function contentKey(content: Pick<ContentRef, "kind" | "id">): string {
   return `${content.kind}:${content.id}`;
@@ -147,6 +162,7 @@ export function emptyProgress(
     commandStats: {},
     revealedHints: {},
     playgroundSessions: 0,
+    seenReleases: {},
     migrations: {},
     createdAt: now,
     updatedAt: now,

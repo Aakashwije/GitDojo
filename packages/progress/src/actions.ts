@@ -2,6 +2,7 @@ import {
   completionXp,
   contentKey,
   emptyProgress,
+  isReleaseVersion,
   totalXp,
   type CompletionRecord,
   type ContentRef,
@@ -25,7 +26,12 @@ export type ProgressAction =
   | { type: "visit-lesson"; courseId: string; lessonId: string }
   /** The playground workspace loaded for a visit. */
   | { type: "playground-session" }
-  /** Forget learning progress (keeps the device id and applied migrations). */
+  /**
+   * The learner opened a release's "What's new" page or dismissed its announcement. Merely
+   * showing the announcement is not this.
+   */
+  | { type: "see-release"; version: string }
+  /** Forget learning progress (keeps the device id, applied migrations and seen releases). */
   | { type: "reset" }
   /**
    * Lesson completions confirmed by the learner's account. They replace this record's entries for
@@ -52,6 +58,8 @@ export type ProgressAction =
       counters?: RemoteCounters;
       revealedHints?: Record<string, readonly string[]>;
       lastLesson?: { courseId: string; lessonId: string; visitedAt: number };
+      /** Releases seen on any device; merged as a set, keeping the earliest time. */
+      seenReleases?: Record<string, number>;
       /** When this device's own progress reached the account. */
       syncedAt?: number;
     };
@@ -151,6 +159,19 @@ export function applyProgressAction(
     case "playground-session":
       return touch({ ...progress, playgroundSessions: progress.playgroundSessions + 1 }, now);
 
+    case "see-release":
+      // The first time wins: opening the page again, or in another tab, changes nothing.
+      if (
+        !isReleaseVersion(action.version) ||
+        progress.seenReleases[action.version] !== undefined
+      ) {
+        return progress;
+      }
+      return touch(
+        { ...progress, seenReleases: { ...progress.seenReleases, [action.version]: now } },
+        now,
+      );
+
     case "account-lessons": {
       let changed = false;
       const completedLessons = { ...progress.completedLessons };
@@ -225,6 +246,18 @@ export function applyProgressAction(
         changed = true;
       }
 
+      // Seen releases merge as a set, so a release dismissed on any device stays dismissed. The
+      // earliest time wins, which every device agrees on whatever order the replies arrive in.
+      const seenReleases = { ...progress.seenReleases };
+      for (const [version, seenAt] of Object.entries(action.seenReleases ?? {})) {
+        if (!isReleaseVersion(version) || !Number.isFinite(seenAt)) continue;
+        const current = seenReleases[version];
+        if (current === undefined || seenAt < current) {
+          seenReleases[version] = seenAt;
+          changed = true;
+        }
+      }
+
       if (action.syncedAt !== undefined && action.syncedAt !== progress.syncedAt) changed = true;
       if (!changed) return progress;
       return touch(
@@ -232,6 +265,7 @@ export function applyProgressAction(
           ...progress,
           ...(counters ? { remoteCounters: counters } : {}),
           revealedHints,
+          seenReleases,
           ...(lastLesson ? { lastLesson } : {}),
           ...(action.syncedAt === undefined ? {} : { syncedAt: action.syncedAt }),
         },
@@ -244,6 +278,7 @@ export function applyProgressAction(
       return {
         ...fresh,
         migrations: progress.migrations,
+        seenReleases: progress.seenReleases,
         createdAt: progress.createdAt,
         revision: progress.revision + 1,
         resetAt: now,

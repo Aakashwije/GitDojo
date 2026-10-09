@@ -8,8 +8,10 @@ export {
   initProgress,
   recordCompletion,
   recordProgress,
+  recordReleaseSeen,
   resetProgressStoreForTests,
   useCompletedChallenges,
   useCompletedLessons,
   useProgressStore,
+  useReleaseSeenInProgress,
 } from "./state/use-progress-store";

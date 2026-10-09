@@ -10,7 +10,7 @@ import { type DeviceActivity, type StoredActivity } from "./ports";
  */
 
 /** Schema versions of `@gitdojo/progress` this server understands. */
-export const SUPPORTED_SYNC_VERSIONS: readonly number[] = [1, 2];
+export const SUPPORTED_SYNC_VERSIONS: readonly number[] = [1, 2, 3];
 
 /** Generous but finite: a learner with years of history stays well inside these. */
 export const SYNC_LIMITS = {
@@ -19,6 +19,8 @@ export const SYNC_LIMITS = {
   commands: 64,
   hintContentKeys: 500,
   hintsPerContentKey: 200,
+  /** The browser sends its most recent 50; releases ship roughly weekly. */
+  seenReleases: 100,
   /** Counters are small; anything larger is a broken or hostile client. */
   count: 10_000_000,
 } as const;
@@ -28,6 +30,7 @@ const COMMAND = /^[a-z][a-z-]{0,31}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CONTENT_KEY = /^(?:lesson|challenge):[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HINT = /^[a-z0-9]+(?:-[a-z0-9]+)*#\d{1,3}$/;
+const RELEASE_VERSION = /^v\d{1,4}\.\d{1,4}\.\d{1,6}$/;
 const MAX_SLUG = 100;
 
 /** Timestamps before GitDojo existed, or far in the future, are a broken clock, not progress. */
@@ -73,6 +76,7 @@ const FIELDS = new Set([
   "playgroundSessions",
   "revealedHints",
   "lastLesson",
+  "seenReleases",
 ]);
 
 /**
@@ -180,9 +184,37 @@ export function parseDeviceActivity(body: unknown, now: number): ActivityParse {
     lastLesson = { courseId, lessonId, visitedAt };
   }
 
+  const seenReleases: Record<string, Date> = {};
+  if (body.seenReleases !== undefined) {
+    if (!isRecord(body.seenReleases)) {
+      return reject("invalid_seen_releases", "seenReleases must be an object.");
+    }
+    const entries = Object.entries(body.seenReleases);
+    if (entries.length > SYNC_LIMITS.seenReleases) {
+      return reject("invalid_seen_releases", "Too many releases in one upload.");
+    }
+    for (const [version, raw] of entries) {
+      const seenAt = timestamp(raw, now);
+      if (!RELEASE_VERSION.test(version) || seenAt === null) {
+        return reject(
+          "invalid_seen_releases",
+          `seenReleases.${version.slice(0, 20)} needs a release tag and a time.`,
+        );
+      }
+      seenReleases[version] = seenAt;
+    }
+  }
+
   return {
     ok: true,
-    activity: { deviceId, commandStats, playgroundSessions, revealedHints, lastLesson },
+    activity: {
+      deviceId,
+      commandStats,
+      playgroundSessions,
+      revealedHints,
+      lastLesson,
+      seenReleases,
+    },
   };
 }
 
@@ -192,6 +224,7 @@ export interface ActivityResponse {
   playgroundSessions: number;
   revealedHints: Record<string, string[]>;
   lastLesson: { courseId: string; lessonId: string; visitedAt: string } | null;
+  seenReleases: Record<string, string>;
 }
 
 /**
@@ -214,5 +247,11 @@ export function presentActivity(activity: StoredActivity): ActivityResponse {
     lastLesson: activity.lastLesson
       ? { ...activity.lastLesson, visitedAt: activity.lastLesson.visitedAt.toISOString() }
       : null,
+    seenReleases: Object.fromEntries(
+      Object.entries(activity.seenReleases).map(([version, seenAt]) => [
+        version,
+        seenAt.toISOString(),
+      ]),
+    ),
   };
 }

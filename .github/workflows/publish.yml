@@ -70,6 +70,15 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Check the learner highlights
+        # Before production is even requested: a release without 1–5 highlights stops here.
+        # Re-running after editing the notes reads the edited notes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          RELEASE_JSON="$RUNNER_TEMP/release.json" node apps/web/scripts/write-release-info.mjs --check
 
   production:
     name: Deploy approved release to production
@@ -102,11 +111,13 @@ jobs:
             echo "::error::The production environment is missing: ${missing[*]}. See docs/deployment.md."
             exit 1
           fi
-      - name: Add the approved release notes to the app build
+      - name: Add the learner highlights to the app build
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.verify-release.outputs.tag }}
-        run: node apps/web/scripts/write-release-info.mjs
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          RELEASE_JSON="$RUNNER_TEMP/release.json" node apps/web/scripts/write-release-info.mjs
       - name: Migrate production database
         # Migrations must keep the currently live version working (docs/deployment.md#migrations).
         run: pnpm db:migrate
@@ -143,7 +154,8 @@ jobs:
           TAG: ${{ needs.verify-release.outputs.tag }}
         run: |
           production_url="${PRODUCTION_URL%/}"
-          if curl --fail --silent --show-error --location "$production_url/whats-new" | grep -Fq -- "$TAG"; then
+          page="$RUNNER_TEMP/whats-new-live-check.html"
+          if curl --fail --silent --show-error --location --output "$page" "$production_url/whats-new" && grep -Fq -- "$TAG" "$page"; then
             echo "already-live=true" >> "$GITHUB_OUTPUT"
           else
             echo "already-live=false" >> "$GITHUB_OUTPUT"
@@ -164,7 +176,12 @@ jobs:
         run: |
           node apps/web/scripts/smoke.mjs "$PRODUCTION_URL" --expect-accounts --expect-database
           production_url="${PRODUCTION_URL%/}"
-          curl --fail --silent --show-error --location "$production_url/whats-new" | grep -Fq -- "$TAG"
+          page="$RUNNER_TEMP/whats-new-production.html"
+          curl --fail --silent --show-error --location --output "$page" "$production_url/whats-new"
+          if ! grep -Fq -- "$TAG" "$page"; then
+            echo "::error::The live What’s new page does not include release $TAG."
+            exit 1
+          fi
       - name: Explain how to roll back
         if: failure() && steps.live.outcome == 'failure'
         run: |

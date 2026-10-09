@@ -29,24 +29,25 @@ The persistence code is framework-free and has no React imports.
 
 ## Model
 
-`LocalProgress` (schema version 1), as stored and exported:
+`LocalProgress` (schema version 3), as stored and exported:
 
-| Field                                            | Meaning                                                                                    |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `schemaVersion`                                  | `2`. Bumped when the stored shape changes; older records are upgraded when read            |
-| `owner`                                          | `{ kind: "anonymous" }` today; signed-in accounts will get separate records                |
-| `deviceId`                                       | Random per browser, so a future sync can merge per-device counters without double counting |
-| `completedLessons`                               | Lesson id → `{ completedAt, xp, type, courseId?, migrated? }`                              |
-| `completedChallenges`                            | Standalone challenge id → the same record                                                  |
-| `xp`                                             | Sum of the records' `xp`; recomputed from them whenever data is read, so it cannot drift   |
-| `commandStats`                                   | Git subcommand → `{ uses, successes, lastUsedAt }`, **on this device**                     |
-| `revealedHints`                                  | `lesson:<id>` / `challenge:<id>` → hints revealed there, as `<objective id>#<index>`       |
-| `lastLesson`                                     | `{ courseId, lessonId, visitedAt }` for the last course lesson opened                      |
-| `playgroundSessions`                             | Playground sessions **on this device**                                                     |
-| `remoteCounters`                                 | The same two counters from the account's **other** devices, from the last sync             |
-| `syncedAt`                                       | When the account last confirmed this device's progress                                     |
-| `migrations`                                     | One-off migrations already applied, by name, so none runs twice                            |
-| `createdAt`, `updatedAt`, `revision`, `resetAt?` | Bookkeeping: `revision` increases with every saved change                                  |
+| Field                                            | Meaning                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `schemaVersion`                                  | `3`. Bumped when the stored shape changes; older records are upgraded when read                                           |
+| `owner`                                          | `{ kind: "anonymous" }` today; signed-in accounts will get separate records                                               |
+| `deviceId`                                       | Random per browser, so a future sync can merge per-device counters without double counting                                |
+| `completedLessons`                               | Lesson id → `{ completedAt, xp, type, courseId?, migrated? }`                                                             |
+| `completedChallenges`                            | Standalone challenge id → the same record                                                                                 |
+| `xp`                                             | Sum of the records' `xp`; recomputed from them whenever data is read, so it cannot drift                                  |
+| `commandStats`                                   | Git subcommand → `{ uses, successes, lastUsedAt }`, **on this device**                                                    |
+| `revealedHints`                                  | `lesson:<id>` / `challenge:<id>` → hints revealed there, as `<objective id>#<index>`                                      |
+| `lastLesson`                                     | `{ courseId, lessonId, visitedAt }` for the last course lesson opened                                                     |
+| `playgroundSessions`                             | Playground sessions **on this device**                                                                                    |
+| `remoteCounters`                                 | The same two counters from the account's **other** devices, from the last sync                                            |
+| `syncedAt`                                       | When the account last confirmed this device's progress                                                                    |
+| `seenReleases`                                   | Release version → when its announcement was first seen ([release-notes.md](./release-notes.md#in-the-app)); kept on reset |
+| `migrations`                                     | One-off migrations already applied, by name, so none runs twice                                                           |
+| `createdAt`, `updatedAt`, `revision`, `resetAt?` | Bookkeeping: `revision` increases with every saved change                                                                 |
 
 Compared with the starting model in the roadmap, `completedLessons` and `completedChallenges` are
 records keyed by id (with a completion time and the XP awarded) rather than plain id lists, and
