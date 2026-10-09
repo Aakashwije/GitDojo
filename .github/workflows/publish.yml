@@ -142,7 +142,8 @@ jobs:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           TAG: ${{ needs.verify-release.outputs.tag }}
         run: |
-          if curl --fail --silent --show-error "$PRODUCTION_URL/whats-new" | grep -Fq "$TAG"; then
+          production_url="${PRODUCTION_URL%/}"
+          if curl --fail --silent --show-error --location "$production_url/whats-new" | grep -Fq -- "$TAG"; then
             echo "already-live=true" >> "$GITHUB_OUTPUT"
           else
             echo "already-live=false" >> "$GITHUB_OUTPUT"
@@ -162,7 +163,8 @@ jobs:
           TAG: ${{ needs.verify-release.outputs.tag }}
         run: |
           node apps/web/scripts/smoke.mjs "$PRODUCTION_URL" --expect-accounts --expect-database
-          curl --fail --silent --show-error "$PRODUCTION_URL/whats-new" | grep -Fq "$TAG"
+          production_url="${PRODUCTION_URL%/}"
+          curl --fail --silent --show-error --location "$production_url/whats-new" | grep -Fq -- "$TAG"
       - name: Explain how to roll back
         if: failure() && steps.live.outcome == 'failure'
         run: |

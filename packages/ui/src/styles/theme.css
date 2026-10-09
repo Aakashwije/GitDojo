@@ -1,5 +1,5 @@
 /*
- * GitDojo design tokens (see UI.md). Dark-first; every component is built from these.
+ * GitDojo design tokens (see docs/ui.md). Dark-first; every component is built from these.
  * Import after `@import "tailwindcss";` so the @theme block becomes Tailwind utilities.
  */
 

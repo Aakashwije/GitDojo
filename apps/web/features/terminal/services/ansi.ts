@@ -1,4 +1,4 @@
-/** 24-bit ANSI helpers using the GitDojo terminal palette (UI.md §25). */
+/** 24-bit ANSI helpers using the GitDojo terminal palette (docs/ui.md §25). */
 function rgb(hex: string): string {
   const value = Number.parseInt(hex.slice(1), 16);
   return `${String((value >> 16) & 255)};${String((value >> 8) & 255)};${String(value & 255)}`;

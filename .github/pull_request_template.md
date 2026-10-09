@@ -108,7 +108,7 @@ Closes #
 <summary><b>🎨 UI changes</b></summary>
 
 - [ ] `pnpm test:e2e` passes
-- [ ] Uses the design tokens and direction from `UI.md`, with no hard-coded colours
+- [ ] Uses the design tokens and direction from `docs/ui.md`, with no hard-coded colours
 - [ ] Works in light and dark mode
 - [ ] Responsive down to mobile width
 - [ ] ♿ Keyboard navigable, visible focus states, labelled controls, sufficient contrast
