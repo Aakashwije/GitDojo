@@ -218,18 +218,7 @@ jobs:
         run: |
           tar -xzf "$RUNNER_TEMP/gitdojo-build/gitdojo-build.tar.gz" -C apps/web
           test -s apps/web/.next/BUILD_ID
-      - name: Cache Playwright browsers
-        id: browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install Chromium
-        if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
-      - name: Install browser system libraries
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm --filter @gitdojo/web exec playwright install-deps chromium
+      - uses: ./.github/actions/setup-playwright
       - name: Production browser and accessibility tests
         # Call Playwright directly: the upstream build is reused rather than rebuilt by Turbo.
         run: pnpm --filter @gitdojo/web exec playwright test --project="$PLAYWRIGHT_PROJECT" --workers=2
@@ -297,22 +286,9 @@ jobs:
         run: pnpm db:migrate
         env:
           DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
-      - name: Cache Playwright browsers
-        id: browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: ./.github/actions/setup-playwright
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install ${{ matrix.browser }}
-        if: steps.browsers.outputs.cache-hit != 'true'
-        run: pnpm --filter @gitdojo/web exec playwright install --with-deps "$BROWSER"
-        env:
-          BROWSER: ${{ matrix.browser }}
-      - name: Install browser system libraries
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: pnpm --filter @gitdojo/web exec playwright install-deps "$BROWSER"
-        env:
-          BROWSER: ${{ matrix.browser }}
+          browser: ${{ matrix.browser }}
       - name: Account browser tests
         # Account isolation, duplicate XP, sign-out and ended sessions, against PostgreSQL.
         run: pnpm --filter @gitdojo/web exec playwright test --project="$PLAYWRIGHT_PROJECT" --workers=2
@@ -346,7 +322,7 @@ jobs:
           name: production-build
           path: ${{ runner.temp }}/gitdojo-build
       - run: tar -xzf "$RUNNER_TEMP/gitdojo-build/gitdojo-build.tar.gz" -C apps/web
-      - run: pnpm --filter @gitdojo/web exec playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
       - name: Node stress scenarios
         run: pnpm perf 2>&1 | tee "$RUNNER_TEMP/performance-node.log"
       - name: Browser stress scenarios
@@ -394,8 +370,11 @@ jobs:
               print("Required jobs did not pass: " + ", ".join(
                   f"{name} ({results[name]['result']})" for name in failed), file=sys.stderr)
               if all(results[name]["result"] == "cancelled" for name in failed):
-                  # Usually a newer commit superseded this run; its own run decides the check.
-                  print("::notice::Jobs were cancelled, not failed. If a newer commit was pushed, "
-                        "check that commit's run instead.", file=sys.stderr)
+                  # Two very different causes report as "cancelled", so name both: a superseded
+                  # run is nothing to fix, a job that hit timeout-minutes very much is.
+                  print("::notice::Jobs were cancelled rather than failed. Either a newer commit "
+                        "superseded this run (check that commit's run instead), or a job hit its "
+                        "timeout-minutes, which GitHub also reports as cancelled - open the job "
+                        "and check the duration of its last step.", file=sys.stderr)
               sys.exit(1)
           PY
