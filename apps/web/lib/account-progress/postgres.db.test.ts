@@ -466,13 +466,26 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
     it("removes a learner's activity with their account", async () => {
       const learner = identity("sync-cascade");
       await upload("laptop", {}, learner);
-      await sql`DELETE FROM users WHERE subject = ${learner.subject}`;
-      for (const table of ["command_stats", "device_activity", "revealed_hints", "last_lessons"]) {
+      const [user] = await sql<{ id: string }[]>`
+        SELECT id FROM users WHERE issuer = ${learner.issuer} AND subject = ${learner.subject}
+      `;
+      const userId = user?.id;
+      expect(userId).toBeDefined();
+
+      // Count this learner's rows only: the tests above left other learners' behind.
+      const rowsFor = async (table: string) => {
         const [row] = await sql<{ count: number }[]>`
-          SELECT count(*)::int AS count FROM ${sql(table)}
+          SELECT count(*)::int AS count FROM ${sql(table)} WHERE user_id = ${userId ?? ""}
         `;
-        expect(row?.count, table).toBe(0);
-      }
+        return row?.count ?? -1;
+      };
+      const tables = ["command_stats", "device_activity", "revealed_hints", "last_lessons"];
+      // Each table has something to lose, so the assertions below cannot pass vacuously.
+      for (const table of tables)
+        expect(await rowsFor(table), `${table} before`).toBeGreaterThan(0);
+
+      await sql`DELETE FROM users WHERE id = ${userId ?? ""}`;
+      for (const table of tables) expect(await rowsFor(table), table).toBe(0);
     });
   });
 });
