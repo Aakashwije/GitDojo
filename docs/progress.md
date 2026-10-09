@@ -33,16 +33,18 @@ The persistence code is framework-free and has no React imports.
 
 | Field                                            | Meaning                                                                                    |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `schemaVersion`                                  | `1`. Bumped when the stored shape changes; older records are upgraded when read            |
+| `schemaVersion`                                  | `2`. Bumped when the stored shape changes; older records are upgraded when read            |
 | `owner`                                          | `{ kind: "anonymous" }` today; signed-in accounts will get separate records                |
 | `deviceId`                                       | Random per browser, so a future sync can merge per-device counters without double counting |
 | `completedLessons`                               | Lesson id → `{ completedAt, xp, type, courseId?, migrated? }`                              |
 | `completedChallenges`                            | Standalone challenge id → the same record                                                  |
 | `xp`                                             | Sum of the records' `xp`; recomputed from them whenever data is read, so it cannot drift   |
-| `commandStats`                                   | Git subcommand → `{ uses, successes, lastUsedAt }`                                         |
+| `commandStats`                                   | Git subcommand → `{ uses, successes, lastUsedAt }`, **on this device**                     |
 | `revealedHints`                                  | `lesson:<id>` / `challenge:<id>` → hints revealed there, as `<objective id>#<index>`       |
 | `lastLesson`                                     | `{ courseId, lessonId, visitedAt }` for the last course lesson opened                      |
-| `playgroundSessions`                             | Count of playground sessions                                                               |
+| `playgroundSessions`                             | Playground sessions **on this device**                                                     |
+| `remoteCounters`                                 | The same two counters from the account's **other** devices, from the last sync             |
+| `syncedAt`                                       | When the account last confirmed this device's progress                                     |
 | `migrations`                                     | One-off migrations already applied, by name, so none runs twice                            |
 | `createdAt`, `updatedAt`, `revision`, `resetAt?` | Bookkeeping: `revision` increases with every saved change                                  |
 
@@ -57,6 +59,16 @@ the course's current lesson list, so adding, removing or reordering lessons neve
 percentages behind.
 
 No credentials of any kind are stored in progress records.
+
+### Counters are per device
+
+`commandStats` and `playgroundSessions` count what happened **in this browser profile**.
+Completions, hints and the last lesson can be merged across devices by union or recency, but
+counters cannot: adding two devices' command counts is right, adding a device's own counts to
+themselves is not. So the server keeps one row per device and `remoteCounters` holds the sum of
+the others. `withRemoteCounters(progress)` returns the view a learner should see — the dashboard
+uses it, and without an account it changes nothing. See
+[account-progress.md](./account-progress.md#what-syncs).
 
 ## XP
 
@@ -139,22 +151,22 @@ version 1 had no challenges). On the first load:
   device id and the migration markers, removes any leftover legacy entry, and does **not** touch
   the playground repository, lesson workspaces or playground settings.
 
-## Accounts later
+## Accounts
 
-Progress is keyed by owner (`ownerKey`): `anonymous` now, `account:<id>` for future signed-in
-learners (WSO2 Identity Platform is the intended provider). Signing in will create a separate
-record rather than replacing the anonymous one, so anonymous progress can be offered for import.
-Completion records carry timestamps and counters carry a device id so a server can merge them.
-Authentication tokens will never be stored in progress records.
+Progress is keyed by owner (`ownerKey`): `anonymous`, or `account:<id>` for a signed-in learner.
+Signing in creates a separate record rather than replacing the anonymous one, and anonymous
+progress is never uploaded or merged into an account.
+
+For a signed-in learner every field in the model above is synced to the account and reaches their
+other devices; see [account-progress.md](./account-progress.md). Authentication tokens are never
+stored in progress records.
 
 ## Known limitations
 
 - A change made in the last moment before a tab closes can be lost if its transaction has not
   committed yet.
-- Command, hint and playground counters cannot be merged across devices: only lesson completions
-  are saved to accounts ([account-progress.md](./account-progress.md#in-the-browser)). Signed-in
-  learners get a separate per-account record in this browser; anonymous progress is never merged
-  into it.
+- Anonymous progress stays in this browser. It is never uploaded or merged into an account, and
+  signed-in learners get a separate per-account record here.
 - Completions of content that has since been removed still count towards "Lessons completed"
   and earn whatever XP they earned, but not towards any course's progress.
 - Progress is per browser profile; clearing site data removes it. Export is the only backup.

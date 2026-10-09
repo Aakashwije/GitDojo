@@ -1,22 +1,47 @@
 # Account progress (PostgreSQL)
 
-Signed-in learners have their lesson and challenge completions stored on the server, in PostgreSQL, under
-their WSO2 account, and see them in any browser. It is **optional**: without `DATABASE_URL`,
+Signed-in learners have their whole learning progress stored on the server, in PostgreSQL, under
+their WSO2 account, and see it in any browser. It is **optional**: without `DATABASE_URL`,
 GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deployment.md](./deployment.md).
 
 **What exists**
 
-- `users`, `lesson_completions` and `challenge_completions` tables, with versioned migrations and `pnpm db:migrate`.
-- `GET /api/progress`, `POST /api/progress/lessons` and `POST /api/progress/challenges` for the signed-in learner only.
-- In the browser, signed-in learners see their account's lessons in courses, lessons and the
-  dashboard, and finishing a lesson saves it to the account ([In the browser](#in-the-browser)).
+- `users`, `lesson_completions`, `challenge_completions`, `command_stats`, `device_activity`,
+  `revealed_hints` and `last_lessons` tables, with versioned migrations and `pnpm db:migrate`.
+- `GET /api/progress`, `POST /api/progress/lessons`, `POST /api/progress/challenges` and
+  `POST /api/progress/sync` for the signed-in learner only.
+- In the browser, every field of the progress model ([What syncs](#what-syncs)) is merged with
+  the account and reaches the learner's other devices.
 - `GET /api/health` reports whether the database is reachable and migrated.
 
 **What doesn't**
 
 - Anonymous browser progress is never merged into, or uploaded to, an account.
-- No offline conflict resolution, and no playground, hint or command data on the
-  server: those stay in the browser.
+- Lesson workspaces and playground repositories stay in the browser: they are not progress.
+
+## What syncs
+
+Everything in the [progress model](./progress.md#model), by these rules. Each one is chosen so
+that a retry after a network failure, a reload, two tabs racing or two devices working at once
+can never lose an update or count one twice.
+
+| Progress                         | Merge rule                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Completed lessons and challenges | Unique per content item. The first completion wins and keeps its time and XP; XP is awarded once |
+| Git command usage                | One row per (account, device, command). The account total is the **sum** over devices            |
+| Playground sessions              | One count per (account, device); the account total is the sum                                    |
+| Revealed hints                   | A **set** per content item: a hint revealed on any device stays recorded on all of them          |
+| Last lesson visited              | The **most recent** visit wins; equal times are broken by the higher lesson id, so devices agree |
+
+**Counters are per device, and absolute.** A device uploads its own totals, never a delta, and
+the server stores them in that device's row with `GREATEST`, so an upload that arrives late with
+stale numbers cannot lower a newer total and the same upload twice changes nothing. A reply tells
+the asking device about the **other** devices only; it adds its own
+(`withRemoteCounters` in `@gitdojo/progress`). That is why the local record keeps this device's
+counters separate from the account's.
+
+**XP is never uploaded.** Only a content id is, and the server computes the XP from the content
+catalog. The sync payload carries no XP, no completions and no account id.
 
 > **Learner-reported progress.** `POST /api/progress/lessons` records that the learner _says_
 > they completed a lesson. The server checks that the lesson exists and computes its XP, but it
@@ -28,13 +53,13 @@ GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deploymen
 `ProgressProvider` decides whose progress to show once per page load, before anything is read or
 written (`features/progress/state/use-progress-store.ts`):
 
-| Situation                                         | Shown                                                     | Writes                                                               |
-| ------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
-| Signed out, or accounts not configured            | Anonymous progress (IndexedDB), exactly as before         | Browser only                                                         |
-| Signed in, account loaded                         | The account's lessons, cached per account in this browser | First completion of a lesson → `POST /api/progress/lessons`          |
-| Signed in, account unavailable or too slow (10 s) | This visit only, in memory, with a notice                 | Still sent to the account; never written to anonymous progress       |
-| The account rejects the session (401)             | A notice: "Your session has ended", with **Sign in**      | Kept in the account's browser cache, uploaded after signing in again |
-| The account can't be reached (5xx, network)       | A notice: "Account sync paused"                           | Kept in the account's browser cache, uploaded on the next visit      |
+| Situation                                         | Shown                                                      | Writes                                                                  |
+| ------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Signed out, or accounts not configured            | Anonymous progress (IndexedDB), exactly as before          | Browser only                                                            |
+| Signed in, account loaded                         | The account's progress, cached per account in this browser | Completions on completion; activity ~3 s after the last change          |
+| Signed in, account unavailable or too slow (10 s) | This visit only, in memory, with a notice                  | Still sent to the account; never written to anonymous progress          |
+| The account rejects the session (401)             | A notice: "Your session has ended", with **Sign in**       | Kept in the account's browser cache, uploaded after signing in again    |
+| The account can't be reached (5xx, network)       | A notice: "Account sync paused"                            | Kept in the account's browser cache; retried, and on the `online` event |
 
 - **Isolation.** Anonymous progress and each account have separate IndexedDB records (keyed by
   the account's internal id from `GET /api/progress`). Signing in never uploads anonymous
@@ -43,10 +68,18 @@ written (`features/progress/state/use-progress-store.ts`):
 - **The account wins for lessons.** Its first completion time and XP replace the cached ones.
   Lessons completed in this browser's account cache but missing from the account (a failed
   upload) are sent again on the next load.
+- **Nothing is called synced until the server says so.** `syncedAt` is only written from a
+  successful reply. Until then the dashboard says "Saving to your account…", and after a failure
+  "Sync paused", with a **Try now** button. Learning never waits for any of it.
+- **Counters on a first load.** A page load cannot name its own device in `GET /api/progress`
+  (the record has not been read yet), so that reply's counters are ignored and only its hints and
+  last lesson are merged. The upload that follows answers with this device excluded, which is
+  what the totals are built from. An outage therefore under-reports other devices rather than
+  double counting this one.
 - **XP once.** Only a lesson's first completion is uploaded; replays send nothing, and the server
   ignores duplicates anyway. Cross-tab updates mark the lesson complete in other open tabs.
-- **Dashboard.** Says where progress is saved; account mode hides **Reset** (it would only clear
-  the cache) and keeps **Export**.
+- **Dashboard.** Says where progress is saved and whether this device has reached the account;
+  account mode hides **Reset** (it would only clear the cache) and keeps **Export**.
 - Pages of the sign-in flow (`/sign-in`, `/sign-up`, `/auth/*`) don't load progress: sign-in
   finishes with client-side navigation, and progress is loaded on the next page instead.
 
@@ -95,6 +128,25 @@ browser ── cookie ──▶ proxy.ts (SDK middleware: verifies the session c
 | `users`                     | `id` (uuid), `issuer`, `subject`, `name`, `email`, `created_at`, `updated_at`         | `UNIQUE (issuer, subject)`; `name` and `email` are refreshed from the provider and are for display only  |
 | `lesson_completions`        | `user_id` → `users.id`, `lesson_id`, `lesson_type`, `course_id`, `xp`, `completed_at` | `PRIMARY KEY (user_id, lesson_id)`; `ON DELETE CASCADE`; checks on the lesson id format, type and XP ≥ 0 |
 | `gitdojo_schema_migrations` | `version`, `checksum`, `applied_at`                                                   | Written by the migration command                                                                         |
+
+`apps/web/db/migrations/0003_device_activity.sql` adds everything besides completions:
+
+| Table             | Columns                                                                | Rules                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `command_stats`   | `user_id`, `device_id`, `command`, `uses`, `successes`, `last_used_at` | `PRIMARY KEY (user_id, device_id, command)`; checks on the command name, `uses >= 0`, `successes <= uses` |
+| `device_activity` | `user_id`, `device_id`, `playground_sessions`, `updated_at`            | `PRIMARY KEY (user_id, device_id)`; the count is never negative                                           |
+| `revealed_hints`  | `user_id`, `content_key`, `hint`, `revealed_at`                        | `PRIMARY KEY (user_id, content_key, hint)`: the key _is_ the set                                          |
+| `last_lessons`    | `user_id`, `course_id`, `lesson_id`, `visited_at`                      | One row per learner; checks on both id formats                                                            |
+
+All four cascade from `users`, so deleting a learner removes their activity too.
+
+- A counter row is upserted with `GREATEST`, so an upload that arrives out of order after a newer
+  one leaves the newer totals alone, and the same upload twice changes nothing.
+- Hints insert with `ON CONFLICT DO NOTHING`: the set union is the primary key doing its job.
+- `last_lessons` updates only `WHERE EXCLUDED.visited_at > last_lessons.visited_at`, with the
+  higher lesson id breaking a tie, so every device converges on the same answer.
+- One transaction per sync request: the device's rows are written and the merged view read
+  together, so a concurrent upload from another device is either fully included or not at all.
 
 - The user row is created (upserted) on the first authenticated progress request, and the profile
   is updated when it changes.
@@ -156,7 +208,8 @@ createdb gitdojo
 1. **Provision** a managed PostgreSQL 13+ database, such as Amazon RDS, Cloud SQL, Azure Database
    for PostgreSQL, Neon or Supabase. Enable TLS and backups.
 2. **Roles.** Run migrations as a role that owns the schema. Run the app as a role that has only
-   `SELECT, INSERT, UPDATE, DELETE` on `users` and `lesson_completions` (and `CONNECT` and
+   `SELECT, INSERT, UPDATE, DELETE` on `users`, `lesson_completions`, `challenge_completions`,
+   `command_stats`, `device_activity`, `revealed_hints` and `last_lessons` (and `CONNECT` and
    `USAGE`).
 3. **Set `DATABASE_URL`** as a server-side secret in your hosting platform. It's read at runtime,
    so a build doesn't need it. Never use a `NEXT_PUBLIC_` name. Require TLS in the URL:
@@ -240,22 +293,76 @@ Content-Type: application/json
   session cookie is also `SameSite=Lax`, and `application/json` requires a CORS preflight, which
   GitDojo never approves.
 
+### `POST /api/progress/sync`
+
+Merges **this device's** activity into the account and answers with the account's merged view.
+Completions and XP are not part of it; they have their own endpoints.
+
+```http
+POST /api/progress/sync
+Cookie: <the session cookie>
+Origin: https://your-gitdojo-host
+Content-Type: application/json
+
+{
+  "schemaVersion": 2,
+  "deviceId": "7f3c…",
+  "commandStats": { "commit": { "uses": 12, "successes": 11, "lastUsedAt": "2026-10-09T10:00:00.000Z" } },
+  "playgroundSessions": 3,
+  "revealedHints": { "lesson:git-init": ["initialize#0"] },
+  "lastLesson": { "courseId": "git-basics", "lessonId": "git-init", "visitedAt": "2026-10-09T09:58:00.000Z" }
+}
+```
+
+```json
+200 OK
+{
+  "account": { "id": "8f6c…" },
+  "completedLessons": [ … ],
+  "completedChallenges": [ … ],
+  "activity": {
+    "commandStats": { "commit": { "uses": 4, "successes": 4, "lastUsedAt": "…" } },
+    "playgroundSessions": 1,
+    "revealedHints": { "lesson:git-init": ["initialize#0", "stage#0"] },
+    "lastLesson": { "courseId": "git-basics", "lessonId": "git-add", "visitedAt": "…" }
+  },
+  "totalXp": 150
+}
+```
+
+- Every field but `deviceId` and `schemaVersion` is optional; a device that has only visited a
+  lesson sends only that.
+- **Counters in the reply exclude the device that asked.** It adds its own, so nothing is counted
+  twice. `GET /api/progress?device=<id>` does the same; without the parameter the sums include
+  every device.
+- **Idempotent.** Counters are absolute, so the same request twice writes the same rows.
+- At most **64 KB**; at most 64 commands, 500 content keys and 200 hints each; counts at most
+  10,000,000; timestamps between 2020 and 24 hours from now.
+- Unknown fields are refused rather than dropped, and a `schemaVersion` this server does not
+  know gives `422` so a newer client keeps its progress and retries after the next deploy rather
+  than having part of it stored.
+
 ### Errors
 
-| Status | `code`                   | When                                                                       |
-| ------ | ------------------------ | -------------------------------------------------------------------------- |
-| 400    | `invalid_json`           | The body isn't JSON                                                        |
-| 400    | `invalid_body`           | The body isn't a JSON object                                               |
-| 400    | `unexpected_fields`      | Any field other than `lessonId`                                            |
-| 400    | `invalid_lesson_id`      | `lessonId` is missing, not a string, or not a lesson-id slug (≤ 100 chars) |
-| 401    | `unauthenticated`        | No valid session, or no verifiable subject                                 |
-| 403    | `cross_origin`           | `POST` from another origin, or without `Origin`                            |
-| 413    | `payload_too_large`      | Body over 1 KB                                                             |
-| 415    | `unsupported_media_type` | `Content-Type` isn't `application/json`                                    |
-| 422    | `unknown_lesson`         | Valid id, but no such lesson in the content                                |
-| 500    | `internal_error`         | Database or other failure. Generic message; nothing was changed            |
-| 503    | `identity_unavailable`   | The identity provider couldn't be reached to verify the session            |
-| 503    | `progress_unavailable`   | `DATABASE_URL` isn't set                                                   |
+| Status | `code`                       | When                                                                       |
+| ------ | ---------------------------- | -------------------------------------------------------------------------- |
+| 400    | `invalid_json`               | The body isn't JSON                                                        |
+| 400    | `invalid_body`               | The body isn't a JSON object                                               |
+| 400    | `unexpected_fields`          | Any field other than `lessonId`                                            |
+| 400    | `invalid_lesson_id`          | `lessonId` is missing, not a string, or not a lesson-id slug (≤ 100 chars) |
+| 401    | `unauthenticated`            | No valid session, or no verifiable subject                                 |
+| 403    | `cross_origin`               | `POST` from another origin, or without `Origin`                            |
+| 413    | `payload_too_large`          | Body over 1 KB                                                             |
+| 415    | `unsupported_media_type`     | `Content-Type` isn't `application/json`                                    |
+| 400    | `invalid_command_stats`      | A command name, count or timestamp is not valid, or `successes > uses`     |
+| 400    | `invalid_device_id`          | `deviceId` is missing or not a short opaque identifier                     |
+| 400    | `invalid_hints`              | A content key or hint token is not valid, or there are too many            |
+| 400    | `invalid_last_lesson`        | `lastLesson` is not a course id, a lesson id and a visit time              |
+| 422    | `unknown_lesson`             | Valid id, but no such lesson in the content                                |
+| 422    | `unsupported_schema_version` | The client's progress schema is newer than this server's; nothing stored   |
+| 500    | `internal_error`             | Database or other failure. Generic message; nothing was changed            |
+| 503    | `identity_unavailable`       | The identity provider couldn't be reached to verify the session            |
+| 503    | `progress_unavailable`       | `DATABASE_URL` isn't set                                                   |
 
 Server logs for failures contain only the error name and PostgreSQL's SQLSTATE code. They never
 include the query values, the connection string, tokens or profile data.
@@ -277,13 +384,15 @@ TEST_DATABASE_URL="postgres://gitdojo:gitdojo@localhost:5432/gitdojo_test" \
 
 CI runs the database suite against a PostgreSQL 17 service container.
 
-| Test file                                  | What it covers                                                                                                                                                                                                                                                                                                                                |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/auth/identity.test.ts`                | The subject comes from userinfo and is namespaced by issuer. No session, rejected tokens, and missing or invalid `sub` (never the email) give 401; provider outages give 503. Every call is verified fresh, and tokens are never logged                                                                                                       |
-| `lib/http/same-origin.test.ts`             | Same-origin acceptance, forwarded hosts, look-alike origins, missing `Origin`, `Sec-Fetch-Site`                                                                                                                                                                                                                                               |
-| `lib/account-progress/api.test.ts`         | Unauthenticated reads and writes never reach the store. Cross-origin writes are refused before the session is checked. XP comes from the catalog. Repeats are idempotent; client XP, user ids, timestamps and malformed or unknown ids are rejected. Records are per learner and per issuer; failures are generic; responses are never cached |
-| `lib/account-progress/postgres.db.test.ts` | The real migration command (apply, re-run, edited-migration refusal), unique, foreign-key and check constraints, cascade, user upserts (including concurrent first access), API round trips, cross-account isolation, and concurrent duplicate and mixed completions (XP awarded once)                                                        |
-| `proxy.test.ts`                            | The progress API passes through the SDK middleware for session refresh and isn't redirected                                                                                                                                                                                                                                                   |
+| Test file                                  | What it covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/auth/identity.test.ts`                | The subject comes from userinfo and is namespaced by issuer. No session, rejected tokens, and missing or invalid `sub` (never the email) give 401; provider outages give 503. Every call is verified fresh, and tokens are never logged                                                                                                                                                                                                                                                                |
+| `lib/http/same-origin.test.ts`             | Same-origin acceptance, forwarded hosts, look-alike origins, missing `Origin`, `Sec-Fetch-Site`                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `lib/account-progress/api.test.ts`         | Unauthenticated reads and writes never reach the store. Cross-origin writes are refused before the session is checked. XP comes from the catalog. Repeats are idempotent; client XP, user ids, timestamps and malformed or unknown ids are rejected. Records are per learner and per issuer; failures are generic; responses are never cached                                                                                                                                                          |
+| `lib/account-progress/activity.test.ts`    | Every validation rule for the sync payload (types, ranges, limits, unknown fields, schema versions) and the endpoint's merge behaviour: idempotent retries, sums across devices, a device's own counters excluded, hints as a set, the newest lesson visit with a deterministic tie-break, and account isolation                                                                                                                                                                                       |
+| `features/progress/device-sync.test.ts`    | The browser side against a fake account that keeps one row per device: two devices adding up, retries not double counting, hints and the last lesson arriving on the other device, offline recovery, an ended session, a payload the server refuses, and nothing at all for an anonymous learner                                                                                                                                                                                                       |
+| `lib/account-progress/postgres.db.test.ts` | The real migration command (apply, re-run, edited-migration refusal), unique, foreign-key and check constraints, cascade, user upserts (including concurrent first access), API round trips, cross-account isolation, and concurrent duplicate and mixed completions (XP awarded once). For activity: per-device sums, `GREATEST` keeping a stale upload from lowering a total, concurrent duplicate uploads writing one row, the hint set, the newest lesson visit, account isolation and the cascade |
+| `proxy.test.ts`                            | The progress API passes through the SDK middleware for session refresh and isn't redirected                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Manual, with a configured tenant and database:
 
@@ -310,16 +419,26 @@ Manual, with a configured tenant and database:
 ## Known limitations
 
 - Progress is learner-reported (see above).
-- Anonymous browser progress isn't merged into accounts. Command stats, hints and
-  playground sessions stay in the browser, per account cache.
+- Anonymous browser progress isn't merged into accounts.
 - An account's browser cache stays in IndexedDB after signing out (it is never shown to anyone
   else); clearing site data removes it.
-- Lesson and standalone challenge completions are stored. Hints, command statistics and
-  playground sessions stay local.
+- Lesson workspaces and playground repositories are not progress and stay in the browser.
+- Command and playground counters are per device for ever: clearing one browser's site data
+  loses that device's share of the totals, because the server cannot tell a cleared device from
+  a new one.
+- A sync carries the device's whole activity, not a delta, so a learner with a very long history
+  sends a few kilobytes on each change. The 64 KB limit is roughly 500 lessons' worth of hints.
 - Every progress request makes one userinfo call to WSO2, which adds latency and depends on the
   provider being reachable (`503` otherwise).
 - Deleting a WSO2 user doesn't delete their GitDojo rows. Remove them with
   `DELETE FROM users WHERE issuer = $1 AND subject = $2` (completions cascade).
+
+## Migrating an existing deployment
+
+Run `pnpm db:migrate` against each deployment database before deploying this version; it adds
+`0003_device_activity`. Nothing has to be backfilled: a device's first sync after the deploy
+writes its counters, hints and last lesson, and until then the account simply has none of them.
+Browsers upgrade their stored record from schema 1 to 2 on the next load, in place.
 
 ## Standalone challenge sync
 

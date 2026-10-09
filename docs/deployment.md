@@ -131,7 +131,10 @@ migrations with the owner role. In the Neon SQL editor, after the first migratio
 CREATE ROLE gitdojo_app WITH LOGIN PASSWORD '<generate a strong password>';
 GRANT CONNECT ON DATABASE neondb TO gitdojo_app;
 GRANT USAGE ON SCHEMA public TO gitdojo_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON users, lesson_completions TO gitdojo_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  users, lesson_completions, challenge_completions,
+  command_stats, device_activity, revealed_hints, last_lessons
+TO gitdojo_app;
 GRANT SELECT ON gitdojo_schema_migrations TO gitdojo_app; -- for /api/health
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO gitdojo_app;
@@ -210,6 +213,7 @@ node apps/web/scripts/smoke.mjs https://staging.<your-domain> --expect-accounts 
 | `/api/auth/session`                                                             | 200, `no-store`, `signed-out` (accounts configured) |
 | `GET /api/progress` without a session                                           | 401, `private, no-store`                            |
 | `POST /api/progress/lessons` from another origin                                | 403 `cross_origin`                                  |
+| `POST /api/progress/sync` from another origin                                   | 403 `cross_origin`                                  |
 
 Manually, after the first release and after changes to accounts or progress, on staging:
 
@@ -217,6 +221,8 @@ Manually, after the first release and after changes to accounts or progress, on 
 - [ ] Finish a concept lesson; the dashboard shows its XP.
 - [ ] In a private window, sign in again: the same lesson and XP appear.
 - [ ] Sign out; the browser's anonymous progress is shown again.
+- [ ] Run a command and reveal a hint in one browser, then sign in on another: the dashboard's
+      command count and the revealed hint are there too.
 - [ ] `GET /api/health` shows `"database":"ok"`.
 
 ## Migrations

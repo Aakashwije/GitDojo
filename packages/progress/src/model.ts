@@ -1,7 +1,14 @@
 import { type LessonType } from "@gitdojo/shared-types";
 
-/** Bumped whenever the stored shape changes; {@link parseProgress} upgrades older records. */
-export const PROGRESS_SCHEMA_VERSION = 1;
+/**
+ * Bumped whenever the stored shape changes; {@link parseProgress} upgrades older records.
+ *
+ * - 1: the original shape.
+ * - 2: adds {@link LocalProgress.remoteCounters} and `syncedAt` for account sync across devices.
+ *   A version 1 record upgrades by simply having neither, which is also the correct starting
+ *   point: nothing has been synced yet.
+ */
+export const PROGRESS_SCHEMA_VERSION = 2;
 
 /**
  * Whose progress a record holds. Only anonymous progress exists today; signed-in accounts
@@ -39,6 +46,21 @@ export interface CommandStat {
   lastUsedAt: number;
 }
 
+/**
+ * Counters this account has recorded on **other** devices, as of the last successful sync.
+ *
+ * Counters are the only progress that cannot simply be unioned: adding two devices' command
+ * counts is right, adding a device's own counts to themselves is not. So a device's own
+ * `commandStats` and `playgroundSessions` stay its own, the server keeps one row per device, and
+ * the total a learner sees is this device's plus these. That makes an upload idempotent — a
+ * device always sends its absolute counters, never a delta — and a retry after a network failure
+ * can never double count. Use {@link withRemoteCounters} to read the combined view.
+ */
+export interface RemoteCounters {
+  commandStats: Record<string, CommandStat>;
+  playgroundSessions: number;
+}
+
 /** A learner's local progress, as stored in IndexedDB and exported as JSON. */
 export interface LocalProgress {
   schemaVersion: typeof PROGRESS_SCHEMA_VERSION;
@@ -54,7 +76,7 @@ export interface LocalProgress {
   completedChallenges: Record<string, CompletionRecord>;
   /** Sum of every completion's `xp`; recomputed from the records whenever data is loaded. */
   xp: number;
-  /** Git subcommand (`commit`, `cherry-pick`) → uses and successes. */
+  /** Git subcommand (`commit`, `cherry-pick`) → uses and successes, **on this device**. */
   commandStats: Record<string, CommandStat>;
   /**
    * Content key (`lesson:<id>` or `challenge:<id>`) → hints revealed there, as
@@ -63,7 +85,12 @@ export interface LocalProgress {
   revealedHints: Record<string, string[]>;
   /** The hands-on or concept lesson the learner opened most recently. */
   lastLesson?: { courseId: string; lessonId: string; visitedAt: number };
+  /** Playground sessions **on this device**. */
   playgroundSessions: number;
+  /** The same counters from the account's other devices; absent until a sync has succeeded. */
+  remoteCounters?: RemoteCounters;
+  /** When this device's progress last reached the account, if ever. */
+  syncedAt?: number;
   /** One-off data migrations already applied (name → when), so none runs twice. */
   migrations: Record<string, number>;
   createdAt: number;
@@ -124,6 +151,40 @@ export function emptyProgress(
     createdAt: now,
     updatedAt: now,
     revision: 0,
+  };
+}
+
+/** Adds one device's counters to another's. Used for both merging and display. */
+function addStats(
+  own: Record<string, CommandStat>,
+  other: Record<string, CommandStat>,
+): Record<string, CommandStat> {
+  const combined: Record<string, CommandStat> = { ...own };
+  for (const [command, stat] of Object.entries(other)) {
+    const mine = combined[command];
+    combined[command] = mine
+      ? {
+          uses: mine.uses + stat.uses,
+          successes: mine.successes + stat.successes,
+          lastUsedAt: Math.max(mine.lastUsedAt, stat.lastUsedAt),
+        }
+      : stat;
+  }
+  return combined;
+}
+
+/**
+ * Progress as the learner should see it: this device's counters plus the account's other
+ * devices'. Everything else (completions, hints, the last lesson) is already merged in place, so
+ * it is returned unchanged. Without a sync this is the record itself.
+ */
+export function withRemoteCounters(progress: LocalProgress): LocalProgress {
+  const remote = progress.remoteCounters;
+  if (!remote) return progress;
+  return {
+    ...progress,
+    commandStats: addStats(progress.commandStats, remote.commandStats),
+    playgroundSessions: progress.playgroundSessions + remote.playgroundSessions,
   };
 }
 

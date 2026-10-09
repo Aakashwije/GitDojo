@@ -2,11 +2,18 @@ import { indexLessons, type ProgressCatalog } from "@gitdojo/progress";
 import { type VerifiedIdentity } from "@/lib/auth/identity";
 import { DatabaseNotConfiguredError } from "@/lib/db/client";
 import { isSameOriginRequest } from "@/lib/http/same-origin";
+import {
+  parseDeviceActivity,
+  presentActivity,
+  SYNC_LIMITS,
+  type ActivityResponse,
+} from "./activity";
 import { type CompletionKind, type ProgressApiDeps, type StoredCompletion } from "./ports";
 import {
   ProgressStepError,
   readAccountProgress,
   recordCompletion,
+  syncDeviceActivity,
   type RecordOutcome,
 } from "./service";
 
@@ -32,6 +39,8 @@ export interface ProgressResponse {
   account: { id: string };
   completedLessons: CompletedLesson[];
   completedChallenges: CompletedChallenge[];
+  /** Counters, hints and the last lesson. Counters exclude the asking device. */
+  activity: ActivityResponse;
   totalXp: number;
 }
 
@@ -55,6 +64,15 @@ export interface RecordChallengeResponse {
   /** True when the challenge had been completed before: nothing changed. */
   alreadyCompleted: boolean;
   totalXp: number;
+}
+
+const DEVICE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
+
+/** The `device` query parameter, when it is a plausible device id. */
+function deviceParam(request: Request | undefined): string | undefined {
+  if (!request) return undefined;
+  const value = new URL(request.url).searchParams.get("device");
+  return value !== null && DEVICE_ID.test(value) ? value : undefined;
 }
 
 /** Lesson ids are content slugs (`git-init`), as the lesson schema requires. */
@@ -136,15 +154,19 @@ async function verify(
   return { ok: true, identity: verified.identity };
 }
 
-/** `GET /api/progress`: the signed-in learner's completed lessons and total XP. */
-export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
+/**
+ * `GET /api/progress[?device=<id>]`: everything the signed-in learner's account holds. A device
+ * names itself so its own counters are left out of the sums it gets back; it adds its own.
+ */
+export async function getProgress(deps: ProgressApiDeps, request?: Request): Promise<Response> {
   const verified = await verify(deps);
   if (!verified.ok) return verified.response;
 
   try {
-    const { accountId, completions, catalog, totalXp } = await readAccountProgress(
+    const { accountId, completions, activity, catalog, totalXp } = await readAccountProgress(
       deps,
       verified.identity,
+      deviceParam(request),
     );
     const lessons = indexLessons(catalog);
     const body: ProgressResponse = {
@@ -155,6 +177,7 @@ export async function getProgress(deps: ProgressApiDeps): Promise<Response> {
       completedChallenges: completions
         .filter((c) => c.kind === "challenge")
         .map((c) => presentChallenge(c, catalog)),
+      activity: presentActivity(activity),
       totalXp,
     };
     return json(body);
@@ -311,4 +334,65 @@ export function recordChallengeCompletion(
   deps: ProgressApiDeps,
 ): Promise<Response> {
   return recordCompletionRequest("challenge", request, deps);
+}
+
+/**
+ * `POST /api/progress/sync`: merges this device's command statistics, revealed hints, last
+ * lesson and playground session count into the account, and answers with the account's merged
+ * view (counters excluding this device, which keeps its own).
+ *
+ * Idempotent. A device uploads absolute counters, never deltas, so a retry after a network
+ * failure, a reload or two tabs racing writes the same rows and changes nothing. Completions and
+ * XP are not part of this payload: they have their own endpoints, where the server computes XP.
+ */
+export async function syncProgress(request: Request, deps: ProgressApiDeps): Promise<Response> {
+  if (!isSameOriginRequest(request.headers)) {
+    return error(403, "cross_origin", "Cross-origin requests are not allowed.");
+  }
+  const verified = await verify(deps);
+  if (!verified.ok) return verified.response;
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.split(";")[0]?.trim().toLowerCase() !== "application/json") {
+    return error(415, "unsupported_media_type", "Send the request body as application/json.");
+  }
+  const text = await readBody(request, SYNC_LIMITS.bodyBytes);
+  if (text === null) return error(413, "payload_too_large", "The request body is too large.");
+
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return error(400, "invalid_json", "The request body is not valid JSON.");
+  }
+
+  const parsed = parseDeviceActivity(body, Date.now());
+  if (!parsed.ok) {
+    // An unknown schema version is the client being ahead of this server, not a bad request.
+    const status = parsed.code === "unsupported_schema_version" ? 422 : 400;
+    return error(status, parsed.code, parsed.message);
+  }
+
+  try {
+    const { accountId, completions, activity, catalog, totalXp } = await syncDeviceActivity(
+      deps,
+      verified.identity,
+      parsed.activity,
+    );
+    const lessons = indexLessons(catalog);
+    const response: ProgressResponse = {
+      account: { id: accountId },
+      completedLessons: completions
+        .filter((c) => c.kind !== "challenge")
+        .map((c) => present(c, lessons)),
+      completedChallenges: completions
+        .filter((c) => c.kind === "challenge")
+        .map((c) => presentChallenge(c, catalog)),
+      activity: presentActivity(activity),
+      totalXp,
+    };
+    return json(response);
+  } catch (cause) {
+    return failure(cause);
+  }
 }

@@ -16,11 +16,14 @@ import {
   LEGACY_MIGRATION,
   LEGACY_STORAGE_KEY,
   migrateLegacyProgress,
+  NewerProgressVersionError,
   parseLegacyProgress,
   parseProgress,
+  PROGRESS_SCHEMA_VERSION,
   ProgressRepository,
   recentActivity,
   totalHintsUsed,
+  withRemoteCounters,
   type LegacyStorage,
   type LocalProgress,
   type ProgressAction,
@@ -701,7 +704,7 @@ describe("export", () => {
       format: "gitdojo-progress",
       exportVersion: 1,
       exportedAt: "2026-10-04T00:00:00.000Z",
-      progress: { schemaVersion: 1, xp: 50 },
+      progress: { schemaVersion: PROGRESS_SCHEMA_VERSION, xp: 50 },
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
     expect(exportFileName(Date.UTC(2026, 9, 4))).toBe("gitdojo-progress-2026-10-04.json");
@@ -710,5 +713,163 @@ describe("export", () => {
   it("never contains credentials", () => {
     const json = JSON.stringify(exportProgress(emptyProgress(T0), T0));
     expect(json).not.toMatch(/token|password|secret/i);
+  });
+});
+
+describe("account sync", () => {
+  const counters = (uses: number, sessions: number) => ({
+    commandStats: { commit: { uses, successes: uses, lastUsedAt: 1_000 } },
+    playgroundSessions: sessions,
+  });
+
+  it("keeps this device's counters separate and adds the account's for display", () => {
+    let progress = reduce([
+      { type: "command", command: "commit", ok: true },
+      { type: "command", command: "commit", ok: false },
+      { type: "playground-session" },
+    ]);
+    progress = applyProgressAction(
+      progress,
+      { type: "account-sync", counters: counters(7, 3) },
+      2_000,
+    );
+    // The record keeps what this device did, so its next upload is still its own total.
+    expect(progress.commandStats.commit).toMatchObject({ uses: 2, successes: 1 });
+    expect(progress.playgroundSessions).toBe(1);
+    // The learner sees both.
+    const merged = withRemoteCounters(progress);
+    expect(merged.commandStats.commit).toMatchObject({ uses: 9, successes: 8 });
+    expect(merged.playgroundSessions).toBe(4);
+  });
+
+  it("replaces the account's counters rather than accumulating them", () => {
+    let progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "account-sync", counters: counters(5, 1) },
+      1,
+    );
+    progress = applyProgressAction(progress, { type: "account-sync", counters: counters(5, 1) }, 2);
+    expect(withRemoteCounters(progress).commandStats.commit).toMatchObject({ uses: 5 });
+    expect(withRemoteCounters(progress).playgroundSessions).toBe(1);
+  });
+
+  it("merges hints as a set, so one revealed anywhere stays revealed", () => {
+    let progress = reduce([
+      { type: "hint", content: { kind: "lesson", id: "git-init" }, objectiveId: "stage", index: 0 },
+    ]);
+    progress = applyProgressAction(
+      progress,
+      {
+        type: "account-sync",
+        counters: counters(0, 0),
+        revealedHints: {
+          "lesson:git-init": ["stage#0", "stage#1"],
+          "challenge:detached-head": ["branch#0"],
+        },
+      },
+      5_000,
+    );
+    expect(progress.revealedHints["lesson:git-init"]?.sort()).toEqual(["stage#0", "stage#1"]);
+    expect(progress.revealedHints["challenge:detached-head"]).toEqual(["branch#0"]);
+    expect(totalHintsUsed(progress)).toBe(3);
+  });
+
+  it("takes the most recent lesson visit, and breaks a tie the same way everywhere", () => {
+    const visited = (lessonId: string, visitedAt: number) => ({
+      type: "account-sync" as const,
+      counters: counters(0, 0),
+      lastLesson: { courseId: "git-basics", lessonId, visitedAt },
+    });
+    let progress = applyProgressAction(emptyProgress(0), visited("git-init", 2_000), 1);
+    // An older visit from another device does not move it back.
+    progress = applyProgressAction(progress, visited("what-is-git", 1_000), 2);
+    expect(progress.lastLesson).toMatchObject({ lessonId: "git-init" });
+    // A newer one does.
+    progress = applyProgressAction(progress, visited("what-is-git", 3_000), 3);
+    expect(progress.lastLesson).toMatchObject({ lessonId: "what-is-git" });
+    // Same instant: the higher lesson id wins, so two devices settle on one answer.
+    progress = applyProgressAction(progress, visited("zzz-lesson", 3_000), 4);
+    expect(progress.lastLesson).toMatchObject({ lessonId: "zzz-lesson" });
+    progress = applyProgressAction(progress, visited("aaa-lesson", 3_000), 5);
+    expect(progress.lastLesson).toMatchObject({ lessonId: "zzz-lesson" });
+  });
+
+  it("changes nothing, and does not touch the record, when there is nothing new", () => {
+    const progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "account-sync", counters: counters(2, 1), syncedAt: 10 },
+      1,
+    );
+    const again = applyProgressAction(
+      progress,
+      { type: "account-sync", counters: counters(2, 1), syncedAt: 10 },
+      2,
+    );
+    expect(again).toBe(progress);
+    expect(again.revision).toBe(progress.revision);
+  });
+
+  it("records when the account confirmed this device, never before", () => {
+    const progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "account-sync", counters: counters(0, 0), syncedAt: 1_234 },
+      1,
+    );
+    expect(progress.syncedAt).toBe(1_234);
+    // A reset forgets it along with everything else learning-related.
+    expect(applyProgressAction(progress, { type: "reset" }, 2).syncedAt).toBeUndefined();
+  });
+});
+
+describe("schema versions", () => {
+  it("upgrades a version 1 record without losing or re-counting anything", () => {
+    const v1 = {
+      schemaVersion: 1,
+      owner: { kind: "account", accountId: "ada" },
+      deviceId: "laptop",
+      completedLessons: { "git-init": { completedAt: 10, xp: 50, type: "interactive" } },
+      completedChallenges: {},
+      xp: 50,
+      commandStats: { commit: { uses: 3, successes: 2, lastUsedAt: 20 } },
+      revealedHints: { "lesson:git-init": ["stage#0"] },
+      playgroundSessions: 2,
+      migrations: {},
+      createdAt: 1,
+      updatedAt: 20,
+      revision: 4,
+    };
+    const { progress, issues } = parseProgress(v1, 100);
+    expect(issues).toEqual([]);
+    expect(progress.schemaVersion).toBe(PROGRESS_SCHEMA_VERSION);
+    expect(progress.commandStats.commit).toMatchObject({ uses: 3, successes: 2 });
+    expect(progress.playgroundSessions).toBe(2);
+    // Nothing has been synced yet, so there is nothing from other devices to add.
+    expect(progress.remoteCounters).toBeUndefined();
+    expect(withRemoteCounters(progress).playgroundSessions).toBe(2);
+  });
+
+  it("keeps synced counters across a round trip, and repairs a broken one", () => {
+    const stored = {
+      ...emptyProgress(0),
+      remoteCounters: {
+        commandStats: { commit: { uses: 4, successes: 9, lastUsedAt: 5 } },
+        playgroundSessions: 2,
+      },
+      syncedAt: 50,
+    };
+    const { progress } = parseProgress(JSON.parse(JSON.stringify(stored)), 100);
+    // Successes can never exceed uses, here as anywhere else.
+    expect(progress.remoteCounters?.commandStats.commit).toMatchObject({ uses: 4, successes: 4 });
+    expect(progress.syncedAt).toBe(50);
+
+    const broken = parseProgress({ ...stored, remoteCounters: "nope" }, 100);
+    expect(broken.issues).toContain("remoteCounters was not an object");
+    expect(broken.progress.remoteCounters).toBeUndefined();
+  });
+
+  it("still refuses a record from a newer GitDojo", () => {
+    expect(() => parseProgress({ schemaVersion: PROGRESS_SCHEMA_VERSION + 1 }, 0)).toThrow(
+      NewerProgressVersionError,
+    );
   });
 });

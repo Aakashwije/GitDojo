@@ -11,9 +11,14 @@ import path from "node:path";
 import { promisify } from "node:util";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { getProgress, recordChallengeCompletion, recordLessonCompletion } from "./api";
+import {
+  getProgress,
+  recordChallengeCompletion,
+  recordLessonCompletion,
+  syncProgress,
+} from "./api";
 import { createPostgresProgressStore, insertCompletion, upsertUser } from "./postgres-store";
-import { ADA, ADA_ELSEWHERE, apiDeps, GRACE, postLesson } from "./testing";
+import { ADA, ADA_ELSEWHERE, apiDeps, GRACE, postLesson, postSync } from "./testing";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@asgardeo/nextjs/server", () => ({ asgardeo: vi.fn() }));
@@ -45,7 +50,8 @@ function testDatabaseUrl(value: string): string {
 }
 
 const resetTables = (sql: postgres.Sql) =>
-  sql`DROP TABLE IF EXISTS challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
+  sql`DROP TABLE IF EXISTS command_stats, device_activity, revealed_hints, last_lessons,
+      challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
 
 describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
   let sql: postgres.Sql;
@@ -294,6 +300,179 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         ),
       );
       expect(await body(await getProgress(deps(learner)))).toMatchObject({ totalXp: 225 });
+    });
+  });
+
+  describe("device activity with PostgreSQL", () => {
+    const deps = (who: Parameters<typeof apiDeps>[0]) =>
+      apiDeps(who, createPostgresProgressStore(sql));
+    const body = async (response: Response) => (await response.json()) as Record<string, unknown>;
+    const at = (offset: number) => new Date(Date.UTC(2026, 9, 9, 12) + offset).toISOString();
+    const upload = (
+      deviceId: string,
+      overrides: Record<string, unknown> = {},
+      who = identity("sync-learner"),
+    ) =>
+      syncProgress(
+        postSync({
+          schemaVersion: 2,
+          deviceId,
+          commandStats: { commit: { uses: 1, successes: 1, lastUsedAt: at(0) } },
+          playgroundSessions: 1,
+          revealedHints: { "lesson:git-init": ["stage#0"] },
+          lastLesson: { courseId: "git-basics", lessonId: "git-init", visitedAt: at(0) },
+          ...overrides,
+        }),
+        deps(who),
+      );
+    const activityOf = async (response: Response) =>
+      (await body(response)).activity as {
+        commandStats: Record<string, { uses: number; successes: number }>;
+        playgroundSessions: number;
+        revealedHints: Record<string, string[]>;
+        lastLesson: { lessonId: string } | null;
+      };
+
+    it("sums counters per device, excludes the asking one, and never lowers a row", async () => {
+      const learner = identity("sync-counters");
+      const laptop = (overrides: Record<string, unknown>) => upload("laptop", overrides, learner);
+
+      await laptop({
+        commandStats: { commit: { uses: 10, successes: 9, lastUsedAt: at(-5000) } },
+        playgroundSessions: 2,
+      });
+      await upload(
+        "phone",
+        {
+          commandStats: { commit: { uses: 4, successes: 4, lastUsedAt: at(-1000) } },
+          playgroundSessions: 3,
+        },
+        learner,
+      );
+
+      // A third device sees both of the others.
+      const tablet = await activityOf(
+        await upload("tablet", { commandStats: {}, playgroundSessions: 0 }, learner),
+      );
+      expect(tablet.commandStats.commit).toMatchObject({ uses: 14, successes: 13 });
+      expect(tablet.playgroundSessions).toBe(5);
+
+      // The laptop's own row is left out of its view.
+      const forLaptop = await activityOf(await laptop({ commandStats: {} }));
+      expect(forLaptop.commandStats.commit).toMatchObject({ uses: 4 });
+
+      // A stale upload arriving late must not undo newer totals (GREATEST in the upsert).
+      await laptop({
+        commandStats: { commit: { uses: 1, successes: 1, lastUsedAt: at(-9000) } },
+        playgroundSessions: 0,
+      });
+      const after = await activityOf(
+        await upload("tablet", { commandStats: {}, playgroundSessions: 0 }, learner),
+      );
+      expect(after.commandStats.commit).toMatchObject({ uses: 14 });
+      expect(after.playgroundSessions).toBe(5);
+    });
+
+    it("is idempotent under concurrent duplicate uploads", async () => {
+      const learner = identity("sync-concurrent");
+      await Promise.all(
+        Array.from({ length: 6 }, () =>
+          upload(
+            "laptop",
+            { commandStats: { commit: { uses: 3, successes: 2, lastUsedAt: at(0) } } },
+            learner,
+          ),
+        ),
+      );
+      const other = await activityOf(
+        await upload("other", { commandStats: {}, playgroundSessions: 0 }, learner),
+      );
+      expect(other.commandStats.commit).toMatchObject({ uses: 3, successes: 2 });
+      expect(other.playgroundSessions).toBe(1);
+      const [rows] = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM command_stats c JOIN users u ON u.id = c.user_id
+        WHERE u.subject = ${learner.subject}
+      `;
+      // One row per (device, command), however many uploads arrived.
+      expect(rows).toEqual({ count: 1 });
+    });
+
+    it("unions hints and keeps the most recent lesson visit", async () => {
+      const learner = identity("sync-hints");
+      await upload(
+        "laptop",
+        {
+          revealedHints: { "lesson:git-init": ["stage#0", "stage#1"] },
+          lastLesson: { courseId: "git-basics", lessonId: "git-init", visitedAt: at(-60_000) },
+        },
+        learner,
+      );
+      const phone = await activityOf(
+        await upload(
+          "phone",
+          {
+            revealedHints: {
+              "lesson:git-init": ["stage#0", "commit#0"],
+              "challenge:detached-head": ["branch#0"],
+            },
+            lastLesson: { courseId: "git-basics", lessonId: "what-is-git", visitedAt: at(0) },
+          },
+          learner,
+        ),
+      );
+      expect(phone.revealedHints["lesson:git-init"]).toEqual(["commit#0", "stage#0", "stage#1"]);
+      expect(phone.revealedHints["challenge:detached-head"]).toEqual(["branch#0"]);
+      expect(phone.lastLesson).toMatchObject({ lessonId: "what-is-git" });
+
+      // An older visit arriving afterwards does not move it back.
+      const late = await activityOf(
+        await upload(
+          "laptop",
+          { lastLesson: { courseId: "git-basics", lessonId: "git-init", visitedAt: at(-90_000) } },
+          learner,
+        ),
+      );
+      expect(late.lastLesson).toMatchObject({ lessonId: "what-is-git" });
+    });
+
+    it("keeps one account's activity out of another's", async () => {
+      const ada = identity("sync-ada");
+      const grace = identity("sync-grace");
+      await upload("shared-device-id", {}, ada);
+      const view = await activityOf(
+        await upload("shared-device-id", { commandStats: {}, revealedHints: {} }, grace),
+      );
+      expect(view.commandStats).toEqual({});
+      expect(view.revealedHints).toEqual({});
+      expect(view.playgroundSessions).toBe(0);
+    });
+
+    it("refuses activity the constraints forbid, without touching anything else", async () => {
+      const learner = identity("sync-invalid");
+      await upload("laptop", {}, learner);
+      const rejected = await upload(
+        "laptop",
+        { commandStats: { commit: { uses: 1, successes: 5, lastUsedAt: at(0) } } },
+        learner,
+      );
+      expect(rejected.status).toBe(400);
+      const [rows] = await sql<{ uses: number }[]>`
+        SELECT uses FROM command_stats c JOIN users u ON u.id = c.user_id
+        WHERE u.subject = ${learner.subject}
+      `;
+      expect(rows).toEqual({ uses: 1 });
+    });
+
+    it("removes a learner's activity with their account", async () => {
+      const learner = identity("sync-cascade");
+      await upload("laptop", {}, learner);
+      await sql`DELETE FROM users WHERE subject = ${learner.subject}`;
+      for (const table of ["command_stats", "device_activity", "revealed_hints", "last_lessons"]) {
+        const [row] = await sql<{ count: number }[]>`
+          SELECT count(*)::int AS count FROM ${sql(table)}
+        `;
+        expect(row?.count, table).toBe(0);
+      }
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   continueLearning,
   courseProgress,
   recentActivity,
+  withRemoteCounters,
   type ActivityItem,
   type LocalProgress,
   type ProgressCatalog,
@@ -79,12 +80,14 @@ export function Dashboard({ catalog }: { catalog: ProgressCatalog }) {
 }
 
 function DashboardContent({
-  progress,
+  progress: own,
   catalog,
 }: {
   progress: LocalProgress;
   catalog: ProgressCatalog;
 }) {
+  // Counters are stored per device; the learner's totals include their other devices'.
+  const progress = withRemoteCounters(own);
   const lessons = completedLessonIds(progress);
   const challenges = completedChallengeIds(progress);
   const commands = commandSummary(progress);

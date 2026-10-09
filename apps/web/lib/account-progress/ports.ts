@@ -34,10 +34,50 @@ export interface NewCompletion {
   xp: number;
 }
 
+/** One Git subcommand's usage, summed over the devices a read asked for. */
+export interface StoredCommandStat {
+  command: string;
+  uses: number;
+  successes: number;
+  lastUsedAt: Date;
+}
+
+/** The last lesson visited, from whichever device visited one most recently. */
+export interface StoredLastLesson {
+  courseId: string;
+  lessonId: string;
+  visitedAt: Date;
+}
+
+/**
+ * Everything besides completions. Counters exclude the device that asked, which keeps its own
+ * copy: a device adds its own counters to these rather than double counting them.
+ */
+export interface StoredActivity {
+  commandStats: StoredCommandStat[];
+  playgroundSessions: number;
+  /** Content key (`lesson:<id>`) → hints revealed on any device. */
+  revealedHints: Record<string, string[]>;
+  lastLesson: StoredLastLesson | null;
+}
+
 export interface AccountRecords {
   /** The internal user id. The browser uses it only to keep each account's cache separate. */
   accountId: string;
   completions: StoredCompletion[];
+  activity: StoredActivity;
+}
+
+/**
+ * One device's own progress, as it uploads it. Counters are absolute, never deltas, so the same
+ * upload can be retried safely; hints and the last lesson merge by union and recency.
+ */
+export interface DeviceActivity {
+  deviceId: string;
+  commandStats: { command: string; uses: number; successes: number; lastUsedAt: Date }[];
+  playgroundSessions: number;
+  revealedHints: Record<string, string[]>;
+  lastLesson: StoredLastLesson | null;
 }
 
 export interface RecordResult {
@@ -53,9 +93,15 @@ export interface RecordResult {
  * the request, so one learner can never read or write another's records.
  */
 export interface AccountProgressStore {
-  read(identity: VerifiedIdentity): Promise<AccountRecords>;
+  /** Everything the account has. `deviceId` is excluded from the counter sums when given. */
+  read(identity: VerifiedIdentity, deviceId?: string): Promise<AccountRecords>;
   /** Records a completion once; a repeat changes nothing and keeps the first timestamp and XP. */
   recordCompletion(identity: VerifiedIdentity, completion: NewCompletion): Promise<RecordResult>;
+  /**
+   * Merges one device's activity into the account and returns the account's view for that
+   * device. Idempotent: the same upload twice leaves the same rows.
+   */
+  syncActivity(identity: VerifiedIdentity, activity: DeviceActivity): Promise<AccountRecords>;
 }
 
 /** Everything the account progress use cases depend on, injectable for tests. */
