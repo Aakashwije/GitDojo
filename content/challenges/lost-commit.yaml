@@ -84,3 +84,27 @@ hints:
     - The newest of the two commits brings its parent along.
   main-untouched:
     - The recovery should not move `main`.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: main-moved
+    when:
+      - type: branch_contains_commit
+        branch: main
+        message: Send receipt emails
+    text: >-
+      `main` now contains `Send receipt emails`. The mission leaves `main` exactly where it was,
+      at `Add opening hours`, and puts the payments work on a branch of its own; what `main`
+      points at now shows what moved.
+
+  - id: branch-at-wrong-commit
+    when:
+      - type: branch_exists
+        branch: feature/payments
+      - type: commit_not_on_branch
+        branch: feature/payments
+        message: Send receipt emails
+    text: >-
+      `feature/payments` exists again, but its history does not reach `Send receipt emails`, so it
+      was created somewhere other than where those commits live. The record of HEAD's positions
+      still lists the moment each one was made.

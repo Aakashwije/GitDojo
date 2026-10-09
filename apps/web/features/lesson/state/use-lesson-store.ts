@@ -6,11 +6,17 @@ import { create } from "zustand";
 interface LessonStore {
   progress: LessonProgress | null;
   validation: LessonValidationResult | null;
+  /** Ids of the tips matching the current state, in authored order. */
+  tips: string[];
   /** Objective id → how far down its hint ladder the learner has gone. */
   hintStates: Record<string, HintState>;
   commandCount: number;
   completionDismissed: boolean;
-  applyEvaluation: (validation: LessonValidationResult, progress: LessonProgress) => void;
+  applyEvaluation: (
+    validation: LessonValidationResult,
+    progress: LessonProgress,
+    tips?: string[],
+  ) => void;
   recordCommand: () => void;
   /** Shows the next of `totalHints` hints for an objective. */
   revealHint: (objectiveId: string, totalHints: number) => void;
@@ -24,11 +30,12 @@ interface LessonStore {
 export const useLessonStore = create<LessonStore>()((set) => ({
   progress: null,
   validation: null,
+  tips: [],
   hintStates: {},
   commandCount: 0,
   completionDismissed: false,
-  applyEvaluation: (validation, progress) => {
-    set({ validation, progress });
+  applyEvaluation: (validation, progress, tips = []) => {
+    set({ validation, progress, tips });
   },
   recordCommand: () => {
     set((state) => ({ commandCount: state.commandCount + 1 }));
@@ -46,12 +53,13 @@ export const useLessonStore = create<LessonStore>()((set) => ({
     set({ completionDismissed: true });
   },
   resetAttempt: () => {
-    set({ hintStates: {}, commandCount: 0, completionDismissed: false });
+    set({ tips: [], hintStates: {}, commandCount: 0, completionDismissed: false });
   },
   startLesson: () => {
     set({
       progress: null,
       validation: null,
+      tips: [],
       hintStates: {},
       commandCount: 0,
       completionDismissed: false,

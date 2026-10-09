@@ -11,6 +11,7 @@ import { CompletionCard } from "./CompletionCard";
 import { LessonContent } from "./content/LessonContent";
 import { CurrentObjective } from "./CurrentObjective";
 import { HintPanel } from "./HintPanel";
+import { LessonTipNote } from "./LessonTipNote";
 import { ObjectiveList } from "./ObjectiveList";
 import { renderInline, RichText } from "@/components/content/rich-text";
 
@@ -44,6 +45,7 @@ export function LessonPanel({
   const hintStates = useLessonStore((state) => state.hintStates);
   const revealHint = useLessonStore((state) => state.revealHint);
   const commandCount = useLessonStore((state) => state.commandCount);
+  const matchingTips = useLessonStore((state) => state.tips);
   const validation = useLessonStore((state) =>
     state.validation?.lessonId === lesson.id ? state.validation : null,
   );
@@ -112,6 +114,11 @@ export function LessonPanel({
               completedIds={progress?.completedObjectiveIds ?? []}
               currentId={done ? null : currentId}
             />
+
+            {/* Only once the learner has acted, and never over a finished attempt. */}
+            {lesson.tips && commandCount > 0 && !done ? (
+              <LessonTipNote tips={lesson.tips} matching={matchingTips} />
+            ) : null}
 
             {done ? (
               <CompletionCard

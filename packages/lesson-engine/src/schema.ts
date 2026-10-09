@@ -1,6 +1,6 @@
 import { parseCommand } from "@gitdojo/command-parser";
 import { isGitInternalPath, isValidBranchName, normalizeWorkspacePath } from "@gitdojo/git-engine";
-import { hintIssues } from "@gitdojo/hints";
+import { hintIssues, namesCommand } from "@gitdojo/hints";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { validatorDefinitionSchema } from "@gitdojo/validator";
 import { z } from "zod";
@@ -180,6 +180,46 @@ function normalizeSafely(path: string): string {
   }
 }
 
+/**
+ * Feedback for a state that leads away from the goal. `when` is a list of the same validators
+ * objectives use, so a tip needs no new detection code: it shows while every condition passes.
+ */
+export const tipsSchema = z
+  .array(
+    z.strictObject({
+      id: identifier,
+      when: z.array(validatorDefinitionSchema).min(1, "a tip needs at least one condition"),
+      text: z.string().trim().min(1),
+    }),
+  )
+  .min(1);
+
+/** Tip ids are unique, and in challenges a tip may no more name a command than a hint may. */
+export function checkTips(
+  tips: z.infer<typeof tipsSchema> | undefined,
+  ctx: z.RefinementCtx,
+  { challenge = false }: { challenge?: boolean } = {},
+): void {
+  const seen = new Set<string>();
+  for (const [index, tip] of (tips ?? []).entries()) {
+    if (seen.has(tip.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tips", index, "id"],
+        message: `duplicate tip id "${tip.id}"`,
+      });
+    }
+    seen.add(tip.id);
+    if (challenge && namesCommand(tip.text)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tips", index, "text"],
+        message: "challenges must not name the command, in tips any more than in hints",
+      });
+    }
+  }
+}
+
 const hintText = z.string().trim().min(1);
 
 /** A hint is plain text (level inferred) or `{ level: 1 | 2 | 3, text }`. */
@@ -251,10 +291,12 @@ export const lessonDefinitionSchema = z
     setup: setupSchema.default({}),
     objectives: z.array(objectiveSchema).default([]),
     hints: hintsSchema.optional(),
+    tips: tipsSchema.optional(),
     editor: z.strictObject({ readOnly: z.boolean().optional() }).optional(),
   })
   .superRefine((lesson, ctx) => {
     checkSetup(lesson.setup, ctx);
+    checkTips(lesson.tips, ctx);
 
     if (lesson.type === "concept") {
       if (lesson.objectives.length > 0) {

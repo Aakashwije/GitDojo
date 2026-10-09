@@ -79,3 +79,28 @@ hints:
     - The newest commit is the one HEAD points at; its parent comes with it.
   on-main:
     - Once the work has a branch of its own, leaving is safe.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: left-detached
+    when:
+      - type: current_branch
+        branch: main
+      - type: branch_not_exists
+        branch: fix/rounding
+    text: >-
+      You are on `main` and `fix/rounding` does not exist, so nothing points at the rounding work
+      any more. Those commits are still in the repository — every position HEAD has held is on
+      record — but no branch will find them by name.
+
+  - id: branch-missed-the-work
+    when:
+      - type: branch_exists
+        branch: fix/rounding
+      - type: commit_not_on_branch
+        branch: fix/rounding
+        message: Fix rounding of totals
+    text: >-
+      `fix/rounding` exists, but its history does not include `Fix rounding of totals`. A branch
+      starts at whatever commit it was created from; comparing where the branch points with where
+      the fix lives shows the gap.

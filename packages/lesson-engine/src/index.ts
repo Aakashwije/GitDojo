@@ -25,11 +25,13 @@ export { advanceProgress, createInitialProgress, type LessonProgress } from "./p
 export {
   checkObjectives,
   checkSetup,
+  checkTips,
   hintsSchema,
   identifier,
   lessonDefinitionSchema,
   objectiveSchema,
   setupSchema,
+  tipsSchema,
 } from "./schema";
 export { applySetup, resetLesson, setupLesson, type LessonEnvironment } from "./setup";
 export { loadAllScenarios, parseScenario, playgroundScenarioSchema } from "./scenario";

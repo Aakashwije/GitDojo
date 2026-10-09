@@ -79,6 +79,21 @@ export interface LessonObjective {
   validator: ValidatorDefinition;
 }
 
+/**
+ * Feedback shown while an authored condition holds, e.g. "the fix is on `main`; this challenge
+ * expects it on `fix/rounding`".
+ *
+ * Tips describe the state the learner is in, never the command that produced it: the app sees
+ * repository state, not intent. They are re-evaluated from scratch after every action, so a tip
+ * appears the moment its conditions hold and disappears as soon as they stop.
+ */
+export interface LessonTip {
+  id: string;
+  /** Every condition must pass for the tip to show. */
+  when: ValidatorDefinition[];
+  text: string;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Visual content for concept lessons (and optional extra material in interactive lessons)
 // ---------------------------------------------------------------------------------------------
@@ -158,6 +173,8 @@ export interface LessonDefinition {
   objectives: LessonObjective[];
   /** Objective id → hints ordered from vague to explicit (see {@link HintLevel}). */
   hints?: Record<string, LessonHintInput[]>;
+  /** Feedback for states that lead away from the goal; the first matching one is shown. */
+  tips?: LessonTip[];
   /** Code editor settings for hands-on lessons. */
   editor?: LessonEditorSettings;
 }
@@ -260,6 +277,8 @@ export interface ChallengeDefinition {
   objectives: LessonObjective[];
   /** Objective id → hints, vague first. Never the exact command (no level 3). */
   hints?: Record<string, LessonHintInput[]>;
+  /** Feedback for states that lead away from the mission; the first matching one is shown. */
+  tips?: LessonTip[];
 }
 
 /** What the challenge browser needs, without setup or objectives. */

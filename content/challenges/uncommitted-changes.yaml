@@ -83,3 +83,48 @@ hints:
     - Whatever you put aside is still waiting for you.
   nothing-stashed:
     - Bringing work back does not always remove it from the list.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: hotfix-on-main
+    when:
+      - type: branches_merged
+        branch: hotfix/rounding
+        into: main
+      - type: commit_not_on_branch
+        branch: release
+        message: Round prices correctly
+    text: >-
+      `main` now contains the rounding fix and `release` does not. The mission puts the hotfix
+      into `release`; checking which branches contain that commit shows where it landed.
+
+  - id: rework-missing
+    when:
+      - type: branches_merged
+        branch: hotfix/rounding
+        into: release
+      - type: stash_count
+        count: 0
+      - type: file_status
+        file: src/price.js
+        status: committed
+    text: >-
+      The hotfix is merged and the stash is empty, but `src/price.js` has no uncommitted changes,
+      so the unfinished price rework is not waiting in the working tree. The mission wants it back
+      exactly as it was, not committed. The file's history and the stash list are the two places
+      worth looking.
+
+  - id: stash-left-behind
+    when:
+      - type: branches_merged
+        branch: hotfix/rounding
+        into: release
+      - type: file_status
+        file: src/price.js
+        status: modified
+      - type: stash_count
+        count: 1
+    text: >-
+      Your price rework is back, but the stash still holds an entry. Bringing shelved work back
+      and taking it off the list are two different things, and the stash list shows what is still
+      held.

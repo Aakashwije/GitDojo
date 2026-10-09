@@ -85,3 +85,28 @@ hints:
     - If features came along, start over and copy only the fix.
   clean:
     - Check the status for anything left over.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: features-came-along
+    when:
+      - type: branch_contains_commit
+        branch: release/1.4
+        message: Add gift wrapping
+    text: >-
+      `release/1.4` now contains `Add gift wrapping`, which the frozen release is meant to stay
+      free of. Bringing in a whole branch brings every commit it has, while the mission needs a
+      copy of one. A one-line log of the release branch shows everything that arrived.
+
+  - id: wrong-commit-copied
+    when:
+      - type: branch_contains_commit
+        branch: release/1.4
+        message: Add loyalty points
+      - type: commit_not_on_branch
+        branch: release/1.4
+        message: Fix crash on empty orders
+    text: >-
+      `release/1.4` has `Add loyalty points` but not the crash fix, so the commit that was copied
+      across is not the one the mission asks for. Listing `main`'s commits shows which message
+      belongs to the fix.

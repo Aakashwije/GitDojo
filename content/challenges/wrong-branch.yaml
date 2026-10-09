@@ -76,3 +76,30 @@ hints:
       should be left over.
   clean:
     - Check the status for anything left over.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: commits-unreachable
+    when:
+      - type: branch_points_to_commit
+        branch: main
+        message: Initial commit
+      - type: branch_not_exists
+        branch: feature/login
+    text: >-
+      `main` is back at `Initial commit`, but there is no `feature/login`, so no branch points at
+      the two login commits any more. They are still in the repository: Git keeps a record of
+      every position HEAD has held, and that record is the way back to them.
+
+  - id: login-files-loose
+    when:
+      - type: branch_contains_commit
+        branch: feature/login
+        message: Validate login form
+      - type: file_status
+        file: login.js
+        status: untracked
+    text: >-
+      `login.js` is sitting in the working tree untracked. The branch label moved back but the
+      files stayed behind; both commits are already safe on `feature/login`, so the working tree
+      does not need a loose copy. The mission asks for nothing left over.
