@@ -1,0 +1,47 @@
+name: Set up Playwright
+description: >
+  Restore a Playwright browser from the cache (downloading it when the cache misses) and install
+  the system libraries it needs, with each attempt bounded so a stalled apt cannot run away with
+  the job's whole timeout.
+inputs:
+  browser:
+    description: The Playwright browser to install.
+    required: false
+    default: chromium
+runs:
+  using: composite
+  steps:
+    - name: Cache Playwright browsers
+      id: browsers
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ inputs.browser }}-${{ hashFiles('pnpm-lock.yaml') }}
+    - name: Install ${{ inputs.browser }} and its system libraries
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+        CACHED: ${{ steps.browsers.outputs.cache-hit }}
+        # The libraries come from apt: never wait for a debconf prompt or a service restart.
+        DEBIAN_FRONTEND: noninteractive
+        NEEDRESTART_MODE: a
+      run: |
+        set -euo pipefail
+        # With the browser already cached, only its system libraries are missing.
+        if [ "${CACHED:-}" = "true" ]; then
+          set -- install-deps "$BROWSER"
+        else
+          set -- install --with-deps "$BROWSER"
+        fi
+        # apt on a hosted runner can block on a package lock held by unattended upgrades. Left
+        # alone it hangs until the job times out (25 minutes, reported as "cancelled", with no
+        # tests run), so cap each attempt and retry once instead.
+        for attempt in 1 2; do
+          if timeout --kill-after=30s 180s pnpm --filter @gitdojo/web exec playwright "$@"; then
+            exit 0
+          fi
+          echo "::warning::playwright $1 did not finish within 3 minutes (attempt $attempt of 2)"
+          sleep 15
+        done
+        echo "::error::playwright $1 failed twice; see the warnings above"
+        exit 1

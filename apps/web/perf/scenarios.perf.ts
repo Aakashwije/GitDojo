@@ -1,8 +1,7 @@
 /**
  * Stress scenarios for GitDojo's hot paths, run with `pnpm perf` (weekly and on request in CI).
- * Each scenario checks that the result is still correct and prints how long it took. Timings vary
- * by machine, so each has a generous budget (roughly 10-30x a laptop's time, see
- * docs/testing.md): it catches a regression of an order of magnitude, not normal noise.
+ * Each scenario checks that the result is still correct and prints how long it took. Budgets and
+ * the timing table live in ./harness.
  */
 import { runCommandLine } from "@gitdojo/command-parser";
 import { createGitEngine, createLightningFs, WorkspaceFileSystem } from "@gitdojo/git-engine";
@@ -11,65 +10,13 @@ import { createIndexedDbStorage, ProgressRepository, type ProgressAction } from 
 import { createRepositoryStateReader } from "@gitdojo/repository-state";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { IDBFactory } from "fake-indexeddb";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { EditorController } from "@/features/editor/services/editor-controller";
 import { useEditorStore } from "@/features/editor/state/use-editor-store";
 import { buildCommitGraph } from "@/features/repository/services/build-commit-graph";
 import { assignLanes, type LaneCommit } from "@/features/repository/services/lanes";
 import { LearningSession } from "@/features/workspace/services/learning-session";
-
-const results: { scenario: string; size: string; ms: number; note?: string }[] = [];
-
-/** Upper limits in milliseconds, keyed by scenario. Documented in docs/testing.md. */
-export const BUDGETS_MS: Readonly<Record<string, number>> = {
-  "create commits (git add + commit)": 30_000,
-  "read repository state": 3_000,
-  "git log --oneline": 2_000,
-  "git log --all --oneline": 3_000,
-  "build commit graph (React Flow nodes)": 500,
-  "git reflog": 500,
-  "git status (all untracked)": 1_000,
-  "git add .": 5_000,
-  "git commit": 1_000,
-  "git status (50 modified)": 1_000,
-  "git diff": 1_000,
-  "assign lanes": 500,
-  "parse + validate lesson YAML": 1_000,
-  "queue edit + add + commit rounds": 30_000,
-  "type with autosave, then flush": 2_000,
-  "sequential updates (each awaited)": 1_000,
-  "burst of updates (batched)": 500,
-};
-
-async function measure<T>(
-  scenario: string,
-  size: string,
-  task: () => Promise<T> | T,
-  note?: string,
-): Promise<T> {
-  const start = performance.now();
-  const value = await task();
-  const ms = Math.round((performance.now() - start) * 10) / 10;
-  results.push({ scenario, size, ms, ...(note ? { note } : {}) });
-  const budget = BUDGETS_MS[scenario];
-  if (budget === undefined) throw new Error(`No budget for scenario "${scenario}"`);
-  expect(
-    ms,
-    `${scenario} (${size}) took ${String(ms)} ms; budget ${String(budget)} ms`,
-  ).toBeLessThan(budget);
-  return value;
-}
-
-afterAll(() => {
-  // A Markdown table, ready for docs/testing.md. stderr, because Vitest hides passing tests' logs.
-  const rows = results.map(
-    (row) =>
-      `| ${row.scenario} | ${row.size} | ${String(row.ms)} |${row.note ? ` ${row.note} |` : ""}`,
-  );
-  process.stderr.write(
-    ["", "| Scenario | Size | ms |", "| --- | --- | ---: |", ...rows, ""].join("\n"),
-  );
-});
+import { measure } from "./harness";
 
 let counter = 0;
 function environment(): LessonEnvironment & { fs: ReturnType<typeof createLightningFs> } {

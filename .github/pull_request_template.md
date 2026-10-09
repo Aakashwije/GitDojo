@@ -80,7 +80,15 @@ Closes #
 - [ ] Followed `docs/lesson-authoring.md` / `docs/challenge-authoring.md`
 - [ ] Played through the lesson end to end in the browser
 - [ ] Objectives check repository state, so alternative valid commands (e.g. `git add .` vs `git add file`) also pass
-- [ ] Hints go from gentle to explicit, and no hint gives the answer away too early
+- [ ] Hints climb concept → command → answer; a level 3 hint names the command in backticks, and
+      challenges never give the answer away
+- [ ] Interactive lessons and challenges have a reference solution in `SOLUTIONS`
+      (`packages/lesson-engine/src/content.test.ts`)
+- [ ] No objective passes before the learner has typed anything: the lesson never starts completed
+- [ ] Every lesson file in a course directory is listed by the course; adding or removing a course
+      also updates the course-order assertion in `content.test.ts`
+- [ ] The lesson only teaches commands the sandbox can run. If the parser does not support one yet
+      (`PLANNED_GIT_COMMANDS`), it is a `concept` lesson that says so in a `note` callout
 - [ ] Existing lesson IDs unchanged, so learners' saved progress still works
 
 </details>
@@ -104,7 +112,21 @@ Closes #
 - [ ] Works in light and dark mode
 - [ ] Responsive down to mobile width
 - [ ] ♿ Keyboard navigable, visible focus states, labelled controls, sufficient contrast
+- [ ] State is carried by text or an icon as well as colour, and changes a learner should notice
+      are announced through a status region
+- [ ] `--text-muted` for text; `--text-faint` is for icons, markers and rules only
+- [ ] Movement goes through the `animate-gd-*` utilities, so `prefers-reduced-motion` is respected
 - [ ] Loading, empty and error states handled
+
+**Lesson UI only**
+
+- [ ] Stays generic and data-driven: no lesson-specific conditionals, and no lesson copy hardcoded
+      in React. A new lesson using the supported YAML fields benefits automatically
+- [ ] Lesson routes, IDs, objectives, validators, completion behaviour, saved progress and XP
+      rules are unchanged
+- [ ] Any new YAML field or content block type is justified in the description, backward
+      compatible, and lands together with the schema, `@gitdojo/shared-types`, the renderer and
+      `docs/lesson-authoring.md`
 
 </details>
 
@@ -120,13 +142,18 @@ Closes #
 </details>
 
 <details>
-<summary><b>⚡ Performance-sensitive changes</b> (terminal, graph rendering, engine hot paths)</summary>
+<summary><b>⚡ Performance-sensitive changes</b> (terminal, graph rendering, lesson UI, engine hot paths)</summary>
 
 - [ ] Ran `pnpm perf` and stayed within the latency budgets in `docs/testing.md`
-- [ ] For graph rendering: ran `pnpm --filter @gitdojo/web perf:browser`
+- [ ] For anything rendered: ran `pnpm --filter @gitdojo/web perf:browser`
+- [ ] A cost that grows with repository size, content size or re-render frequency has its own
+      scenario in `apps/web/perf/`, a budget in `perf/harness.ts`, and its measurement recorded in
+      `docs/testing.md`
 - [ ] No new large dependencies in the client bundle
 
 </details>
+
+<!-- CONTRIBUTING.md explains the reasoning behind these boxes, with links to the docs. -->
 
 ## 💬 Notes for reviewers
 
