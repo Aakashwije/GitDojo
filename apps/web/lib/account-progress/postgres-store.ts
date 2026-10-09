@@ -1,7 +1,13 @@
 import { type LessonType } from "@gitdojo/shared-types";
 import type postgres from "postgres";
 import { type VerifiedIdentity } from "@/lib/auth/identity";
-import { type AccountProgressStore, type NewCompletion, type StoredCompletion } from "./ports";
+import {
+  type AccountProgressStore,
+  type DeviceActivity,
+  type NewCompletion,
+  type StoredActivity,
+  type StoredCompletion,
+} from "./ports";
 
 // The PostgreSQL adapter for the AccountProgressStore port. All SQL for account progress is here.
 
@@ -115,12 +121,132 @@ export async function insertCompletion(
   return { created: false, completion: toCompletion(existing) };
 }
 
+/**
+ * Everything besides completions, with counters summed over every device **except** `deviceId`.
+ * The asking device keeps its own counters locally and adds them, so uploading them again can
+ * never count them twice.
+ */
+export async function readActivity(
+  sql: Queryable,
+  userId: string,
+  deviceId: string | null,
+): Promise<StoredActivity> {
+  // Sequential on purpose: these share one transaction's connection.
+  const exclude = deviceId ?? "";
+  const commands = await sql<
+    { command: string; uses: string; successes: string; last_used_at: Date }[]
+  >`
+    SELECT command, SUM(uses) AS uses, SUM(successes) AS successes,
+           MAX(last_used_at) AS last_used_at
+    FROM command_stats
+    WHERE user_id = ${userId} AND device_id <> ${exclude}
+    GROUP BY command ORDER BY command
+  `;
+  const sessions = await sql<{ total: string | null }[]>`
+    SELECT SUM(playground_sessions) AS total FROM device_activity
+    WHERE user_id = ${userId} AND device_id <> ${exclude}
+  `;
+  const hints = await sql<{ content_key: string; hint: string }[]>`
+    SELECT content_key, hint FROM revealed_hints
+    WHERE user_id = ${userId} ORDER BY content_key, hint
+  `;
+  const last = await sql<{ course_id: string; lesson_id: string; visited_at: Date }[]>`
+    SELECT course_id, lesson_id, visited_at FROM last_lessons WHERE user_id = ${userId}
+  `;
+
+  const revealedHints: Record<string, string[]> = {};
+  for (const row of hints) (revealedHints[row.content_key] ??= []).push(row.hint);
+  const lastRow = last[0];
+  return {
+    // SUM() comes back as a string from PostgreSQL's bigint.
+    commandStats: commands.map((row) => ({
+      command: row.command,
+      uses: Number(row.uses),
+      successes: Number(row.successes),
+      lastUsedAt: row.last_used_at,
+    })),
+    playgroundSessions: Number(sessions[0]?.total ?? 0),
+    revealedHints,
+    lastLesson: lastRow
+      ? {
+          courseId: lastRow.course_id,
+          lessonId: lastRow.lesson_id,
+          visitedAt: lastRow.visited_at,
+        }
+      : null,
+  };
+}
+
+/**
+ * Writes one device's own progress. Counters are replaced for that device only, and never
+ * lowered: an upload that arrives out of order after a newer one leaves the newer totals alone.
+ * Hints insert as a set, and the last lesson only moves forward in time.
+ */
+export async function writeDeviceActivity(
+  sql: Queryable,
+  userId: string,
+  activity: DeviceActivity,
+): Promise<void> {
+  for (const stat of activity.commandStats) {
+    await sql`
+      INSERT INTO command_stats (user_id, device_id, command, uses, successes, last_used_at)
+      VALUES (${userId}, ${activity.deviceId}, ${stat.command}, ${stat.uses}, ${stat.successes},
+              ${stat.lastUsedAt})
+      ON CONFLICT (user_id, device_id, command) DO UPDATE
+        SET uses = GREATEST(command_stats.uses, EXCLUDED.uses),
+            successes = LEAST(
+              GREATEST(command_stats.successes, EXCLUDED.successes),
+              GREATEST(command_stats.uses, EXCLUDED.uses)
+            ),
+            last_used_at = GREATEST(command_stats.last_used_at, EXCLUDED.last_used_at)
+    `;
+  }
+
+  await sql`
+    INSERT INTO device_activity (user_id, device_id, playground_sessions)
+    VALUES (${userId}, ${activity.deviceId}, ${activity.playgroundSessions})
+    ON CONFLICT (user_id, device_id) DO UPDATE
+      SET playground_sessions = GREATEST(
+            device_activity.playground_sessions, EXCLUDED.playground_sessions
+          ),
+          updated_at = now()
+  `;
+
+  const hints = Object.entries(activity.revealedHints).flatMap(([contentKey, list]) =>
+    list.map((hint) => ({ user_id: userId, content_key: contentKey, hint })),
+  );
+  if (hints.length > 0) {
+    await sql`
+      INSERT INTO revealed_hints ${sql(hints, "user_id", "content_key", "hint")}
+      ON CONFLICT (user_id, content_key, hint) DO NOTHING
+    `;
+  }
+
+  if (activity.lastLesson) {
+    const { courseId, lessonId, visitedAt } = activity.lastLesson;
+    await sql`
+      INSERT INTO last_lessons (user_id, course_id, lesson_id, visited_at)
+      VALUES (${userId}, ${courseId}, ${lessonId}, ${visitedAt})
+      ON CONFLICT (user_id) DO UPDATE
+        SET course_id = EXCLUDED.course_id,
+            lesson_id = EXCLUDED.lesson_id,
+            visited_at = EXCLUDED.visited_at
+        WHERE EXCLUDED.visited_at > last_lessons.visited_at
+           -- Equal times are broken by lesson id, so every device settles on the same answer.
+           OR (EXCLUDED.visited_at = last_lessons.visited_at
+               AND EXCLUDED.lesson_id > last_lessons.lesson_id)
+    `;
+  }
+}
+
 export function createPostgresProgressStore(sql: postgres.Sql): AccountProgressStore {
   return {
-    async read(identity) {
+    async read(identity, deviceId) {
       return sql.begin(async (tx) => {
         const accountId = await upsertUser(tx, identity);
-        return { accountId, completions: await listCompletions(tx, accountId) };
+        const completions = await listCompletions(tx, accountId);
+        const activity = await readActivity(tx, accountId, deviceId ?? null);
+        return { accountId, completions, activity };
       });
     },
     async recordCompletion(identity, completion) {
@@ -128,6 +254,17 @@ export function createPostgresProgressStore(sql: postgres.Sql): AccountProgressS
         const userId = await upsertUser(tx, identity);
         const result = await insertCompletion(tx, userId, completion);
         return { ...result, completions: await listCompletions(tx, userId) };
+      });
+    },
+    async syncActivity(identity, activity) {
+      // One transaction: the device's rows are written and the merged view read together, so a
+      // concurrent upload from another device is either fully included or not at all.
+      return sql.begin(async (tx) => {
+        const accountId = await upsertUser(tx, identity);
+        await writeDeviceActivity(tx, accountId, activity);
+        const completions = await listCompletions(tx, accountId);
+        const merged = await readActivity(tx, accountId, activity.deviceId);
+        return { accountId, completions, activity: merged };
       });
     },
   };

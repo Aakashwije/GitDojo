@@ -19,8 +19,11 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { loadAccountSession, useAccountSession } from "@/features/auth";
 import {
+  EMPTY_ACTIVITY,
   fetchAccountProgress,
+  syncAccountActivity,
   uploadLessonCompletion,
+  type AccountActivity,
   type AccountLessons,
 } from "../services/account-progress";
 import { createBrowserProgressRepository } from "../services/browser-progress";
@@ -37,6 +40,15 @@ export type ProgressMode = "anonymous" | "account" | "account-unavailable";
 
 /** Why account progress is not up to date, shown to the learner. */
 export type AccountNotice = "session-ended" | "unavailable" | "load-failed";
+
+/**
+ * How this device's progress stands with the account.
+ * - `off`: anonymous, or accounts are not configured.
+ * - `synced`: everything recorded here has reached the account.
+ * - `pending`: there are local changes the account has not confirmed yet.
+ * - `paused`: an upload failed; the changes are kept here and retried.
+ */
+export type SyncState = "off" | "synced" | "pending" | "paused";
 
 /** XP a completion just earned: 0 when the content had been completed before. */
 export interface CompletionAward {
@@ -57,6 +69,10 @@ interface ProgressState {
   saving: boolean;
   mode: ProgressMode;
   accountNotice: AccountNotice | null;
+  /** Whether this device's progress has reached the account. */
+  sync: SyncState;
+  /** When the account last confirmed this device's progress. */
+  syncedAt: number | null;
 }
 
 /**
@@ -74,6 +90,8 @@ export const useProgressStore = create<ProgressState>()(() => ({
   saving: false,
   mode: "anonymous",
   accountNotice: null,
+  sync: "off",
+  syncedAt: null,
 }));
 
 let repository: ProgressRepository | null = null;
@@ -84,6 +102,19 @@ let inFlight = 0;
 /** Account uploads not finished yet. */
 let uploading = 0;
 let accountFetch: typeof fetch | undefined;
+/** Set while a sync is queued or running, so activity recorded meanwhile is not lost. */
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let syncing: Promise<void> | null = null;
+/** Changes recorded since the last confirmed sync. */
+let dirty = false;
+let retryDelay = 0;
+let onlineListener: (() => void) | null = null;
+/**
+ * The notice the activity sync put up, if any. Completion uploads and the initial load report
+ * through the same notice, so the sync only ever clears its own: a recovered sync must not
+ * dismiss "your session has ended" raised by something else.
+ */
+let syncNotice: AccountNotice | null = null;
 
 function updateSaving(): void {
   useProgressStore.setState({ saving: inFlight > 0 || uploading > 0 });
@@ -144,7 +175,148 @@ export function recordProgress(action: ProgressAction): Promise<void> {
   useProgressStore.setState({ progress: applyProgressAction(progress, action, Date.now()) });
   const saved = save(action);
   if (upload) void uploadLesson(action.content.id, action.content.kind);
+  if (SYNCED_ACTIONS.has(action.type)) markDirty();
   return saved;
+}
+
+/**
+ * Actions whose result this device uploads in the activity payload. Completions are not here:
+ * they have their own endpoints, where the server computes the XP.
+ */
+const SYNCED_ACTIONS = new Set<ProgressAction["type"]>([
+  "command",
+  "hint",
+  "visit-lesson",
+  "playground-session",
+]);
+
+/** How long to wait before uploading, so a burst of commands becomes one request. */
+const SYNC_DEBOUNCE_MS = 3_000;
+/** Retry backoff after a failure, in milliseconds. */
+const RETRY_DELAYS_MS = [5_000, 15_000, 60_000];
+
+function syncEnabled(): boolean {
+  return useProgressStore.getState().mode !== "anonymous";
+}
+
+/**
+ * Read through a function: activity recorded while a sync is in flight sets `dirty` again, which
+ * the compiler cannot see across the await.
+ */
+function hasUnsyncedChanges(): boolean {
+  return dirty;
+}
+
+/**
+ * Pauses sync and says why, without replacing a more specific notice: "the account could not be
+ * loaded at all" tells the learner more than "an upload failed".
+ */
+function pauseSync(notice: AccountNotice): void {
+  dirty = true;
+  const current = useProgressStore.getState().accountNotice;
+  const shown = current === "load-failed" && notice !== "session-ended" ? current : notice;
+  syncNotice = shown;
+  useProgressStore.setState({ sync: "paused", accountNotice: shown });
+}
+
+/** Notes that this device has progress the account has not confirmed, and schedules a sync. */
+function markDirty(): void {
+  if (!syncEnabled()) return;
+  dirty = true;
+  if (useProgressStore.getState().sync === "synced") useProgressStore.setState({ sync: "pending" });
+  scheduleSync(SYNC_DEBOUNCE_MS);
+}
+
+function scheduleSync(delay: number): void {
+  if (syncTimer !== null || !syncEnabled()) return;
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    void syncNow();
+  }, delay);
+  // A timer must never keep a Node process (or a test run) alive on its own.
+  (syncTimer as unknown as { unref?: () => void }).unref?.();
+}
+
+/**
+ * Uploads this device's activity and adopts the account's merged view. Safe to call at any time
+ * and from anywhere: calls overlap into one request, and the payload is absolute rather than a
+ * delta, so a retry after a failure can never double count.
+ */
+export function syncNow(): Promise<void> {
+  if (!syncEnabled()) return Promise.resolve();
+  // Queue behind anything already running rather than joining it: a caller asking to sync now
+  // means "including what I just recorded", which an in-flight request may predate.
+  const next = (syncing ?? Promise.resolve()).then(() => runSync());
+  syncing = next;
+  void next.finally(() => {
+    if (syncing === next) syncing = null;
+  });
+  return next;
+}
+
+async function runSync(): Promise<void> {
+  const progress = useProgressStore.getState().progress;
+  if (!repository || progress === null) return;
+  // Anything recorded from here on marks the record dirty again, so nothing is lost.
+  dirty = false;
+  uploading += 1;
+  updateSaving();
+  try {
+    const result = await syncAccountActivity(progress, accountFetch);
+    switch (result.status) {
+      case "ok": {
+        retryDelay = 0;
+        const syncedAt = Date.now();
+        await save({
+          type: "account-sync",
+          counters: result.activity.counters,
+          revealedHints: result.activity.revealedHints,
+          ...(result.activity.lastLesson ? { lastLesson: result.activity.lastLesson } : {}),
+          syncedAt,
+        });
+        const current = useProgressStore.getState().accountNotice;
+        useProgressStore.setState({
+          sync: hasUnsyncedChanges() ? "pending" : "synced",
+          syncedAt,
+          // Only take down the notice this sync put up; another channel's still stands.
+          ...(current !== null && current === syncNotice ? { accountNotice: null } : {}),
+        });
+        syncNotice = null;
+        if (hasUnsyncedChanges()) scheduleSync(SYNC_DEBOUNCE_MS);
+        return;
+      }
+      case "signed-out":
+        pauseSync("session-ended");
+        return;
+      case "unavailable":
+        pauseSync("unavailable");
+        retry();
+        return;
+      case "rejected":
+        // The server will refuse this payload however often it is sent. Keep it locally and say
+        // so rather than retrying in a loop.
+        console.warn("[gitdojo] the account did not accept this device's progress", result.code);
+        pauseSync("unavailable");
+        return;
+    }
+  } finally {
+    uploading -= 1;
+    updateSaving();
+  }
+}
+
+/** Schedules the next attempt, backing off, and tries again as soon as the browser is online. */
+function retry(): void {
+  const delay = RETRY_DELAYS_MS[Math.min(retryDelay, RETRY_DELAYS_MS.length - 1)] ?? 60_000;
+  retryDelay += 1;
+  scheduleSync(delay);
+  if (onlineListener === null && typeof window !== "undefined") {
+    onlineListener = () => {
+      retryDelay = 0;
+      void syncNow();
+    };
+    window.addEventListener("online", onlineListener);
+  }
 }
 
 /**
@@ -213,7 +385,14 @@ let initialization: Promise<void> | null = null;
 /** Whose progress to load, decided before anything is read or written. */
 export type AccountResolution =
   | { kind: "anonymous"; notice?: AccountNotice }
-  | { kind: "account"; accountId: string; lessons: AccountLessons; challenges?: AccountLessons }
+  | {
+      kind: "account";
+      accountId: string;
+      lessons: AccountLessons;
+      challenges?: AccountLessons;
+      /** Defaults to nothing synced yet, so a caller that only knows about completions works. */
+      activity?: AccountActivity;
+    }
   | { kind: "unavailable" };
 
 /** Anonymous progress only: the default, for pages and tests without accounts. */
@@ -230,17 +409,20 @@ const ACCOUNT_TIMEOUT_MS = 10_000;
 export function resolveBrowserAccount(
   fetcher: typeof fetch = fetch,
   timeoutMs = ACCOUNT_TIMEOUT_MS,
+  deviceId?: string,
 ): Promise<AccountResolution> {
   const resolve = async (): Promise<AccountResolution> => {
     await loadAccountSession(fetcher);
     if (useAccountSession.getState().session?.status !== "signed-in") return { kind: "anonymous" };
-    const result = await fetchAccountProgress(fetcher);
+    // The device names itself, so the counters it gets back leave out its own contribution.
+    const result = await fetchAccountProgress(fetcher, deviceId);
     if (result.status === "ok") {
       return {
         kind: "account",
         accountId: result.accountId,
         lessons: result.lessons,
         challenges: result.challenges,
+        activity: result.activity,
       };
     }
     return result.status === "signed-out"
@@ -328,10 +510,30 @@ export function initProgress(
             Date.now(),
           ),
         );
+      // Then everything else the account knows, merged by the rules in `applyProgressAction`.
+      const activity = account.activity ?? EMPTY_ACTIVITY;
+      // Hints and the last lesson only, never counters: this read could not name the device, so
+      // its sums may include this one. The upload below answers with the device left out.
+      const sync: ProgressAction = {
+        type: "account-sync",
+        revealedHints: activity.revealedHints,
+        ...(activity.lastLesson ? { lastLesson: activity.lastLesson } : {}),
+      };
+      progress = await repository
+        .apply(sync)
+        .catch(() => applyProgressAction(progress, sync, Date.now()));
     }
-    useProgressStore.setState({ progress, persistence: loaded.persistence, status: "ready" });
+    useProgressStore.setState({
+      progress,
+      persistence: loaded.persistence,
+      status: "ready",
+      sync: account.kind === "anonymous" ? "off" : "pending",
+      syncedAt: progress.syncedAt ?? null,
+    });
     if (account.kind === "account")
       void uploadPending(progress, account.lessons, catalog, account.challenges);
+    // This device's own activity has not reached the account yet, however old it is.
+    if (account.kind !== "anonymous") void syncNow();
     const queued = pending;
     pending = [];
     for (const action of queued) void recordProgress(action);
@@ -362,6 +564,16 @@ export function resetProgressStoreForTests(): void {
   uploading = 0;
   accountFetch = undefined;
   initialization = null;
+  if (syncTimer !== null) clearTimeout(syncTimer);
+  syncTimer = null;
+  syncing = null;
+  dirty = false;
+  retryDelay = 0;
+  syncNotice = null;
+  if (onlineListener && typeof window !== "undefined") {
+    window.removeEventListener("online", onlineListener);
+  }
+  onlineListener = null;
   useProgressStore.setState({
     progress: null,
     status: "loading",
@@ -372,6 +584,8 @@ export function resetProgressStoreForTests(): void {
     saving: false,
     mode: "anonymous",
     accountNotice: null,
+    sync: "off",
+    syncedAt: null,
   });
 }
 

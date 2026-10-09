@@ -6,6 +6,7 @@ import {
   type CompletionRecord,
   type ContentRef,
   type LocalProgress,
+  type RemoteCounters,
 } from "./model";
 
 /**
@@ -35,6 +36,24 @@ export type ProgressAction =
       type: "account-lessons";
       lessons: Record<string, CompletionRecord>;
       challenges?: Record<string, CompletionRecord>;
+    }
+  /**
+   * The rest of the account's progress, as the server merged it across devices. Counters are
+   * replaced (they are the authoritative view of the *other* devices, this one's stay its own);
+   * hints are unioned; the last lesson is whichever visit is newer.
+   */
+  | {
+      type: "account-sync";
+      /**
+       * The account's other devices. Left out when the answer could not say which device is
+       * asking — hints and the last lesson merge safely either way, but counters would be
+       * counted twice, so they are only ever taken from a reply that excludes this device.
+       */
+      counters?: RemoteCounters;
+      revealedHints?: Record<string, readonly string[]>;
+      lastLesson?: { courseId: string; lessonId: string; visitedAt: number };
+      /** When this device's own progress reached the account. */
+      syncedAt?: number;
     };
 
 /** Git subcommand names: lowercase words and dashes. Anything else is ignored. */
@@ -163,6 +182,61 @@ export function applyProgressAction(
       if (!changed) return progress;
       const next = { ...progress, completedLessons, completedChallenges };
       return touch({ ...next, xp: totalXp(next) }, now);
+    }
+
+    case "account-sync": {
+      let changed = false;
+
+      // Counters: the server's view of every *other* device, replacing the previous one.
+      const counters = action.counters ?? progress.remoteCounters;
+      const previous = progress.remoteCounters;
+      if (
+        action.counters !== undefined &&
+        (previous === undefined ||
+          previous.playgroundSessions !== action.counters.playgroundSessions ||
+          JSON.stringify(previous.commandStats) !== JSON.stringify(action.counters.commandStats))
+      ) {
+        changed = true;
+      }
+
+      // Hints merge as a set, so one revealed on any device stays recorded everywhere.
+      const revealedHints = { ...progress.revealedHints };
+      for (const [key, hints] of Object.entries(action.revealedHints ?? {})) {
+        const merged = new Set(revealedHints[key] ?? []);
+        const before = merged.size;
+        for (const hint of hints) merged.add(hint);
+        if (merged.size !== before) {
+          revealedHints[key] = [...merged];
+          changed = true;
+        }
+      }
+
+      // The most recent visit wins. Equal times are broken by lesson id, so every device
+      // settles on the same answer rather than flip-flopping.
+      let lastLesson = progress.lastLesson;
+      const incoming = action.lastLesson;
+      if (
+        incoming &&
+        (!lastLesson ||
+          incoming.visitedAt > lastLesson.visitedAt ||
+          (incoming.visitedAt === lastLesson.visitedAt && incoming.lessonId > lastLesson.lessonId))
+      ) {
+        lastLesson = incoming;
+        changed = true;
+      }
+
+      if (action.syncedAt !== undefined && action.syncedAt !== progress.syncedAt) changed = true;
+      if (!changed) return progress;
+      return touch(
+        {
+          ...progress,
+          ...(counters ? { remoteCounters: counters } : {}),
+          revealedHints,
+          ...(lastLesson ? { lastLesson } : {}),
+          ...(action.syncedAt === undefined ? {} : { syncedAt: action.syncedAt }),
+        },
+        now,
+      );
     }
 
     case "reset": {

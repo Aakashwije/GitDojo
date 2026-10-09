@@ -24,6 +24,7 @@ function failingStore(cause: Error): ProgressApiDeps["store"] {
   return () => ({
     read: () => Promise.reject(cause),
     recordCompletion: () => Promise.reject(cause),
+    syncActivity: () => Promise.reject(cause),
   });
 }
 
@@ -78,6 +79,12 @@ describe("GET /api/progress", () => {
       account: { id: expect.any(String) as unknown },
       completedLessons: [],
       completedChallenges: [],
+      activity: {
+        commandStats: {},
+        playgroundSessions: 0,
+        revealedHints: {},
+        lastLesson: null,
+      },
       totalXp: 0,
     });
   });

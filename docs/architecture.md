@@ -348,7 +348,10 @@ thin: `lib/auth/identity.ts` verifies the learner, `lib/account-progress/` holds
 HTTP adapter and SQL adapter (see [Ports and adapters](#1-ports-and-adapters-server)), and
 `lib/db/client.ts` the connection pool (settings in `lib/db/connection.mjs`).
 In the browser, `ProgressProvider` shows a signed-in learner's account progress (cached per
-account in IndexedDB, separate from anonymous progress) and uploads first completions. Releases
+account in IndexedDB, separate from anonymous progress), uploads first completions, and syncs the
+rest of the progress model — command statistics, revealed hints, the last lesson and playground
+sessions — through `POST /api/progress/sync`. Counters are stored per device and summed per
+account, so a retry can never double count. Releases
 and hosting: [deployment.md](./deployment.md).
 
 ## Web app structure

@@ -8,6 +8,7 @@ import {
   type CompletionRecord,
   type LocalProgress,
   type ProgressOwner,
+  type RemoteCounters,
 } from "./model";
 
 /** Stored progress written by a newer GitDojo. It is left untouched rather than downgraded. */
@@ -116,7 +117,11 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
   if (typeof version === "number" && version > PROGRESS_SCHEMA_VERSION) {
     throw new NewerProgressVersionError(version);
   }
-  if (version !== PROGRESS_SCHEMA_VERSION) issues.push("schemaVersion was missing or invalid");
+  // A version 1 record upgrades in place: it simply has no synced counters yet, which is also
+  // what a fresh version 2 record looks like. Nothing is dropped and nothing is re-counted.
+  if (typeof version !== "number" || version < 1 || version > PROGRESS_SCHEMA_VERSION) {
+    issues.push("schemaVersion was missing or invalid");
+  }
 
   const owner = parseOwner(raw.owner);
   if (owner === null) issues.push("owner was invalid");
@@ -146,6 +151,25 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
     issues,
   );
 
+  let remoteCounters: RemoteCounters | undefined;
+  if (raw.remoteCounters !== undefined) {
+    if (isRecord(raw.remoteCounters)) {
+      remoteCounters = {
+        commandStats: parseMap(
+          raw.remoteCounters.commandStats,
+          "remoteCounters.commandStats",
+          parseCommandStat,
+          issues,
+        ),
+        playgroundSessions: isCount(raw.remoteCounters.playgroundSessions)
+          ? raw.remoteCounters.playgroundSessions
+          : 0,
+      };
+    } else {
+      issues.push("remoteCounters was not an object");
+    }
+  }
+
   let lastLesson: LocalProgress["lastLesson"];
   if (raw.lastLesson !== undefined) {
     const last = raw.lastLesson;
@@ -174,6 +198,8 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
     updatedAt: isTimestamp(raw.updatedAt) ? raw.updatedAt : now,
     revision: isCount(raw.revision) ? raw.revision : 0,
     ...(lastLesson ? { lastLesson } : {}),
+    ...(remoteCounters ? { remoteCounters } : {}),
+    ...(isTimestamp(raw.syncedAt) ? { syncedAt: raw.syncedAt } : {}),
     ...(isTimestamp(raw.resetAt) ? { resetAt: raw.resetAt } : {}),
   };
   if (raw.xp !== progress.xp && raw.xp !== undefined) issues.push("xp did not match completions");

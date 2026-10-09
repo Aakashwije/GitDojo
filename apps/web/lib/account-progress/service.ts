@@ -2,9 +2,11 @@ import { completionXp, indexLessons, type ProgressCatalog } from "@gitdojo/progr
 import { type VerifiedIdentity } from "@/lib/auth/identity";
 import {
   type CompletionKind,
+  type DeviceActivity,
   type NewCompletion,
   type ProgressApiDeps,
   type RecordResult,
+  type StoredActivity,
   type StoredCompletion,
 } from "./ports";
 
@@ -71,20 +73,41 @@ export const sumXp = (completions: readonly StoredCompletion[]) =>
 export interface AccountProgress {
   accountId: string;
   completions: StoredCompletion[];
+  activity: StoredActivity;
   catalog: ProgressCatalog;
   totalXp: number;
 }
 
-/** The learner's completions with the current catalog, read in parallel. */
+/**
+ * The learner's whole account progress with the current catalog, read in parallel. `deviceId`,
+ * when given, is left out of the counter sums: that device adds its own.
+ */
 export async function readAccountProgress(
   deps: ProgressApiDeps,
   identity: VerifiedIdentity,
+  deviceId?: string,
 ): Promise<AccountProgress> {
-  const [{ accountId, completions }, catalog] = await Promise.all([
-    progressStep("database", () => deps.store().read(identity)),
+  const [{ accountId, completions, activity }, catalog] = await Promise.all([
+    progressStep("database", () => deps.store().read(identity, deviceId)),
     progressStep("catalog", () => deps.catalog()),
   ]);
-  return { accountId, completions, catalog, totalXp: sumXp(completions) };
+  return { accountId, completions, activity, catalog, totalXp: sumXp(completions) };
+}
+
+/**
+ * Merges one device's activity into the account and returns the account's view for it.
+ * Idempotent, so a retry after a network failure writes the same rows and changes nothing.
+ */
+export async function syncDeviceActivity(
+  deps: ProgressApiDeps,
+  identity: VerifiedIdentity,
+  activity: DeviceActivity,
+): Promise<AccountProgress> {
+  const [records, catalog] = await Promise.all([
+    progressStep("database", () => deps.store().syncActivity(identity, activity)),
+    progressStep("catalog", () => deps.catalog()),
+  ]);
+  return { ...records, catalog, totalXp: sumXp(records.completions) };
 }
 
 export type RecordOutcome =

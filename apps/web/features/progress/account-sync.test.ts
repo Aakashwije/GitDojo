@@ -72,7 +72,11 @@ function fakeServer() {
   const state = { progressStatus: 200, uploadStatus: 0, posts: [] as string[] };
   const fetcher = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = requestUrl(input);
-    if (url === "/api/progress") {
+    // Device activity has its own endpoint and its own test file; here it is a no-op.
+    if (url === "/api/progress/sync") {
+      return Promise.resolve(Response.json({ account: { id: "account-ada" }, activity: {} }));
+    }
+    if (url === "/api/progress" || url.startsWith("/api/progress?")) {
       if (state.progressStatus !== 200) {
         return Promise.resolve(new Response(null, { status: state.progressStatus }));
       }
@@ -308,6 +312,8 @@ describe("resolveBrowserAccount", () => {
       accountId: "account-ada",
       challenges: {},
       lessons: { "git-init": { completedAt: Date.parse(FIRST), xp: 50, type: "interactive" } },
+      // No other device has reported anything yet.
+      activity: { counters: { commandStats: {}, playgroundSessions: 0 }, revealedHints: {} },
     });
   });
 

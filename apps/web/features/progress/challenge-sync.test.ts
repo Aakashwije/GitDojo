@@ -78,14 +78,23 @@ it("uploads cached challenge XP, loads it in a fresh browser, and never re-award
 });
 
 it("uploads a newly completed standalone challenge to the account", async () => {
-  const fetcher = vi.fn(() =>
+  // Signing in also syncs this device's activity; only the challenge call is of interest here.
+  const url = (input: RequestInfo | URL): string =>
+    typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const fetcher = vi.fn((input: RequestInfo | URL) =>
     Promise.resolve(
-      Response.json(
-        {
-          challenge: { challengeId: "detached-head", xp: 100, completedAt: "2026-01-01T00:00:00Z" },
-        },
-        { status: 201 },
-      ),
+      url(input) === "/api/progress/sync"
+        ? Response.json({ account: { id: "ada" }, activity: {} })
+        : Response.json(
+            {
+              challenge: {
+                challengeId: "detached-head",
+                xp: 100,
+                completedAt: "2026-01-01T00:00:00Z",
+              },
+            },
+            { status: 201 },
+          ),
     ),
   );
   const storage = createMemoryStorage();
@@ -102,8 +111,11 @@ it("uploads a newly completed standalone challenge to the account", async () => 
   await waitFor(() => {
     expect(useProgressStore.getState().saving).toBe(false);
   });
-  expect(fetcher).toHaveBeenCalledOnce();
-  expect(fetcher.mock.calls[0]).toMatchObject([
+  const challengeCalls = fetcher.mock.calls.filter(
+    ([input]) => url(input) === "/api/progress/challenges",
+  );
+  expect(challengeCalls).toHaveLength(1);
+  expect(challengeCalls[0]).toMatchObject([
     "/api/progress/challenges",
     {
       method: "POST",

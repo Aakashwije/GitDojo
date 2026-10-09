@@ -29,12 +29,14 @@ export {
   ownerKey,
   PROGRESS_SCHEMA_VERSION,
   totalXp,
+  withRemoteCounters,
   XP_REWARDS,
   type CommandStat,
   type CompletionRecord,
   type ContentRef,
   type LocalProgress,
   type ProgressOwner,
+  type RemoteCounters,
 } from "./model";
 export { NewerProgressVersionError, parseProgress, type ParsedProgress } from "./parse";
 export {
