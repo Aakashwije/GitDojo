@@ -153,6 +153,11 @@ export async function readActivity(
   const last = await sql<{ course_id: string; lesson_id: string; visited_at: Date }[]>`
     SELECT course_id, lesson_id, visited_at FROM last_lessons WHERE user_id = ${userId}
   `;
+  // Only recent releases matter: the banner is for the current one.
+  const releases = await sql<{ release_version: string; seen_at: Date }[]>`
+    SELECT release_version, seen_at FROM seen_releases
+    WHERE user_id = ${userId} ORDER BY seen_at DESC, release_version LIMIT 100
+  `;
 
   const revealedHints: Record<string, string[]> = {};
   for (const row of hints) (revealedHints[row.content_key] ??= []).push(row.hint);
@@ -174,13 +179,14 @@ export async function readActivity(
           visitedAt: lastRow.visited_at,
         }
       : null,
+    seenReleases: Object.fromEntries(releases.map((row) => [row.release_version, row.seen_at])),
   };
 }
 
 /**
  * Writes one device's own progress. Counters are replaced for that device only, and never
  * lowered: an upload that arrives out of order after a newer one leaves the newer totals alone.
- * Hints insert as a set, and the last lesson only moves forward in time.
+ * Hints and seen releases insert as sets, and the last lesson only moves forward in time.
  */
 export async function writeDeviceActivity(
   sql: Queryable,
@@ -219,6 +225,21 @@ export async function writeDeviceActivity(
     await sql`
       INSERT INTO revealed_hints ${sql(hints, "user_id", "content_key", "hint")}
       ON CONFLICT (user_id, content_key, hint) DO NOTHING
+    `;
+  }
+
+  const releases = Object.entries(activity.seenReleases).map(([version, seenAt]) => ({
+    user_id: userId,
+    release_version: version,
+    seen_at: seenAt,
+  }));
+  if (releases.length > 0) {
+    // The earliest time wins, so every device converges whatever order uploads arrive in.
+    await sql`
+      INSERT INTO seen_releases ${sql(releases, "user_id", "release_version", "seen_at")}
+      ON CONFLICT (user_id, release_version) DO UPDATE
+        SET seen_at = EXCLUDED.seen_at
+        WHERE EXCLUDED.seen_at < seen_releases.seen_at
     `;
   }
 

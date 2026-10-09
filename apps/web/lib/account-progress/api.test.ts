@@ -84,6 +84,7 @@ describe("GET /api/progress", () => {
         playgroundSessions: 0,
         revealedHints: {},
         lastLesson: null,
+        seenReleases: {},
       },
       totalXp: 0,
     });

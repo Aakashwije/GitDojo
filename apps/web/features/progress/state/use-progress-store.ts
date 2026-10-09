@@ -188,6 +188,7 @@ const SYNCED_ACTIONS = new Set<ProgressAction["type"]>([
   "hint",
   "visit-lesson",
   "playground-session",
+  "see-release",
 ]);
 
 /** How long to wait before uploading, so a burst of commands becomes one request. */
@@ -271,6 +272,7 @@ async function runSync(): Promise<void> {
           type: "account-sync",
           counters: result.activity.counters,
           revealedHints: result.activity.revealedHints,
+          seenReleases: result.activity.seenReleases,
           ...(result.activity.lastLesson ? { lastLesson: result.activity.lastLesson } : {}),
           syncedAt,
         });
@@ -378,6 +380,26 @@ async function uploadPending(
 
 export function recordCompletion(content: ContentRef): Promise<void> {
   return recordProgress({ type: "complete", content });
+}
+
+/**
+ * Marks a release's announcement as seen: the learner opened its "What's new" page or dismissed
+ * it. Saved with this owner's progress (and so synced to a signed-in learner's account).
+ */
+export function recordReleaseSeen(version: string): Promise<void> {
+  return recordProgress({ type: "see-release", version });
+}
+
+/**
+ * Whether the learner has seen a release's announcement, from whoever's progress is loaded.
+ * `null` until saved progress has been read, so callers can wait rather than guess.
+ */
+export function useReleaseSeenInProgress(version: string | null): boolean | null {
+  return useProgressStore((state) =>
+    state.status !== "ready" || version === null
+      ? null
+      : state.progress?.seenReleases[version] !== undefined,
+  );
 }
 
 let initialization: Promise<void> | null = null;
@@ -512,11 +534,12 @@ export function initProgress(
         );
       // Then everything else the account knows, merged by the rules in `applyProgressAction`.
       const activity = account.activity ?? EMPTY_ACTIVITY;
-      // Hints and the last lesson only, never counters: this read could not name the device, so
-      // its sums may include this one. The upload below answers with the device left out.
+      // Hints, seen releases and the last lesson only, never counters: this read could not name
+      // the device, so its sums may include this one. The upload below answers with it left out.
       const sync: ProgressAction = {
         type: "account-sync",
         revealedHints: activity.revealedHints,
+        seenReleases: activity.seenReleases,
         ...(activity.lastLesson ? { lastLesson: activity.lastLesson } : {}),
       };
       progress = await repository

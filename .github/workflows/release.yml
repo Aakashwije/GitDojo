@@ -184,8 +184,12 @@ jobs:
             echo "Release $tag already exists for this commit; leaving it unchanged."
           else
             gh release create "$tag" --target "$SHA" --title "GitDojo $tag" --generate-notes --draft
+            # The learner announcement goes first; the generated changelog stays below it.
+            gh release view "$tag" --json body --jq .body > "$RUNNER_TEMP/changelog.md"
+            cat .github/release-highlights-template.md "$RUNNER_TEMP/changelog.md" > "$RUNNER_TEMP/release-notes.md"
+            gh release edit "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           {
             echo "### Draft release ready for review"
-            echo "Open **Releases** in GitHub, review $tag, edit its notes if needed, then click **Publish release** to approve the production deployment."
+            echo "Open **Releases** in GitHub, write 1–5 learner-focused bullets under **Highlights for learners** (see docs/release-notes.md), review the full notes, then click **Publish release** to approve the production deployment."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,4 +1,5 @@
 import {
+  isReleaseVersion,
   PROGRESS_SCHEMA_VERSION,
   type CommandStat,
   type CompletionRecord,
@@ -16,11 +17,14 @@ export interface AccountActivity {
   counters: RemoteCounters;
   revealedHints: Record<string, string[]>;
   lastLesson?: { courseId: string; lessonId: string; visitedAt: number };
+  /** Release version → when it was first seen on any of the account's devices. */
+  seenReleases: Record<string, number>;
 }
 
 export const EMPTY_ACTIVITY: AccountActivity = {
   counters: { commandStats: {}, playgroundSessions: 0 },
   revealedHints: {},
+  seenReleases: {},
 };
 
 export type AccountProgressResult =
@@ -88,6 +92,8 @@ const COMMAND = /^[a-z][a-z-]{0,31}$/;
 const CONTENT_KEY = /^(?:lesson|challenge):[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HINT = /^[a-z0-9]+(?:-[a-z0-9]+)*#\d{1,3}$/;
 const COUNT_LIMIT = 10_000_000;
+/** The banner only needs the current release; the server accepts up to 100. */
+const SEEN_RELEASES_SENT = 50;
 /** The server refuses timestamps before this, so a missing one falls back to the record's age. */
 const EARLIEST = Date.UTC(2020, 0, 1);
 
@@ -119,9 +125,19 @@ function parseCounters(value: unknown): RemoteCounters {
 
 function parseActivity(value: unknown): AccountActivity {
   if (typeof value !== "object" || value === null) return EMPTY_ACTIVITY;
-  const raw = value as { revealedHints?: unknown; lastLesson?: unknown };
+  const raw = value as { revealedHints?: unknown; lastLesson?: unknown; seenReleases?: unknown };
   // The response carries the counters at the top level of `activity`.
-  const activity: AccountActivity = { counters: parseCounters(value), revealedHints: {} };
+  const activity: AccountActivity = {
+    counters: parseCounters(value),
+    revealedHints: {},
+    seenReleases: {},
+  };
+  if (typeof raw.seenReleases === "object" && raw.seenReleases !== null) {
+    for (const [version, seenAt] of Object.entries(raw.seenReleases as Record<string, unknown>)) {
+      const time = typeof seenAt === "string" ? Date.parse(seenAt) : Number.NaN;
+      if (isReleaseVersion(version) && Number.isFinite(time)) activity.seenReleases[version] = time;
+    }
+  }
   if (typeof raw.revealedHints === "object" && raw.revealedHints !== null) {
     for (const [key, hints] of Object.entries(raw.revealedHints as Record<string, unknown>)) {
       if (!CONTENT_KEY.test(key) || !Array.isArray(hints)) continue;
@@ -165,6 +181,13 @@ export function deviceActivityPayload(progress: LocalProgress): Record<string, u
     const valid = hints.filter((hint) => HINT.test(hint));
     if (valid.length > 0) revealedHints[key] = valid;
   }
+  const seenReleases = Object.fromEntries(
+    Object.entries(progress.seenReleases)
+      .filter(([version]) => isReleaseVersion(version))
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, SEEN_RELEASES_SENT)
+      .map(([version, seenAt]) => [version, new Date(Math.max(seenAt, floor)).toISOString()]),
+  );
   return {
     schemaVersion: PROGRESS_SCHEMA_VERSION,
     deviceId: progress.deviceId,
@@ -178,6 +201,7 @@ export function deviceActivityPayload(progress: LocalProgress): Record<string, u
           visitedAt: new Date(Math.max(progress.lastLesson.visitedAt, floor)).toISOString(),
         }
       : null,
+    seenReleases,
   };
 }
 

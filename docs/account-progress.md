@@ -7,7 +7,7 @@ GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deploymen
 **What exists**
 
 - `users`, `lesson_completions`, `challenge_completions`, `command_stats`, `device_activity`,
-  `revealed_hints` and `last_lessons` tables, with versioned migrations and `pnpm db:migrate`.
+  `revealed_hints`, `last_lessons` and `seen_releases` tables, with versioned migrations and `pnpm db:migrate`.
 - `GET /api/progress`, `POST /api/progress/lessons`, `POST /api/progress/challenges` and
   `POST /api/progress/sync` for the signed-in learner only.
 - In the browser, every field of the progress model ([What syncs](#what-syncs)) is merged with
@@ -25,13 +25,14 @@ Everything in the [progress model](./progress.md#model), by these rules. Each on
 that a retry after a network failure, a reload, two tabs racing or two devices working at once
 can never lose an update or count one twice.
 
-| Progress                         | Merge rule                                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Completed lessons and challenges | Unique per content item. The first completion wins and keeps its time and XP; XP is awarded once |
-| Git command usage                | One row per (account, device, command). The account total is the **sum** over devices            |
-| Playground sessions              | One count per (account, device); the account total is the sum                                    |
-| Revealed hints                   | A **set** per content item: a hint revealed on any device stays recorded on all of them          |
-| Last lesson visited              | The **most recent** visit wins; equal times are broken by the higher lesson id, so devices agree |
+| Progress                         | Merge rule                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Completed lessons and challenges | Unique per content item. The first completion wins and keeps its time and XP; XP is awarded once  |
+| Git command usage                | One row per (account, device, command). The account total is the **sum** over devices             |
+| Playground sessions              | One count per (account, device); the account total is the sum                                     |
+| Revealed hints                   | A **set** per content item: a hint revealed on any device stays recorded on all of them           |
+| Last lesson visited              | The **most recent** visit wins; equal times are broken by the higher lesson id, so devices agree  |
+| Seen release announcements       | A **set** per release version, keeping the earliest time: dismissed on one device, on all of them |
 
 **Counters are per device, and absolute.** A device uploads its own totals, never a delta, and
 the server stores them in that device's row with `GREATEST`, so an upload that arrives late with
@@ -138,11 +139,20 @@ browser ── cookie ──▶ proxy.ts (SDK middleware: verifies the session c
 | `revealed_hints`  | `user_id`, `content_key`, `hint`, `revealed_at`                        | `PRIMARY KEY (user_id, content_key, hint)`: the key _is_ the set                                          |
 | `last_lessons`    | `user_id`, `course_id`, `lesson_id`, `visited_at`                      | One row per learner; checks on both id formats                                                            |
 
-All four cascade from `users`, so deleting a learner removes their activity too.
+`apps/web/db/migrations/0004_seen_releases.sql` adds the release announcements a learner has seen
+([release-notes.md](./release-notes.md#in-the-app)):
+
+| Table           | Columns                                 | Rules                                                                                 |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
+| `seen_releases` | `user_id`, `release_version`, `seen_at` | `PRIMARY KEY (user_id, release_version)`; the version must be a tag such as `v0.1.12` |
+
+All five cascade from `users`, so deleting a learner removes their activity too.
 
 - A counter row is upserted with `GREATEST`, so an upload that arrives out of order after a newer
   one leaves the newer totals alone, and the same upload twice changes nothing.
 - Hints insert with `ON CONFLICT DO NOTHING`: the set union is the primary key doing its job.
+  Seen releases do the same, except that an earlier `seen_at` replaces a later one, so every
+  device agrees on when a release was first seen.
 - `last_lessons` updates only `WHERE EXCLUDED.visited_at > last_lessons.visited_at`, with the
   higher lesson id breaking a tie, so every device converges on the same answer.
 - One transaction per sync request: the device's rows are written and the merged view read
@@ -209,8 +219,8 @@ createdb gitdojo
    for PostgreSQL, Neon or Supabase. Enable TLS and backups.
 2. **Roles.** Run migrations as a role that owns the schema. Run the app as a role that has only
    `SELECT, INSERT, UPDATE, DELETE` on `users`, `lesson_completions`, `challenge_completions`,
-   `command_stats`, `device_activity`, `revealed_hints` and `last_lessons` (and `CONNECT` and
-   `USAGE`).
+   `command_stats`, `device_activity`, `revealed_hints`, `last_lessons` and `seen_releases` (and
+   `CONNECT` and `USAGE`).
 3. **Set `DATABASE_URL`** as a server-side secret in your hosting platform. It's read at runtime,
    so a build doesn't need it. Never use a `NEXT_PUBLIC_` name. Require TLS in the URL:
    `postgres://user:password@host:5432/gitdojo?sslmode=verify-full` (or `sslmode=require` if your
@@ -305,12 +315,13 @@ Origin: https://your-gitdojo-host
 Content-Type: application/json
 
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "deviceId": "7f3c…",
   "commandStats": { "commit": { "uses": 12, "successes": 11, "lastUsedAt": "2026-10-09T10:00:00.000Z" } },
   "playgroundSessions": 3,
   "revealedHints": { "lesson:git-init": ["initialize#0"] },
-  "lastLesson": { "courseId": "git-basics", "lessonId": "git-init", "visitedAt": "2026-10-09T09:58:00.000Z" }
+  "lastLesson": { "courseId": "git-basics", "lessonId": "git-init", "visitedAt": "2026-10-09T09:58:00.000Z" },
+  "seenReleases": { "v0.1.12": "2026-10-09T10:05:00.000Z" }
 }
 ```
 
@@ -324,7 +335,8 @@ Content-Type: application/json
     "commandStats": { "commit": { "uses": 4, "successes": 4, "lastUsedAt": "…" } },
     "playgroundSessions": 1,
     "revealedHints": { "lesson:git-init": ["initialize#0", "stage#0"] },
-    "lastLesson": { "courseId": "git-basics", "lessonId": "git-add", "visitedAt": "…" }
+    "lastLesson": { "courseId": "git-basics", "lessonId": "git-add", "visitedAt": "…" },
+    "seenReleases": { "v0.1.12": "…" }
   },
   "totalXp": 150
 }
@@ -336,8 +348,9 @@ Content-Type: application/json
   twice. `GET /api/progress?device=<id>` does the same; without the parameter the sums include
   every device.
 - **Idempotent.** Counters are absolute, so the same request twice writes the same rows.
-- At most **64 KB**; at most 64 commands, 500 content keys and 200 hints each; counts at most
-  10,000,000; timestamps between 2020 and 24 hours from now.
+- At most **64 KB**; at most 64 commands, 500 content keys and 200 hints each, and 100 seen
+  releases (the browser sends its 50 most recent); counts at most 10,000,000; timestamps between
+  2020 and 24 hours from now.
 - Unknown fields are refused rather than dropped, and a `schemaVersion` this server does not
   know gives `422` so a newer client keeps its progress and retries after the next deploy rather
   than having part of it stored.
@@ -358,6 +371,7 @@ Content-Type: application/json
 | 400    | `invalid_device_id`          | `deviceId` is missing or not a short opaque identifier                     |
 | 400    | `invalid_hints`              | A content key or hint token is not valid, or there are too many            |
 | 400    | `invalid_last_lesson`        | `lastLesson` is not a course id, a lesson id and a visit time              |
+| 400    | `invalid_seen_releases`      | `seenReleases` is not release tags with times, or has too many             |
 | 422    | `unknown_lesson`             | Valid id, but no such lesson in the content                                |
 | 422    | `unsupported_schema_version` | The client's progress schema is newer than this server's; nothing stored   |
 | 500    | `internal_error`             | Database or other failure. Generic message; nothing was changed            |
@@ -439,6 +453,15 @@ Run `pnpm db:migrate` against each deployment database before deploying this ver
 `0003_device_activity`. Nothing has to be backfilled: a device's first sync after the deploy
 writes its counters, hints and last lesson, and until then the account simply has none of them.
 Browsers upgrade their stored record from schema 1 to 2 on the next load, in place.
+
+## Seen release announcements
+
+Run `pnpm db:migrate` against each deployment database before deploying this version; it adds
+`0004_seen_releases` (the release workflows do this). Nothing is backfilled: until a device syncs,
+the account simply has no seen releases and the banner shows once more. Browsers upgrade their
+stored record from schema 2 to 3 on the next load. A tab still running the previous version then
+refuses to overwrite the newer record and says so, rather than dropping the field; reloading it
+fixes that. The server accepts schema 1, 2 and 3 uploads, so an old tab's sync still works.
 
 ## Standalone challenge sync
 

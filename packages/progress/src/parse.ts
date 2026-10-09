@@ -2,6 +2,7 @@ import { type LessonType } from "@gitdojo/shared-types";
 import {
   ANONYMOUS,
   emptyProgress,
+  isReleaseVersion,
   PROGRESS_SCHEMA_VERSION,
   totalXp,
   type CommandStat,
@@ -117,8 +118,8 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
   if (typeof version === "number" && version > PROGRESS_SCHEMA_VERSION) {
     throw new NewerProgressVersionError(version);
   }
-  // A version 1 record upgrades in place: it simply has no synced counters yet, which is also
-  // what a fresh version 2 record looks like. Nothing is dropped and nothing is re-counted.
+  // Older records upgrade in place: version 1 simply has no synced counters yet and version 2 no
+  // seen releases, which is also what a fresh record looks like. Nothing is dropped or re-counted.
   if (typeof version !== "number" || version < 1 || version > PROGRESS_SCHEMA_VERSION) {
     issues.push("schemaVersion was missing or invalid");
   }
@@ -144,6 +145,13 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
   );
   const commandStats = parseMap(raw.commandStats, "commandStats", parseCommandStat, issues);
   const revealedHints = parseMap(raw.revealedHints, "revealedHints", parseHints, issues);
+  const seenReleases: Record<string, number> = {};
+  for (const [version, seenAt] of Object.entries(
+    parseMap(raw.seenReleases, "seenReleases", (e) => (isTimestamp(e) ? e : null), issues),
+  )) {
+    if (isReleaseVersion(version)) seenReleases[version] = seenAt;
+    else issues.push(`seenReleases.${String(version)} was invalid`);
+  }
   const migrations = parseMap(
     raw.migrations,
     "migrations",
@@ -193,6 +201,7 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
     commandStats,
     revealedHints,
     playgroundSessions: isCount(raw.playgroundSessions) ? raw.playgroundSessions : 0,
+    seenReleases,
     migrations,
     createdAt: isTimestamp(raw.createdAt) ? raw.createdAt : now,
     updatedAt: isTimestamp(raw.updatedAt) ? raw.updatedAt : now,

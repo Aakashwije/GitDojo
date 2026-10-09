@@ -7,7 +7,7 @@ import { type Metadata, type Viewport } from "next";
 import { type ReactNode } from "react";
 import releaseInfo from "@/lib/release-info.json";
 import { ProgressProvider } from "@/features/progress/components/ProgressProvider";
-import { ReleaseBanner } from "@/components/site/ReleaseAnnouncement";
+import { ReleaseBanner } from "@/features/releases/components/ReleaseBanner";
 import { loadProgressCatalog } from "@/lib/progress-catalog";
 import { SITE } from "@/lib/site";
 

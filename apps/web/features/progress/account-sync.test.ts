@@ -313,7 +313,11 @@ describe("resolveBrowserAccount", () => {
       challenges: {},
       lessons: { "git-init": { completedAt: Date.parse(FIRST), xp: 50, type: "interactive" } },
       // No other device has reported anything yet.
-      activity: { counters: { commandStats: {}, playgroundSessions: 0 }, revealedHints: {} },
+      activity: {
+        counters: { commandStats: {}, playgroundSessions: 0 },
+        revealedHints: {},
+        seenReleases: {},
+      },
     });
   });
 

@@ -873,3 +873,87 @@ describe("schema versions", () => {
     );
   });
 });
+
+describe("seen releases", () => {
+  it("records the first time a release was seen, and nothing for a repeat or a bad version", () => {
+    let progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "see-release", version: "v0.1.12" },
+      100,
+    );
+    expect(progress.seenReleases).toEqual({ "v0.1.12": 100 });
+    const again = applyProgressAction(progress, { type: "see-release", version: "v0.1.12" }, 200);
+    expect(again).toBe(progress);
+    for (const version of ["", "latest", "0.1.12", "v0.1.12-beta", "v0.1.12 "]) {
+      expect(applyProgressAction(progress, { type: "see-release", version }, 300)).toBe(progress);
+    }
+    // A later release is a separate entry, so it gets its own announcement.
+    progress = applyProgressAction(progress, { type: "see-release", version: "v0.1.13" }, 400);
+    expect(progress.seenReleases).toEqual({ "v0.1.12": 100, "v0.1.13": 400 });
+  });
+
+  it("merges the account's seen releases as a set, keeping the earliest time", () => {
+    let progress = applyProgressAction(
+      emptyProgress(0),
+      { type: "see-release", version: "v0.1.12" },
+      500,
+    );
+    progress = applyProgressAction(
+      progress,
+      {
+        type: "account-sync",
+        seenReleases: { "v0.1.12": 300, "v0.1.11": 100, "not-a-version": 50 },
+      },
+      600,
+    );
+    expect(progress.seenReleases).toEqual({ "v0.1.12": 300, "v0.1.11": 100 });
+    // A later reply with a later time (another device) changes nothing.
+    const again = applyProgressAction(
+      progress,
+      { type: "account-sync", seenReleases: { "v0.1.12": 900 } },
+      700,
+    );
+    expect(again).toBe(progress);
+  });
+
+  it("survives a progress reset, because it is not learning progress", () => {
+    const seen = applyProgressAction(
+      emptyProgress(0),
+      { type: "see-release", version: "v0.1.12" },
+      100,
+    );
+    expect(applyProgressAction(seen, { type: "reset" }, 200).seenReleases).toEqual({
+      "v0.1.12": 100,
+    });
+  });
+
+  it("upgrades a version 2 record with none seen, and drops malformed entries", () => {
+    const v2 = { ...emptyProgress(0), schemaVersion: 2 } as Record<string, unknown>;
+    delete v2.seenReleases;
+    const upgraded = parseProgress(v2, 100);
+    expect(upgraded.issues).toEqual([]);
+    expect(upgraded.progress.seenReleases).toEqual({});
+
+    const damaged = parseProgress(
+      { ...emptyProgress(0), seenReleases: { "v0.1.12": 10, "v0.1.13": "soon", nope: 5 } },
+      100,
+    );
+    expect(damaged.progress.seenReleases).toEqual({ "v0.1.12": 10 });
+    expect(damaged.issues).toEqual([
+      "seenReleases.v0.1.13 was invalid",
+      "seenReleases.nope was invalid",
+    ]);
+  });
+
+  it("is shared with another tab through storage", async () => {
+    const storage = createMemoryStorage();
+    const first = new ProgressRepository({ storage, catalog: CATALOG });
+    const second = new ProgressRepository({ storage, catalog: CATALOG });
+    await first.load();
+    await second.load();
+    await first.apply({ type: "see-release", version: "v0.1.12" });
+    // The other tab's next write starts from the stored record, so it cannot drop the release.
+    const saved = await second.apply({ type: "command", command: "commit", ok: true });
+    expect(saved.seenReleases["v0.1.12"]).toBeDefined();
+  });
+});

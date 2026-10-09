@@ -51,7 +51,7 @@ function testDatabaseUrl(value: string): string {
 
 const resetTables = (sql: postgres.Sql) =>
   sql`DROP TABLE IF EXISTS command_stats, device_activity, revealed_hints, last_lessons,
-      challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
+      seen_releases, challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
 
 describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
   let sql: postgres.Sql;
@@ -315,12 +315,13 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
     ) =>
       syncProgress(
         postSync({
-          schemaVersion: 2,
+          schemaVersion: 3,
           deviceId,
           commandStats: { commit: { uses: 1, successes: 1, lastUsedAt: at(0) } },
           playgroundSessions: 1,
           revealedHints: { "lesson:git-init": ["stage#0"] },
           lastLesson: { courseId: "git-basics", lessonId: "git-init", visitedAt: at(0) },
+          seenReleases: { "v0.1.1": at(0) },
           ...overrides,
         }),
         deps(who),
@@ -331,6 +332,7 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         playgroundSessions: number;
         revealedHints: Record<string, string[]>;
         lastLesson: { lessonId: string } | null;
+        seenReleases: Record<string, string>;
       };
 
     it("sums counters per device, excludes the asking one, and never lowers a row", async () => {
@@ -435,14 +437,35 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
       expect(late.lastLesson).toMatchObject({ lessonId: "what-is-git" });
     });
 
+    it("stores seen releases as a set, keeping the earliest time under concurrent uploads", async () => {
+      const learner = identity("sync-releases");
+      await Promise.all([
+        upload("laptop", { seenReleases: { "v0.1.12": at(-5000) } }, learner),
+        upload("phone", { seenReleases: { "v0.1.12": at(-1000) } }, learner),
+        upload("laptop", { seenReleases: { "v0.1.12": at(-5000) } }, learner),
+      ]);
+      const view = await activityOf(await upload("tablet", { seenReleases: {} }, learner));
+      expect(view.seenReleases["v0.1.12"]).toBe(at(-5000));
+      const [rows] = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM seen_releases s JOIN users u ON u.id = s.user_id
+        WHERE u.subject = ${learner.subject} AND s.release_version = 'v0.1.12'
+      `;
+      expect(rows).toEqual({ count: 1 });
+    });
+
     it("keeps one account's activity out of another's", async () => {
       const ada = identity("sync-ada");
       const grace = identity("sync-grace");
       await upload("shared-device-id", {}, ada);
       const view = await activityOf(
-        await upload("shared-device-id", { commandStats: {}, revealedHints: {} }, grace),
+        await upload(
+          "shared-device-id",
+          { commandStats: {}, revealedHints: {}, seenReleases: {} },
+          grace,
+        ),
       );
       expect(view.commandStats).toEqual({});
+      expect(view.seenReleases).toEqual({});
       expect(view.revealedHints).toEqual({});
       expect(view.playgroundSessions).toBe(0);
     });
@@ -479,7 +502,13 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         `;
         return row?.count ?? -1;
       };
-      const tables = ["command_stats", "device_activity", "revealed_hints", "last_lessons"];
+      const tables = [
+        "command_stats",
+        "device_activity",
+        "revealed_hints",
+        "last_lessons",
+        "seen_releases",
+      ];
       // Each table has something to lose, so the assertions below cannot pass vacuously.
       for (const table of tables)
         expect(await rowsFor(table), `${table} before`).toBeGreaterThan(0);

@@ -59,6 +59,8 @@ export interface StoredActivity {
   /** Content key (`lesson:<id>`) → hints revealed on any device. */
   revealedHints: Record<string, string[]>;
   lastLesson: StoredLastLesson | null;
+  /** Release version → when it was first seen on any device. */
+  seenReleases: Record<string, Date>;
 }
 
 export interface AccountRecords {
@@ -70,7 +72,8 @@ export interface AccountRecords {
 
 /**
  * One device's own progress, as it uploads it. Counters are absolute, never deltas, so the same
- * upload can be retried safely; hints and the last lesson merge by union and recency.
+ * upload can be retried safely; hints, seen releases and the last lesson merge by union and
+ * recency.
  */
 export interface DeviceActivity {
   deviceId: string;
@@ -78,6 +81,7 @@ export interface DeviceActivity {
   playgroundSessions: number;
   revealedHints: Record<string, string[]>;
   lastLesson: StoredLastLesson | null;
+  seenReleases: Record<string, Date>;
 }
 
 export interface RecordResult {

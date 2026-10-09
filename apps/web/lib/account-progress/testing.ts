@@ -72,11 +72,13 @@ interface UserRows {
   /** `<content key>\u0000<hint>`, so the set union matches the primary key. */
   hints: Set<string>;
   lastLesson: { courseId: string; lessonId: string; visitedAt: Date } | null;
+  seenReleases: Map<string, Date>;
 }
 
 /**
  * An in-memory store with the database's rules: one user per (issuer, subject), one row per
- * completion, one counter row per device, hints as a set, and a single last lesson that only
+ * completion, one counter row per device, hints and seen releases as sets (the earliest time
+ * kept), and a single last lesson that only
  * moves forward. The SQL adapter is the real thing; this mirrors its merge semantics so the API
  * tests can exercise them without PostgreSQL.
  */
@@ -90,7 +92,13 @@ export function createMemoryProgressStore(): AccountProgressStore & {
     if (!user) {
       rows.set(
         key,
-        (user = { completions: new Map(), devices: new Map(), hints: new Set(), lastLesson: null }),
+        (user = {
+          completions: new Map(),
+          devices: new Map(),
+          hints: new Set(),
+          lastLesson: null,
+          seenReleases: new Map(),
+        }),
       );
     }
     return user;
@@ -131,6 +139,7 @@ export function createMemoryProgressStore(): AccountProgressStore & {
       playgroundSessions,
       revealedHints,
       lastLesson: user.lastLesson,
+      seenReleases: Object.fromEntries(user.seenReleases),
     };
   };
 
@@ -180,6 +189,10 @@ export function createMemoryProgressStore(): AccountProgressStore & {
       device.playgroundSessions = Math.max(device.playgroundSessions, activity.playgroundSessions);
       for (const [contentKey, hints] of Object.entries(activity.revealedHints)) {
         for (const hint of hints) user.hints.add(`${contentKey}\u0000${hint}`);
+      }
+      for (const [version, seenAt] of Object.entries(activity.seenReleases)) {
+        const seen = user.seenReleases.get(version);
+        if (!seen || seenAt.getTime() < seen.getTime()) user.seenReleases.set(version, seenAt);
       }
       const incoming = activity.lastLesson;
       const current = user.lastLesson;

@@ -13,7 +13,7 @@ import next from "@gitdojo/config/eslint/next";
 const LAYERS = [
   ["auth"],
   ["progress", "repository", "terminal"],
-  ["course", "challenges", "editor", "conflicts"],
+  ["course", "challenges", "editor", "conflicts", "releases"],
   ["lesson", "errors"],
   ["workspace", "dashboard"],
   ["playground"],

@@ -193,6 +193,7 @@ single YAML file. See:
   progress API
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [docs/ci.md](docs/ci.md): CI jobs, security scans, reports and branch protection
+- [docs/release-notes.md](docs/release-notes.md): writing the learner highlights for a release
 - [docs/ui.md](docs/ui.md): the design system
 
 ## Roadmap
