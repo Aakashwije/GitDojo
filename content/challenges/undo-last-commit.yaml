@@ -70,3 +70,25 @@ hints:
     - Git can be told to stop reporting a file.
   two-commits:
     - If history has three commits, the key is still in one of them.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: extra-commit
+    when:
+      - type: commit_count
+        count: 3
+    text: >-
+      History has three commits. A commit that deletes `secrets.env` still leaves the key readable
+      in the commit that added it, so the mission keeps history at two: the commit holding the key
+      has to stop existing rather than be followed by another one.
+
+  - id: ignoring-a-tracked-file
+    when:
+      - type: file_exists
+        file: .gitignore
+      - type: file_committed
+        file: secrets.env
+    text: >-
+      `.gitignore` is there, but `secrets.env` is still tracked. Ignore rules only apply to files
+      Git is not tracking yet; one that is already in history keeps being reported and committed
+      whatever the rules say.

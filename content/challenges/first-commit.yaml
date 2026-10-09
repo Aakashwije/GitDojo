@@ -76,3 +76,24 @@ hints:
     - Git can be told to stop reporting a file by listing it in a special file at the top of the
       project.
     - That special file is `.gitignore`, and it should be committed too. The editor can create it.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: log-committed
+    when:
+      - type: repository_initialized
+      - type: file_committed
+        file: debug.log
+    text: >-
+      `debug.log` is part of a commit. A commit keeps its files for good, so leaving the log out
+      of later commits would not help: anyone reading history would still find it there. Look at
+      what the commit holds, and at how a project tells Git to stop reporting a file it is not
+      tracking yet.
+
+  - id: split-commits
+    when:
+      - type: commit_count
+        count: 2
+    text: >-
+      History has two commits; the mission asks for a single one holding the site. Everything that
+      belongs in that snapshot has to be in the staging area together before it is recorded.

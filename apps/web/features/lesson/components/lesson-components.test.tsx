@@ -1,9 +1,10 @@
 import { normalizeHints } from "@gitdojo/hints";
-import { type LessonObjective } from "@gitdojo/shared-types";
+import { type LessonObjective, type LessonTip } from "@gitdojo/shared-types";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CurrentObjective } from "./CurrentObjective";
+import { LessonTipNote } from "./LessonTipNote";
 import { HintPanel } from "./HintPanel";
 import { ObjectiveList } from "./ObjectiveList";
 import { RichText } from "@/components/content/rich-text";
@@ -83,6 +84,45 @@ describe("CurrentObjective", () => {
   it("leaves out the terminal shortcut when there is nowhere to go", () => {
     render(<CurrentObjective description="Commit." number={1} total={1} />);
     expect(screen.queryByTestId("go-to-terminal")).not.toBeInTheDocument();
+  });
+});
+
+describe("LessonTipNote", () => {
+  const tips: LessonTip[] = [
+    {
+      id: "commits-unreachable",
+      when: [{ type: "branch_not_exists", branch: "feature/login" }],
+      text: "No branch points at the login commits; `main` moved back without them.",
+    },
+    {
+      id: "files-loose",
+      when: [{ type: "file_status", file: "login.js", status: "untracked" }],
+      text: "`login.js` is untracked.",
+    },
+  ];
+
+  it("shows nothing until a tip matches", () => {
+    render(<LessonTipNote tips={tips} matching={[]} />);
+    expect(screen.queryByTestId("lesson-tip")).not.toBeInTheDocument();
+  });
+
+  it("shows one tip, in authored order, as a status region named in text", () => {
+    // Both match: the authored order decides, not the order the ids arrive in.
+    render(<LessonTipNote tips={tips} matching={["files-loose", "commits-unreachable"]} />);
+    const note = screen.getByTestId("lesson-tip");
+    expect(note).toHaveAttribute("data-tip", "commits-unreachable");
+    expect(note).toHaveAttribute("role", "status");
+    expect(note).toHaveTextContent("Worth checking");
+    expect(note).toHaveTextContent("No branch points at the login commits");
+    expect(screen.queryByText("`login.js` is untracked.")).not.toBeInTheDocument();
+    expect(screen.getByText("main").tagName).toBe("CODE");
+  });
+
+  it("disappears once the state it describes is resolved", () => {
+    const { rerender } = render(<LessonTipNote tips={tips} matching={["files-loose"]} />);
+    expect(screen.getByTestId("lesson-tip")).toHaveAttribute("data-tip", "files-loose");
+    rerender(<LessonTipNote tips={tips} matching={[]} />);
+    expect(screen.queryByTestId("lesson-tip")).not.toBeInTheDocument();
   });
 });
 

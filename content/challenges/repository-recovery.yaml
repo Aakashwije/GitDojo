@@ -104,3 +104,41 @@ hints:
     - Bringing an entry back does not always remove it from the list.
   clean:
     - Check the status for anything left over.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: dark-mode-gone
+    when:
+      - type: stash_count
+        count: 0
+      - type: clean_worktree
+      - type: commit_not_on_branch
+        branch: main
+        message: Add dark mode
+    text: >-
+      The stash is empty, the working tree is clean and there is no `Add dark mode` commit, so the
+      dark-mode changes are in none of the three. Resetting the challenge brings the starting
+      state back if you need it.
+
+  - id: reports-at-wrong-commit
+    when:
+      - type: branch_exists
+        branch: feature/reports
+      - type: commit_not_on_branch
+        branch: feature/reports
+        message: Add monthly reports
+    text: >-
+      `feature/reports` exists again, but it does not contain `Add monthly reports`, so it was
+      created somewhere other than where that commit lives. The record of HEAD's positions
+      includes the moment that commit was made.
+
+  - id: stash-not-cleared
+    when:
+      - type: branch_contains_commit
+        branch: main
+        message: Add dark mode
+      - type: stash_count
+        count: 1
+    text: >-
+      `Add dark mode` is committed, but the stash still holds an entry. Bringing shelved work back
+      and taking it off the list are two different things, and the stash list shows what is left.

@@ -11,7 +11,7 @@ import {
   type LessonValidationResult,
   type RepositoryState,
 } from "@gitdojo/shared-types";
-import { validateLesson } from "@gitdojo/validator";
+import { evaluateTips, validateLesson } from "@gitdojo/validator";
 import {
   WorkspaceSession,
   type CommandOutcome as WorkspaceCommandOutcome,
@@ -21,6 +21,8 @@ export interface SessionSnapshot {
   repository: RepositoryState;
   validation: LessonValidationResult;
   progress: LessonProgress;
+  /** Ids of the lesson's tips whose conditions hold right now, in authored order. */
+  tips: string[];
 }
 
 export type CommandOutcome = WorkspaceCommandOutcome<SessionSnapshot>;
@@ -73,7 +75,10 @@ export class LearningSession extends WorkspaceSession<SessionSnapshot> {
   protected async evaluate(repository: RepositoryState): Promise<SessionSnapshot> {
     const validation = await validateLesson(this.lesson, { repository });
     this.progress = advanceProgress(this.lesson, this.progress, validation);
-    this.latest = { repository, validation, progress: this.progress };
+    // Tips describe the state right now, so they are recomputed rather than accumulated: one
+    // stops showing the moment the learner resolves what it describes.
+    const tips = this.lesson.tips ? await evaluateTips(this.lesson.tips, { repository }) : [];
+    this.latest = { repository, validation, progress: this.progress, tips };
     return this.latest;
   }
 

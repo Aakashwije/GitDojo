@@ -90,3 +90,18 @@ hints:
     - A merge that stopped for conflicts only finishes once it is committed.
   clean:
     - Check the status for anything left over.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: merged-backwards
+    when:
+      - type: branches_merged
+        branch: main
+        into: release/2.0
+      - type: commit_not_on_branch
+        branch: main
+        message: Move to the v2 API host
+    text: >-
+      `release/2.0` now contains `main`, and `main` does not yet contain the release. A merge
+      always joins the other branch **into** the one you are on, and the mission wants the merge
+      commit on `main`.

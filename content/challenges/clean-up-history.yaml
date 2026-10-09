@@ -103,3 +103,29 @@ hints:
     - Count the commits with a one-line log.
   on-branch:
     - Check the status for anything left over.
+
+# Feedback while a state that leads away from the mission holds. First match wins.
+tips:
+  - id: search-code-gone
+    when:
+      - type: commit_count
+        count: 1
+      - type: clean_worktree
+    text: >-
+      `feature/search` is back to a single commit and the working tree is clean, so the search
+      code is in neither. Moving a branch back can keep the changes or discard them, and this took
+      the discarding route; the mission keeps the final code exactly as it was. Every position
+      HEAD has held is still on record.
+
+  - id: wip-still-there
+    when:
+      - type: branch_contains_commit
+        branch: feature/search
+        message: Add search
+      - type: branch_contains_commit
+        branch: feature/search
+        message: wip
+    text: >-
+      `Add search` is on the branch, but `wip` is still in its history too. Squashing means the
+      messy commits are no longer part of the branch at all; a one-line log shows which commits it
+      still reaches.

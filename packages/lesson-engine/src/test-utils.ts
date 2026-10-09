@@ -6,7 +6,7 @@ import {
   type GitEngineFactory,
 } from "@gitdojo/git-engine";
 import { createRepositoryStateReader } from "@gitdojo/repository-state";
-import { type LessonDefinition } from "@gitdojo/shared-types";
+import { type LessonDefinition, type RepositoryState } from "@gitdojo/shared-types";
 import { validateLesson } from "@gitdojo/validator";
 import { advanceProgress, createInitialProgress, type LessonProgress } from "./progress";
 import { setupLesson, type LessonEnvironment } from "./setup";
@@ -34,6 +34,8 @@ export interface PlayResult {
   /** Progress before any step: content must never start with objectives done. */
   initial: LessonProgress;
   progress: LessonProgress;
+  /** Repository state after setup and after each step, so checks can run at every point. */
+  states: RepositoryState[];
 }
 
 /**
@@ -50,6 +52,7 @@ export async function play(lesson: LessonDefinition, steps: PlayStep[]): Promise
     await validateLesson(lesson, { repository }),
   );
   let progress = initial;
+  const states: RepositoryState[] = [repository];
 
   for (const step of steps) {
     if (typeof step !== "string") {
@@ -62,7 +65,8 @@ export async function play(lesson: LessonDefinition, steps: PlayStep[]): Promise
       }
     }
     repository = await env.stateReader.read(workspaceId);
+    states.push(repository);
     progress = advanceProgress(lesson, progress, await validateLesson(lesson, { repository }));
   }
-  return { initial, progress };
+  return { initial, progress, states };
 }

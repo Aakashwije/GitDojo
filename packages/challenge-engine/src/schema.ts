@@ -1,10 +1,12 @@
 import {
   checkObjectives,
   checkSetup,
+  checkTips,
   hintsSchema,
   identifier,
   objectiveSchema,
   setupSchema,
+  tipsSchema,
 } from "@gitdojo/lesson-engine";
 import { type ChallengeDefinition } from "@gitdojo/shared-types";
 import { z } from "zod";
@@ -32,8 +34,10 @@ export const challengeDefinitionSchema = z
     setup: setupSchema.default({}),
     objectives: z.array(objectiveSchema).min(1, "a challenge needs at least one success condition"),
     hints: hintsSchema.optional(),
+    tips: tipsSchema.optional(),
   })
   .superRefine((challenge, ctx) => {
     checkSetup(challenge.setup, ctx);
     checkObjectives(challenge, ctx, { challenge: true });
+    checkTips(challenge.tips, ctx, { challenge: true });
   }) satisfies z.ZodType<ChallengeDefinition>;

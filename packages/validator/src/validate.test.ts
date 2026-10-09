@@ -2,6 +2,7 @@ import {
   EMPTY_REPOSITORY_STATE,
   type CommitState,
   type LessonObjective,
+  type LessonTip,
   type RepositoryState,
   type ValidatorDefinition,
 } from "@gitdojo/shared-types";
@@ -9,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { validatorRegistry } from "./registry";
 import { validatorDefinitionSchema } from "./schema";
 import { type ValidatorRegistry } from "./types";
-import { validateLesson, validateObjective } from "./validate";
+import { evaluateTips, validateLesson, validateObjective } from "./validate";
 
 function commit(message: string, oid = "a".repeat(40)): CommitState {
   return {
@@ -666,5 +667,42 @@ describe("recovery validators", () => {
     { type: "stash_count", count: -1 },
   ])("rejects %j", (definition) => {
     expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
+  });
+});
+
+describe("evaluateTips", () => {
+  const tip = (id: string, when: ValidatorDefinition[]): LessonTip => ({ id, when, text: id });
+  const onMain = state({
+    currentBranch: "main",
+    branches: [{ name: "main", oid: null, current: true }],
+  });
+
+  it("matches only when every condition passes, in authored order", async () => {
+    const tips = [
+      tip("second", [{ type: "repository_initialized" }]),
+      tip("first", [{ type: "current_branch", branch: "main" }]),
+      // The second condition fails, so the whole tip does.
+      tip("never", [{ type: "current_branch", branch: "main" }, { type: "head_detached" }]),
+    ];
+    // Authored order, not the order they were checked in.
+    expect(await evaluateTips(tips, { repository: onMain })).toEqual(["second", "first"]);
+  });
+
+  it("reports nothing for an empty list, and never throws on a broken condition", async () => {
+    expect(await evaluateTips([], { repository: onMain })).toEqual([]);
+    const exploding: ValidatorRegistry = {
+      ...validatorRegistry,
+      repository_initialized: () => {
+        throw new Error("boom");
+      },
+    };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(
+      await evaluateTips(
+        [tip("t", [{ type: "repository_initialized" }])],
+        { repository: onMain },
+        exploding,
+      ),
+    ).toEqual([]);
   });
 });

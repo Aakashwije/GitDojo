@@ -36,3 +36,32 @@ test("solves a challenge from the browser and remembers it", async ({ page, isMo
     "solved",
   );
 });
+
+test("explains a wrong turn, and changes what it says as the state changes", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/challenges/detached-head");
+  await show(page, "Terminal", isMobile);
+  await expect(page.getByTestId("terminal")).toContainText("learner@gitdojo");
+
+  // Nothing is said before the learner has done anything.
+  await show(page, "Lesson", isMobile);
+  const tip = page.getByTestId("lesson-tip");
+  await expect(tip).toHaveCount(0);
+
+  // Leaving the detached HEAD first: no branch points at the rounding work any more.
+  await show(page, "Terminal", isMobile);
+  await run(page, "git switch main");
+  await show(page, "Lesson", isMobile);
+  await expect(tip).toHaveAttribute("data-tip", "left-detached");
+  await expect(tip).toContainText("Worth checking");
+  await expect(tip).toContainText("fix/rounding");
+
+  // Creating the branch from here resolves that note, and raises the more specific one.
+  await show(page, "Terminal", isMobile);
+  await run(page, "git switch -c fix/rounding");
+  await show(page, "Lesson", isMobile);
+  await expect(tip).toHaveAttribute("data-tip", "branch-missed-the-work");
+  await expect(tip).toContainText("Fix rounding of totals");
+});
