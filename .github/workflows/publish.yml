@@ -1,0 +1,172 @@
+name: Publish release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  VERCEL_CLI: vercel@62.2.0
+  VERCEL_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify-release:
+    name: Verify approved release
+    if: github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify release tag, main ancestry and CI
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v0\.1\.[0-9]+$ ]]; then
+            echo "::error::Unexpected release tag '$TAG'. Releases must use the v0.1.<run-number> format."
+            exit 1
+          fi
+          sha=$(git rev-parse HEAD)
+          ancestry=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq .status)
+          if [ "$ancestry" != "behind" ] && [ "$ancestry" != "identical" ]; then
+            echo "::error::Release commit $sha is not on main."
+            exit 1
+          fi
+          check=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=CI%20required" --jq '[.check_runs[] | select(.conclusion == "success")] | length')
+          if [ "$check" -lt 1 ]; then
+            echo "::error::CI required did not pass for release commit $sha."
+            exit 1
+          fi
+          staging=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/status" --jq '[.statuses[] | select(.context == "GitDojo staging")][0].state // "missing"')
+          if [ "$staging" != "success" ]; then
+            echo "::error::GitDojo staging status is '$staging' for $sha; production requires a passing staging smoke test."
+            exit 1
+          fi
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [ "$latest" != "$TAG" ]; then
+            echo "::error::Release $TAG is no longer the latest published release ($latest); refusing to deploy an older version."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  production:
+    name: Deploy approved release to production
+    needs: verify-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-release.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+      - name: Check production configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL_UNPOOLED PRODUCTION_URL; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::The production environment is missing: ${missing[*]}. See docs/deployment.md."
+            exit 1
+          fi
+      - name: Add the approved release notes to the app build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify-release.outputs.tag }}
+        run: node apps/web/scripts/write-release-info.mjs
+      - name: Migrate production database
+        # Migrations must keep the currently live version working (docs/deployment.md#migrations).
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+      - name: Reuse or build the staged production deployment
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TAG: ${{ needs.verify-release.outputs.tag }}
+          SHA: ${{ needs.verify-release.outputs.sha }}
+        run: |
+          existing=$(npx --yes "$VERCEL_CLI" ls --prod --status READY --meta "gitdojoRelease=$TAG" --token "$VERCEL_TOKEN")
+          url=$(printf '%s\n' "$existing" | grep -Eo 'https?://[[:alnum:].-]+\.vercel\.app|[[:alnum:].-]+\.vercel\.app' | head -n 1 || true)
+          if [ -n "$url" ]; then
+            [[ "$url" == https://* ]] || url="https://$url"
+            echo "Reusing ready deployment for $TAG: $url"
+          else
+            url=$(npx --yes "$VERCEL_CLI" deploy --prod --skip-domain --yes --token "$VERCEL_TOKEN" --meta "gitdojoRelease=$TAG" --meta "gitSha=$SHA" --build-env "NEXT_PUBLIC_APP_VERSION=$TAG")
+            echo "Built staged deployment for $TAG: $url"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Smoke test the staged deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node apps/web/scripts/smoke.mjs "$DEPLOYMENT_URL" --expect-accounts --expect-database
+      - name: Check whether this release is already live
+        id: live-check
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          TAG: ${{ needs.verify-release.outputs.tag }}
+        run: |
+          if curl --fail --silent --show-error "$PRODUCTION_URL/whats-new" | grep -Fq "$TAG"; then
+            echo "already-live=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already-live=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Promote the staged deployment
+        if: steps.live-check.outputs.already-live != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: npx --yes "$VERCEL_CLI" promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
+      - name: Smoke test production
+        id: live
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          TAG: ${{ needs.verify-release.outputs.tag }}
+        run: |
+          node apps/web/scripts/smoke.mjs "$PRODUCTION_URL" --expect-accounts --expect-database
+          curl --fail --silent --show-error "$PRODUCTION_URL/whats-new" | grep -Fq "$TAG"
+      - name: Explain how to roll back
+        if: failure() && steps.live.outcome == 'failure'
+        run: |
+          {
+            echo "### Production verification failed"
+            echo "If promotion completed, restore the previous Vercel deployment with Instant Rollback. See docs/deployment.md#rollback."
+          } >> "$GITHUB_STEP_SUMMARY"

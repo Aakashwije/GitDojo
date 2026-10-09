@@ -11,6 +11,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { label: "Challenges", href: "/challenges", external: false },
   { label: "Playground", href: "/playground", external: false },
   { label: "Dashboard", href: "/dashboard", external: false },
+  { label: "What’s new", href: "/whats-new", external: false },
   { label: "Docs", href: SITE.docsUrl, external: true },
 ];
 

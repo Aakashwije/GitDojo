@@ -77,6 +77,7 @@ for (const path of [
   "/challenges",
   "/playground",
   "/dashboard",
+  "/whats-new",
 ]) {
   await check(`Page ${path}`, async () => {
     const response = await request(path);

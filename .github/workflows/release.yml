@@ -1,9 +1,10 @@
 name: Release
 
-# Releases main to staging, then production, after CI has passed for that exact commit.
+# Deploys main to staging after CI, then opens a draft GitHub Release for review.
 # Vercel builds each release from source with its own environment variables; CI's test build
 # (mock identity provider settings) is never deployed. Git-triggered production deployments are
 # disabled in apps/web/vercel.json, so this workflow is the only way to production.
+# Production deploys only from the published release event (.github/workflows/publish.yml).
 # Setup: docs/deployment.md.
 
 on:
@@ -87,6 +88,9 @@ jobs:
     if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      statuses: write
     environment:
       name: staging
       url: ${{ vars.STAGING_URL }}
@@ -96,6 +100,11 @@ jobs:
           ref: ${{ needs.gate.outputs.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup-project
+      - name: Mark staging deployment pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" --method POST -f state=pending -f context='GitDojo staging' -f description='Staging deployment and smoke test are running.' -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
       - name: Check release configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -132,76 +141,51 @@ jobs:
           STAGING_URL: ${{ vars.STAGING_URL }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node apps/web/scripts/smoke.mjs "$STAGING_URL" --expect-accounts --expect-database
+      - name: Mark staging verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.gate.outputs.sha }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" --method POST -f state=success -f context='GitDojo staging' -f description='Staging deployment and smoke test passed.' -f target_url="$STAGING_URL"
+      - name: Mark staging failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" --method POST -f state=failure -f context='GitDojo staging' -f description='Staging deployment or smoke test failed.' -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
-  production:
-    name: Production
+  draft-release:
+    name: Create draft release for approval
     needs: [gate, staging]
+    if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Add required reviewers to this environment to approve each production release.
-    environment:
-      name: production
-      url: ${{ vars.PRODUCTION_URL }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.gate.outputs.sha }}
+          fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/setup-project
-      - name: Check release configuration
+      - name: Create a draft with generated release notes
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-        run: |
-          missing=()
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL_UNPOOLED PRODUCTION_URL; do
-            [ -n "${!name}" ] || missing+=("$name")
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::The production environment is missing: ${missing[*]}. See docs/deployment.md."
-            exit 1
-          fi
-      - name: Migrate the production database
-        # Migrations must keep the currently live version working (docs/deployment.md#migrations).
-        run: pnpm db:migrate
-        env:
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-      - name: Build a production deployment without assigning domains
-        id: deploy
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.gate.outputs.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          url=$(npx --yes "$VERCEL_CLI" deploy --prod --skip-domain --yes --token "$VERCEL_TOKEN" --meta "gitSha=$SHA")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Built $url"
-      - name: Smoke test the new deployment before it receives traffic
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: node apps/web/scripts/smoke.mjs "$DEPLOYMENT_URL" --expect-accounts --expect-database
-      - name: Promote to production
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-        run: npx --yes "$VERCEL_CLI" promote "$DEPLOYMENT_URL" --yes --token "$VERCEL_TOKEN"
-      - name: Smoke test production
-        id: live
-        env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-        run: node apps/web/scripts/smoke.mjs "$PRODUCTION_URL" --expect-accounts --expect-database
-      - name: Explain how to roll back
-        if: failure() && steps.live.outcome == 'failure'
-        run: |
+          tag="v0.1.$RUN_NUMBER"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+            existing_target=$(jq -r .target_commitish "$RUNNER_TEMP/release.json")
+            if [ "$existing_target" != "$SHA" ]; then
+              echo "::error::Release $tag already exists for $existing_target, not $SHA. Refusing to reuse it."
+              exit 1
+            fi
+            echo "Release $tag already exists for this commit; leaving it unchanged."
+          else
+            gh release create "$tag" --target "$SHA" --title "GitDojo $tag" --generate-notes --draft
+          fi
           {
-            echo "### Production smoke test failed after promotion"
-            echo "Roll back to the previous deployment: Vercel dashboard → Deployments → Instant Rollback,"
-            echo "or \`vercel rollback\` with a token. Database changes are not rolled back; see docs/deployment.md#rollback."
+            echo "### Draft release ready for review"
+            echo "Open **Releases** in GitHub, review $tag, edit its notes if needed, then click **Publish release** to approve the production deployment."
           } >> "$GITHUB_STEP_SUMMARY"
