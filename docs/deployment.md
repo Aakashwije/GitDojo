@@ -7,14 +7,14 @@ yours to set up.
 
 ## Environments
 
-|                 | Preview                                | Staging                                               | Production                                 |
-| --------------- | -------------------------------------- | ----------------------------------------------------- | ------------------------------------------ |
-| Purpose         | Look at a pull request                 | Final check of `main`, with real sign-in and database | Learners                                   |
-| Vercel project  | `gitdojo` (Git integration)            | `gitdojo-staging` (no Git connection)                 | `gitdojo` (production target)              |
-| Deployed by     | Vercel, for every branch except `main` | **Release** workflow, after CI passes on `main`       | **Release** workflow, after staging passes |
-| Domain          | Generated `*.vercel.app`               | Stable, e.g. `staging.gitdojo.dev`                    | e.g. `gitdojo.dev`                         |
-| Accounts (WSO2) | Off: no WSO2 variables                 | Staging WSO2 application                              | Production WSO2 application                |
-| Database        | None                                   | Neon branch `staging`                                 | Neon branch `main`                         |
+|                 | Preview                                | Staging                                               | Production                                               |
+| --------------- | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------- |
+| Purpose         | Look at a pull request                 | Final check of `main`, with real sign-in and database | Learners                                                 |
+| Vercel project  | `gitdojo` (Git integration)            | `gitdojo-staging` (no Git connection)                 | `gitdojo` (production target)                            |
+| Deployed by     | Vercel, for every branch except `main` | **Release** workflow, after CI passes on `main`       | **Publish release** workflow, after a draft is published |
+| Domain          | Generated `*.vercel.app`               | Stable, e.g. `staging.gitdojo.dev`                    | e.g. `gitdojo.dev`                                       |
+| Accounts (WSO2) | Off: no WSO2 variables                 | Staging WSO2 application                              | Production WSO2 application                              |
+| Database        | None                                   | Neon branch `staging`                                 | Neon branch `main`                                       |
 
 Previews never get sign-in or a database. WSO2 accepts only exact, pre-registered callback URLs,
 and preview URLs change with every deployment; wildcard callbacks would let any preview (or any
@@ -28,24 +28,33 @@ pull request ── CI (checks, unit, PostgreSQL, build, browsers) ──▶ "CI
                 └─ Vercel preview (anonymous)
 
 push to main ── CI ──(success, newest main commit only)──▶ Release workflow
-    staging:     migrate staging DB ─▶ vercel deploy --prod (staging project) ─▶ smoke test
-    production:  [optional approval] ─▶ migrate production DB
-                 ─▶ vercel deploy --prod --skip-domain ─▶ smoke test the new deployment
-                 ─▶ vercel promote ─▶ smoke test the production domain
+    staging:     migrate staging DB ─▶ deploy ─▶ smoke test
+    review:      create a draft GitHub Release with generated notes ─▶ you review and publish
+    production:  published release event ─▶ verify tag and CI ─▶ migrate production DB
+                 ─▶ deploy with the release tag ─▶ smoke test ─▶ promote ─▶ smoke test live site
+                 └─ app shows a release banner and /whats-new announcement
 ```
 
 - **One path to production.** `apps/web/vercel.json` turns off Git-triggered deployments of
   `main`, so pushing to `main` never deploys directly; the **Release** workflow
-  (`.github/workflows/release.yml`) deploys with the Vercel CLI. Branch and pull request
-  previews still come from the Git integration.
+  (`.github/workflows/release.yml`) deploys staging and the **Publish release** workflow
+  (`.github/workflows/publish.yml`) deploys production with the Vercel CLI. Branch and pull
+  request previews still come from the Git integration.
 - **Only after CI.** The workflow starts when the `CI` workflow succeeds for a push to `main` in
   this repository (never for pull requests or forks), and skips a commit that is no longer the
   head of `main`, so a late CI run can't roll production back. A manual run (**Actions → Release →
   Run workflow** on `main`) first checks that `CI required` passed for that commit.
 - **Built by Vercel, from source.** Each environment builds with its own variables. CI's build
   artifact contains the mock identity provider's public settings and is never deployed.
-- **Serialized.** Releases share one concurrency group and are never cancelled midway, so two
-  migrations or promotions can't overlap. A newer release waits for the running one.
+- **Approval is publishing.** Staging must pass before a draft appears in **GitHub → Releases**.
+  Review the tag and generated notes, edit them if needed, then click **Publish release**. A
+  published release starts `.github/workflows/publish.yml`; a draft never deploys production.
+- **Exact approved source.** The published tag is checked out for production. The workflow confirms
+  it points to a commit on `main` with passing CI and the successful `GitDojo staging` commit
+  status, and rejects older releases published out of order.
+- **Serialized and retryable.** Staging releases and production publishes each have a concurrency
+  group. Draft creation reuses the same tag on a workflow retry. Production looks for a ready
+  Vercel deployment carrying that release tag and reuses it rather than building a duplicate.
 - **Promotion only after checks.** Production is built without receiving traffic
   (`--skip-domain`), smoke-tested, then promoted.
 
@@ -165,9 +174,10 @@ Keep `localhost` URLs on a separate development application.
 
 ## GitHub
 
-**Settings → Environments**, create `staging` and `production`. For both, restrict
-**Deployment branches** to `main`. For `production`, add **Required reviewers** if releases
-should wait for approval.
+**Settings → Environments**, create `staging` and `production`. Restrict `staging` deployments
+to `main`; allow the `production` environment to deploy tags matching `v0.1.*`. Publishing the
+draft GitHub Release is the approval gate, so do not require a second production environment
+reviewer. Keep environment secrets scoped to the matching environment.
 
 | Name                              | Kind     | `staging`                              | `production`                        |
 | --------------------------------- | -------- | -------------------------------------- | ----------------------------------- |
@@ -179,8 +189,11 @@ should wait for approval.
 | `STAGING_URL`                     | Variable | `https://staging.<your-domain>`        | –                                   |
 | `PRODUCTION_URL`                  | Variable | –                                      | `https://<your-domain>`             |
 
-Secrets are only available to the Release workflow's environment jobs, which run only for
-`main`. CI never uses them, so pull requests from forks work without deployment secrets.
+Secrets are only available to the Release and Publish release workflows' environment jobs. CI
+never uses them, so pull requests from forks work without deployment secrets. The staging job
+gets `statuses: write` to report whether its deployment and smoke test passed; draft creation gets
+`contents: write`; production verification gets `contents: read` and `checks: read`. No GitHub PAT
+or new secret is required.
 Protect `main` with the rulesets in [ci.md](./ci.md#repository-settings).
 
 ## First deployment
@@ -190,9 +203,12 @@ Protect `main` with the rulesets in [ci.md](./ci.md#repository-settings).
 3. Vercel: configure both projects, domains, variables and the bypass secrets as above.
 4. GitHub: create both environments with their secrets and variables.
 5. Merge this configuration to `main`. CI runs; when it passes, **Release** migrates and deploys
-   staging, then production. Without step 4, the Release workflow fails and names what's
-   missing; production is not deployed.
-6. Check staging and production by hand once (checklist below).
+   staging, then opens a draft under **GitHub → Releases**. Without staging settings, the release
+   workflow reports which values are missing; production is never deployed.
+6. Check staging by hand, review the draft release notes, then click **Publish release**. This is
+   your approval. GitHub starts **Publish release**, which deploys the approved tag to production.
+7. After the production smoke test passes, the app shows a small release banner throughout the
+   site; **What’s new** opens the version, date and release highlights from the approved notes.
 
 The existing production deployment stays live until the first promotion replaces it.
 
@@ -204,16 +220,16 @@ The existing production deployment stays live until the first promotion replaces
 node apps/web/scripts/smoke.mjs https://staging.<your-domain> --expect-accounts --expect-database
 ```
 
-| Check                                                                           | Expectation                                         |
-| ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `/`, `/learn`, a lesson, `/challenges`, `/playground`, `/dashboard`, `/sign-in` | 200                                                 |
-| A `/_next/static/…js` chunk from the landing page                               | 200, JavaScript                                     |
-| `/monaco/vs/loader.js`                                                          | 200 (editor assets were copied)                     |
-| `/api/health`                                                                   | 200; `database: "ok"` (reachable and migrated)      |
-| `/api/auth/session`                                                             | 200, `no-store`, `signed-out` (accounts configured) |
-| `GET /api/progress` without a session                                           | 401, `private, no-store`                            |
-| `POST /api/progress/lessons` from another origin                                | 403 `cross_origin`                                  |
-| `POST /api/progress/sync` from another origin                                   | 403 `cross_origin`                                  |
+| Check                                                                                         | Expectation                                         |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `/`, `/learn`, a lesson, `/challenges`, `/playground`, `/dashboard`, `/whats-new`, `/sign-in` | 200                                                 |
+| A `/_next/static/…js` chunk from the landing page                                             | 200, JavaScript                                     |
+| `/monaco/vs/loader.js`                                                                        | 200 (editor assets were copied)                     |
+| `/api/health`                                                                                 | 200; `database: "ok"` (reachable and migrated)      |
+| `/api/auth/session`                                                                           | 200, `no-store`, `signed-out` (accounts configured) |
+| `GET /api/progress` without a session                                                         | 401, `private, no-store`                            |
+| `POST /api/progress/lessons` from another origin                                              | 403 `cross_origin`                                  |
+| `POST /api/progress/sync` from another origin                                                 | 403 `cross_origin`                                  |
 
 Manually, after the first release and after changes to accounts or progress, on staging:
 
@@ -227,8 +243,8 @@ Manually, after the first release and after changes to accounts or progress, on 
 
 ## Migrations
 
-`pnpm db:migrate` runs in the Release workflow before each deployment (staging, then
-production) and never from the app. Each migration runs in one transaction with its ledger row,
+`pnpm db:migrate` runs in the Release workflow before staging and in the Publish release workflow
+before production, never from the app. Each migration runs in one transaction with its ledger row,
 under an advisory lock, and applied files are checksummed. Running it again is a no-op.
 
 The previous version of the app keeps running against the new schema until promotion (and
@@ -270,6 +286,9 @@ forever, if you roll back the code), so every migration must be **backward compa
 | `/api/health` 503 `unavailable`                             | Wrong `DATABASE_URL`, `sslmode=disable` on a remote host, or the database is down | Check the URL (pooled, TLS); Vercel function logs show the error name and SQLSTATE |
 | `prepared statement … does not exist`                       | An older build with prepared statements behind the pooler                         | Deploy current `main` (prepared statements are off)                                |
 | Release: "missing: VERCEL_TOKEN …"                          | Environment secrets/variables not set                                             | Add them to the named GitHub environment                                           |
+| No draft appears after CI                                   | Staging did not pass, or the commit was superseded on `main`                      | Review the Release workflow run and staging smoke test                             |
+| Publishing a release does not deploy                        | The tag is older than the latest release, is not on `main`, or lacks passing CI   | Confirm the draft tag and inspect the Publish release workflow gate                |
+| `/whats-new` does not show the published release            | Production deployment or smoke test failed                                        | Rerun the Publish release workflow for that release                                |
 | Release skipped with "no longer the head of main"           | A newer commit was pushed                                                         | Expected; the newer commit is released                                             |
 | Smoke test gets 401 from a deployment URL                   | Deployment Protection                                                             | Set `VERCEL_AUTOMATION_BYPASS_SECRET`                                              |
 | Pushing to `main` still deploys production directly         | `vercel.json` not picked up                                                       | Root Directory must be `apps/web`; check **Settings → Git** has no override        |
