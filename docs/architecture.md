@@ -158,7 +158,7 @@ used.
 | `@gitdojo/error-engine`     | Educational explanations for command outcomes                           | command-parser, shared-types                       |
 | `@gitdojo/hints`            | Hint levels, ladder validation, hint state                              | shared-types                                       |
 | `@gitdojo/progress`         | Local progress: model, XP rules, IndexedDB storage, migration, metrics  | shared-types                                       |
-| `@gitdojo/ui`               | Design tokens (from `UI.md`) and shadcn/ui-style components             | radix-ui, tailwind-merge                           |
+| `@gitdojo/ui`               | Design tokens (from `docs/ui.md`) and shadcn/ui-style components        | radix-ui, tailwind-merge                           |
 | `@gitdojo/config`           | Shared TypeScript, ESLint and Prettier configuration                    | –                                                  |
 | `@gitdojo/web`              | Next.js app: landing page, courses and the lesson workspace             | everything above                                   |
 

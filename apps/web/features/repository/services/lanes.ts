@@ -61,7 +61,7 @@ export function tipsInLaneOrder(
   return head === null ? tips : [...tips, head];
 }
 
-/** One color per lane. Lane 0 is neutral; branches use Git accents from UI.md. */
+/** One color per lane. Lane 0 is neutral; branches use Git accents from docs/ui.md. */
 export const LANE_COLORS = [
   "var(--text-muted)",
   "var(--accent-secondary)",
@@ -110,5 +110,5 @@ export function laneEdgePath(
   ].join(" ");
 }
 
-/** Accent for merge commits (UI.md: merges are purple). */
+/** Accent for merge commits (docs/ui.md: merges are purple). */
 export const MERGE_COLOR = "var(--purple)";

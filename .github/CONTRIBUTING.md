@@ -27,7 +27,7 @@ your `.env.local` does not change what the tests see.
 ## Pull request checklist
 
 Everything below is enforced by the test suite or by review, and the
-[pull request template](.github/pull_request_template.md) repeats it as tick-boxes. Say in the PR
+[pull request template](pull_request_template.md) repeats it as tick-boxes. Say in the PR
 description what you ran, and what you left out and why.
 
 **Any change**
@@ -36,7 +36,7 @@ description what you ran, and what you left out and why.
       description rather than leaving it unsaid.
 - [ ] Tests live next to the code they cover, and existing `data-testid` attributes stay put: the
       Playwright specs select on them.
-- [ ] The architectural rules in [docs/architecture.md](docs/architecture.md) still hold. Several
+- [ ] The architectural rules in [docs/architecture.md](../docs/architecture.md) still hold. Several
       are enforced by ESLint (feature layers, SDK facades, the `WorkspaceSession` pipeline), so a
       violation fails CI rather than review.
 
@@ -44,7 +44,7 @@ description what you ran, and what you left out and why.
 
 - [ ] The lesson is YAML in `content/lessons/<course>/`, listed by `content/courses/<course>.yaml`.
       Every file in a course directory must be listed, and lesson ids are unique across all
-      courses. See [docs/lesson-authoring.md](docs/lesson-authoring.md).
+      courses. See [docs/lesson-authoring.md](../docs/lesson-authoring.md).
 - [ ] Interactive lessons and challenges have a reference solution in `SOLUTIONS`
       (`packages/lesson-engine/src/content.test.ts`); it is replayed through the real parser,
       engine and validators.
@@ -65,14 +65,14 @@ description what you ran, and what you left out and why.
 - [ ] New YAML fields or content block types are a last resort. If one is genuinely needed, say
       why in the description, and keep it backward compatible: schema
       (`packages/lesson-engine/src/content-schema.ts`), types (`@gitdojo/shared-types`), renderer
-      and [docs/lesson-authoring.md](docs/lesson-authoring.md) all change together.
+      and [docs/lesson-authoring.md](../docs/lesson-authoring.md) all change together.
 - [ ] Existing lesson routes, ids, objectives, validators, completion behaviour, saved progress
       and XP rules are unchanged.
 
 **Accessibility**
 
 The axe scans in `accessibility.spec.ts` catch a lot, but not everything. See the review in
-[docs/testing.md](docs/testing.md#accessibility-review) for what has already been fixed, and:
+[docs/testing.md](../docs/testing.md#accessibility-review) for what has already been fixed, and:
 
 - [ ] Semantic HTML, a visible focus ring on everything reachable by keyboard, and an accessible
       name on every control.
@@ -91,7 +91,7 @@ The axe scans in `accessibility.spec.ts` catch a lot, but not everything. See th
 - [ ] If the change adds a cost that grows with repository size, content size or how often
       something re-renders, add a scenario to `apps/web/perf/` with a budget in
       `perf/harness.ts`, and record the measurement in
-      [docs/testing.md](docs/testing.md#performance). Budgets are roughly 10–30× a laptop's time,
+      [docs/testing.md](../docs/testing.md#performance). Budgets are roughly 10–30× a laptop's time,
       so they catch an order-of-magnitude regression, not slower CI.
 - [ ] Run what you added: `pnpm perf`, and `pnpm --filter @gitdojo/web perf:browser` for a browser
       scenario. CI runs these weekly and on request, not on every PR.
@@ -100,14 +100,14 @@ The axe scans in `accessibility.spec.ts` catch a lot, but not everything. See th
 ## Where things live
 
 - **Lessons:** `content/lessons/<course>/*.yaml`, listed by `content/courses/<course>.yaml`. See
-  [docs/lesson-authoring.md](docs/lesson-authoring.md).
-- **Validators:** `packages/validator`. See [docs/validators.md](docs/validators.md).
+  [docs/lesson-authoring.md](../docs/lesson-authoring.md).
+- **Validators:** `packages/validator`. See [docs/validators.md](../docs/validators.md).
 - **Git commands:** `packages/git-engine` and `packages/command-parser`. See
-  [docs/git-engine.md](docs/git-engine.md).
+  [docs/git-engine.md](../docs/git-engine.md).
 - **UI:** `apps/web` and `packages/ui`. Design tokens and visual direction come from
-  [UI.md](UI.md).
+  [docs/ui.md](../docs/ui.md).
 
-Read [docs/architecture.md](docs/architecture.md) first. It explains the rules that keep the
+Read [docs/architecture.md](../docs/architecture.md) first. It explains the rules that keep the
 codebase modular (for example: only `git-engine` may import isomorphic-git, and validators check
 repository state, never command text).
 

@@ -164,7 +164,7 @@ gitdojo/
 │   ├── hints/                progressive hint levels and state
 │   ├── progress/             local progress: XP, completions, IndexedDB storage, migration
 │   ├── shared-types/         domain types shared by every package
-│   ├── ui/                   design tokens and components (see UI.md)
+│   ├── ui/                   design tokens and components (see docs/ui.md)
 │   └── config/               shared TypeScript, ESLint and Prettier config
 ├── content/
 │   ├── courses/              course definitions (lesson order)
@@ -179,7 +179,7 @@ gitdojo/
 Contributions are very welcome, and **writing a lesson is the easiest place to start**: it's a
 single YAML file. See:
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): setup and workflow
+- [CONTRIBUTING.md](.github/CONTRIBUTING.md): setup and workflow
 - [docs/lesson-authoring.md](docs/lesson-authoring.md): how to write a lesson (and a playground
   scenario)
 - [docs/challenge-authoring.md](docs/challenge-authoring.md): how to write a challenge
@@ -188,12 +188,12 @@ single YAML file. See:
 - [docs/command-parser.md](docs/command-parser.md): how input is parsed and routed
 - [docs/progress.md](docs/progress.md): local progress, XP and what counts
 - [docs/authentication.md](docs/authentication.md): accounts with WSO2 Identity Platform, setup
+  and console configuration
 - [docs/account-progress.md](docs/account-progress.md): PostgreSQL, migrations and the account
   progress API
-  and console configuration
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [docs/ci.md](docs/ci.md): CI jobs, security scans, reports and branch protection
-- [UI.md](UI.md): the design system
+- [docs/ui.md](docs/ui.md): the design system
 
 ## Roadmap
 
