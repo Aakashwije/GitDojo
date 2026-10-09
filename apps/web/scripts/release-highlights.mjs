@@ -34,6 +34,21 @@ const HEADING = /^#{2,3}[ \t]+Highlights for learners[ \t]*:?[ \t]*$/im;
 const ANY_HEADING = /^#{1,6}[ \t]/m;
 const BULLET = /^[-*+][ \t]+(.*)$/;
 
+/**
+ * Removes HTML comments, including cases where stripping one match can expose another.
+ *
+ * @param {string} input
+ * @returns {string}
+ */
+function stripHtmlComments(input) {
+  let current = input;
+  while (true) {
+    const next = current.replace(/<!--[\s\S]*?-->/g, "");
+    if (next === current) return next;
+    current = next;
+  }
+}
+
 /** Things that belong in the technical changelog, not in front of learners. */
 const INTERNAL = [
   [/(^|[\s(])#\d+\b/, "a pull request or issue number"],
@@ -68,9 +83,7 @@ function check(text, label, limit, problems) {
  */
 export function parseLearnerHighlights(body) {
   // Authoring guidance in the template lives in comments; it is never content.
-  const text = String(body ?? "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/\r\n?/g, "\n");
+  const text = stripHtmlComments(String(body ?? "")).replace(/\r\n?/g, "\n");
   const heading = HEADING.exec(text);
   if (!heading) throw new ReleaseNotesError([`There is no "## ${HIGHLIGHTS_HEADING}" heading.`]);
 
