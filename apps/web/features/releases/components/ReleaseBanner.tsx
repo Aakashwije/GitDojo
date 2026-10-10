@@ -90,7 +90,7 @@ export function ReleaseBanner({ release = CURRENT_RELEASE }: { release?: Release
       ) : null}
       {/* Always present, so screen readers hear the confirmation after the banner is gone. */}
       <p role="status" className="sr-only">
-        {dismissed ? "Announcement dismissed. You can find it any time under What’s new." : ""}
+        {dismissed ? "Release announcement dismissed." : ""}
       </p>
     </>
   );

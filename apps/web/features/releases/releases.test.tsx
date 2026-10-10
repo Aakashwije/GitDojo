@@ -153,7 +153,7 @@ describe("release banner", () => {
 
     expect(banner()).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account" })).toHaveFocus();
-    expect(screen.getByRole("status")).toHaveTextContent("Announcement dismissed.");
+    expect(screen.getByRole("status")).toHaveTextContent("Release announcement dismissed.");
     await waitFor(() => {
       expect(seenInProgress("v0.1.12")).toBe(true);
     });
