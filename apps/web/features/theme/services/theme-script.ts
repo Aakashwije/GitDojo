@@ -15,7 +15,7 @@ const INLINE_SCRIPT_UNSAFE_CHAR_MAP: Record<string, string> = {
   "\u2029": "\\u2029",
 };
 
-const INLINE_SCRIPT_UNSAFE_CHAR_PATTERN = /[<>\/\\\b\f\n\r\t\0\u2028\u2029]/g;
+const INLINE_SCRIPT_UNSAFE_CHAR_PATTERN = /[<>/\\\b\f\n\r\t\0\u2028\u2029]/g;
 
 function escapeUnsafeInlineScriptChars(value: string): string {
   return value.replace(
