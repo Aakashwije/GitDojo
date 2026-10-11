@@ -36,7 +36,7 @@ export function LessonCompleteDialog({
 }: LessonCompleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="shadow-[0_0_80px_-20px_rgb(79_209_139/0.35)]">
+      <DialogContent className="shadow-[0_0_80px_-20px_color-mix(in_srgb,var(--success)_35%,transparent)]">
         <div className="flex size-10 items-center justify-center rounded-lg border border-success/30 bg-success-soft">
           <Trophy className="size-5 text-success" aria-hidden="true" />
         </div>

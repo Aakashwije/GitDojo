@@ -19,6 +19,9 @@ async function expectNoViolations(page: Page, exclude: string[] = []) {
   expect(summary).toEqual([]);
 }
 
+/** Every scan runs in both themes; the choice is saved before the page loads, as a learner's is. */
+const THEMES = ["dark", "light"] as const;
+
 const PAGES = [
   { name: "landing", path: "/" },
   { name: "course list", path: "/learn" },
@@ -26,64 +29,79 @@ const PAGES = [
   { name: "concept lesson", path: "/learn/git-basics/what-is-git" },
   { name: "challenge browser", path: "/challenges" },
   { name: "dashboard", path: "/dashboard" },
+  { name: "sign in", path: "/sign-in" },
+  { name: "what's new", path: "/whats-new" },
 ];
 
-for (const { name, path } of PAGES) {
-  test(`${name} has no detectable accessibility violations`, async ({ page }) => {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-    await expectNoViolations(page);
+for (const theme of THEMES) {
+  test.describe(`${theme} theme`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.addInitScript((value) => {
+        localStorage.setItem("gitdojo:theme", value);
+      }, theme);
+    });
+
+    for (const { name, path } of PAGES) {
+      test(`${name} has no detectable accessibility violations`, async ({ page }) => {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+        await expectNoViolations(page);
+      });
+    }
+
+    // xterm.js renders its own (hidden) accessibility tree, and Monaco is a third-party widget; both
+    // are excluded so the scan covers GitDojo's own UI around them.
+    const THIRD_PARTY = [".xterm", ".monaco-editor"];
+
+    test("lesson workspace has no detectable accessibility violations", async ({
+      page,
+      isMobile,
+    }) => {
+      await page.goto("/learn/demo");
+      await waitForTerminal(page, isMobile);
+      await expectNoViolations(page, THIRD_PARTY);
+    });
+
+    test("playground has no detectable accessibility violations", async ({ page, isMobile }) => {
+      await page.goto("/playground");
+      await waitForTerminal(page, isMobile);
+      await expectNoViolations(page, THIRD_PARTY);
+    });
+
+    test("completion dialog traps focus and is accessible", async ({ page, isMobile }) => {
+      await page.goto("/learn/demo");
+      await solveLesson(
+        page,
+        ["git init", "git add README.md", 'git commit -m "Initial commit"'],
+        isMobile,
+      );
+      const dialog = page.getByRole("dialog");
+      // Focus is inside the dialog, and Tab keeps it there.
+      for (let i = 0; i < 6; i += 1) {
+        await page.keyboard.press("Tab");
+        expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+      }
+      await expectNoViolations(page, THIRD_PARTY);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+    });
+
+    test("dashboard reset dialog is keyboard operable", async ({ page }) => {
+      await page.goto("/dashboard");
+      const reset = page.getByTestId("reset-progress");
+      await reset.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "Reset learning progress?" });
+      await expect(dialog).toBeVisible();
+      expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+      await expectNoViolations(page);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      // Focus returns to the button that opened it.
+      await expect(reset).toBeFocused();
+    });
   });
 }
-
-// xterm.js renders its own (hidden) accessibility tree, and Monaco is a third-party widget; both
-// are excluded so the scan covers GitDojo's own UI around them.
-const THIRD_PARTY = [".xterm", ".monaco-editor"];
-
-test("lesson workspace has no detectable accessibility violations", async ({ page, isMobile }) => {
-  await page.goto("/learn/demo");
-  await waitForTerminal(page, isMobile);
-  await expectNoViolations(page, THIRD_PARTY);
-});
-
-test("playground has no detectable accessibility violations", async ({ page, isMobile }) => {
-  await page.goto("/playground");
-  await waitForTerminal(page, isMobile);
-  await expectNoViolations(page, THIRD_PARTY);
-});
-
-test("completion dialog traps focus and is accessible", async ({ page, isMobile }) => {
-  await page.goto("/learn/demo");
-  await solveLesson(
-    page,
-    ["git init", "git add README.md", 'git commit -m "Initial commit"'],
-    isMobile,
-  );
-  const dialog = page.getByRole("dialog");
-  // Focus is inside the dialog, and Tab keeps it there.
-  for (let i = 0; i < 6; i += 1) {
-    await page.keyboard.press("Tab");
-    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-  }
-  await expectNoViolations(page, THIRD_PARTY);
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-});
-
-test("dashboard reset dialog is keyboard operable", async ({ page }) => {
-  await page.goto("/dashboard");
-  const reset = page.getByTestId("reset-progress");
-  await reset.focus();
-  await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Reset learning progress?" });
-  await expect(dialog).toBeVisible();
-  expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
-  await expectNoViolations(page);
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  // Focus returns to the button that opened it.
-  await expect(reset).toBeFocused();
-});
 
 test("the main navigation is reachable on every screen size", async ({ page, isMobile }) => {
   await page.goto("/learn");

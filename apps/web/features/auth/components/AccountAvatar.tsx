@@ -21,7 +21,7 @@ export function AccountAvatar({
       aria-hidden="true"
       data-testid="account-avatar"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-strong font-semibold text-white",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-strong font-semibold text-on-accent",
         dimensions,
         className,
       )}

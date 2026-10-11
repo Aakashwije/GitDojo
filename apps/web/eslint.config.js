@@ -11,7 +11,7 @@ import next from "@gitdojo/config/eslint/next";
  * them up a layer (or invert the dependency: pass a callback in, as the repository panels do).
  */
 const LAYERS = [
-  ["auth"],
+  ["auth", "theme"],
   ["progress", "repository", "terminal"],
   ["course", "challenges", "editor", "conflicts", "releases"],
   ["lesson", "errors"],

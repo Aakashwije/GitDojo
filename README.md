@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="docs/assets/gitdojo-banner.png" alt="GitDojo" width="640" />
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="apps/web/public/brand/gitdojo-logo-light.png" />
+  <img src="docs/assets/gitdojo-banner.png" alt="GitDojo" width="640" />
+</picture>
 
 # GitDojo
 
@@ -194,6 +197,7 @@ single YAML file. See:
 - [docs/testing.md](docs/testing.md): tests, accessibility review and performance results
 - [docs/ci.md](docs/ci.md): CI jobs, security scans, reports and branch protection
 - [docs/release-notes.md](docs/release-notes.md): writing the learner highlights for a release
+- [docs/theming.md](docs/theming.md): light and dark themes, tokens, and the terminal and editor
 - [docs/ui.md](docs/ui.md): the design system
 
 ## Roadmap

@@ -2,7 +2,8 @@
 
 import { type Terminal as XTerm } from "@xterm/xterm";
 import { useEffect, useImperativeHandle, useRef, type Ref, type RefObject } from "react";
-import { TERMINAL_THEME } from "../services/ansi";
+import { useTheme } from "@/features/theme";
+import { terminalTheme } from "../services/ansi";
 import { TerminalController } from "../services/terminal-controller";
 import { type TerminalExecutor } from "../services/terminal-executor";
 import { useTerminalStore } from "../state/use-terminal-store";
@@ -48,6 +49,8 @@ export function useTerminal({
   const startedRef = useRef(false);
   const bannerRef = useRef(banner);
   const readyRef = useRef(ready);
+  const theme = useTheme();
+  const themeRef = useRef(theme);
 
   // Prints the banner and first prompt once both the terminal and the workspace are ready.
   const startIfReady = () => {
@@ -62,6 +65,13 @@ export function useTerminal({
     readyRef.current = ready;
     startIfReady();
   });
+
+  // Recolors the live terminal, output included: colors are palette slots, not fixed RGB.
+  useEffect(() => {
+    themeRef.current = theme;
+    const terminal = terminalRef.current;
+    if (terminal) terminal.options.theme = terminalTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     // An object, not a boolean, so TypeScript does not narrow it across the `await` below.
@@ -86,7 +96,7 @@ export function useTerminal({
         cursorStyle: "block",
         convertEol: false,
         scrollback: 2000,
-        theme: TERMINAL_THEME,
+        theme: terminalTheme(themeRef.current),
         allowTransparency: false,
       });
       const fit = new FitAddon();

@@ -14,11 +14,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogoMark } from "@/components/site/logo";
 import { AccountControls } from "@/features/auth";
+import { ThemeToggle } from "@/features/theme";
 import { ConflictBanner, ConflictEditorDialog, useConflictEditorStore } from "@/features/conflicts";
 import { EditorPanel, useEditorStore } from "@/features/editor";
 import { ErrorExplanation } from "@/features/errors";
 import { RepositoryGraphPanel } from "@/features/repository";
-import { createTerminalExecutor, type TerminalHandle, TerminalPanel } from "@/features/terminal";
+import {
+  createTerminalExecutor,
+  terminalBanner,
+  type TerminalHandle,
+  TerminalPanel,
+} from "@/features/terminal";
 import {
   HelpDialog,
   type MobileTab,
@@ -31,8 +37,10 @@ import { usePlaygroundSession } from "../hooks/use-playground-session";
 import { usePlaygroundStore } from "../state/use-playground-store";
 import { ScenarioDialog } from "./ScenarioDialog";
 
-const BANNER =
-  "\x1b[38;2;124;133;147mWelcome to the playground. Try anything here.\r\nType \x1b[38;2;244;247;251mhelp\x1b[38;2;124;133;147m to see available commands.\x1b[39m";
+const BANNER = terminalBanner(
+  ["Welcome to the playground. Try anything here.", "Type help to see available commands."],
+  "help",
+);
 
 type PlaygroundTab = "editor" | "terminal" | "graph" | "files";
 
@@ -154,6 +162,7 @@ export function PlaygroundWorkspace({ scenarios }: { scenarios: PlaygroundScenar
             confirmLabel="Reset repository"
           />
           <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
+          <ThemeToggle />
           <AccountControls compact />
         </div>
       </header>

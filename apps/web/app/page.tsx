@@ -21,7 +21,7 @@ export default function HomePage() {
           {/* Subtle radial glow behind the hero. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 -top-40 h-140 bg-[radial-gradient(ellipse_at_center,rgb(108_140_255/0.14),transparent_65%)]"
+            className="pointer-events-none absolute inset-x-0 -top-40 h-140 bg-[radial-gradient(ellipse_at_center,var(--accent-glow),transparent_65%)]"
           />
           <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pt-16 pb-12 sm:px-6 sm:pt-24 lg:grid-cols-[1fr_1.05fr] lg:items-center">
             <div>

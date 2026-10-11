@@ -23,7 +23,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         aria-hidden="true"
         className="relative hidden overflow-hidden border-l border-border-subtle bg-surface lg:flex lg:items-center lg:justify-center"
       >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgb(108_140_255/0.12),transparent_65%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--accent-soft),transparent_65%)]" />
         <AuthIllustration />
       </aside>
     </div>
@@ -46,7 +46,7 @@ export function AuthCard({
     <section
       aria-labelledby="auth-title"
       data-testid={testId}
-      className="rounded-xl border border-border bg-panel p-6 shadow-2xl shadow-black/30 sm:p-8"
+      className="rounded-xl border border-border bg-panel p-6 shadow-2xl shadow-shade/30 sm:p-8"
     >
       <LogoMark className="size-10" />
       <h1 id="auth-title" className="mt-5 text-h2 font-semibold tracking-tight text-fg">
@@ -134,7 +134,7 @@ function AuthIllustration() {
           feature/profile
         </text>
       </svg>
-      <div className="mt-8 overflow-hidden rounded-lg border border-border bg-terminal shadow-2xl shadow-black/40">
+      <div className="mt-8 overflow-hidden rounded-lg border border-border bg-terminal shadow-2xl shadow-shade/40">
         <div className="flex items-center gap-1.5 border-b border-border-subtle px-3 py-2">
           <span className="size-2.5 rounded-full bg-danger/70" />
           <span className="size-2.5 rounded-full bg-warning/70" />

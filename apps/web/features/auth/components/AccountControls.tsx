@@ -173,7 +173,7 @@ function SessionExpiredNotice({ returnTo }: { returnTo: string | null }) {
     <div
       role="status"
       data-testid="session-expired"
-      className="fixed bottom-4 left-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-border-strong bg-elevated p-3 shadow-xl shadow-black/40 max-md:right-4 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+      className="fixed bottom-4 left-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-border-strong bg-elevated p-3 shadow-xl shadow-shade/40 max-md:right-4 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]"
     >
       <p className="text-small text-fg-secondary">
         <span className="font-medium text-fg">Your session has ended. </span>

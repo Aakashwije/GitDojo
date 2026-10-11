@@ -36,7 +36,7 @@ export function RefLabels({
     <Badge
       tone="accent"
       data-testid="head-label"
-      className="border-accent-strong bg-accent-strong text-white"
+      className="border-accent-strong bg-accent-strong text-on-accent"
     >
       HEAD
     </Badge>

@@ -356,45 +356,26 @@ Never use pure white everywhere.
 
 # 9. LIGHT MODE
 
-Design light mode too, but prioritize dark mode.
+Dark is the default; learners can switch to light from the header (see
+[theming.md](./theming.md)). Light mode uses the same semantic tokens with light values, defined
+in `packages/ui/src/styles/theme.css` under `[data-theme="light"]`:
 
-Light background:
+| Role                         | Light value | Dark value |
+| ---------------------------- | ----------- | ---------- |
+| App background               | `#F4F6F9`   | `#0B0D10`  |
+| Panel                        | `#FFFFFF`   | `#151920`  |
+| Elevated (chips, menus)      | `#EEF1F5`   | `#1A1F27`  |
+| Default border               | `#D6DCE4`   | `#262C35`  |
+| Primary text                 | `#111827`   | `#F4F7FB`  |
+| Secondary text               | `#3D4756`   | `#AEB6C2`  |
+| Muted text                   | `#556070`   | `#8A93A1`  |
+| Accent blue (text, focus)    | `#3A5AD6`   | `#6C8CFF`  |
+| Branch orange                | `#A3480A`   | `#F59E5B`  |
+| Success / warning / danger   | `#11703A` / `#8A5A00` / `#C0263A` | `#4FD18B` / `#F5C451` / `#F06A78` |
 
-```text
-#F7F8FA
-```
-
-Panel:
-
-```text
-#FFFFFF
-```
-
-Secondary surface:
-
-```text
-#F0F2F5
-```
-
-Border:
-
-```text
-#DDE1E7
-```
-
-Primary text:
-
-```text
-#15181D
-```
-
-Secondary text:
-
-```text
-#606975
-```
-
-Keep the same accent blue.
+The accents are deepened rather than reused: dark mode's `#6C8CFF` blue and `#F59E5B` orange are
+about 3:1 on white, below WCAG AA for text. Every light text color meets 4.5:1 on every surface up
+to the hover background; `--text-faint` is for icons and rules only (3:1).
 
 ---
 

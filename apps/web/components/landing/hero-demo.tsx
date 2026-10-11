@@ -40,7 +40,7 @@ function MiniPanel({
 export function HeroDemo() {
   return (
     <div
-      className="relative rounded-xl border border-border bg-surface p-3 shadow-2xl shadow-black/40"
+      className="relative rounded-xl border border-border bg-surface p-3 shadow-2xl shadow-shade/40"
       aria-label="Example: staging and committing README.md"
       role="img"
     >
