@@ -8,6 +8,9 @@ import { type ReactNode } from "react";
 import releaseInfo from "@/lib/release-info.json";
 import { ProgressProvider } from "@/features/progress/components/ProgressProvider";
 import { ReleaseBanner } from "@/features/releases/components/ReleaseBanner";
+import { ThemeSync } from "@/features/theme/components/ThemeSync";
+import { THEME_COLORS } from "@/features/theme/services/theme";
+import { THEME_SCRIPT } from "@/features/theme/services/theme-script";
 import { loadProgressCatalog } from "@/lib/progress-catalog";
 import { SITE } from "@/lib/site";
 
@@ -22,7 +25,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0d10",
+  // The server renders the default (dark); THEME_SCRIPT switches both before the first paint.
+  themeColor: THEME_COLORS.dark,
   colorScheme: "dark",
 };
 
@@ -30,8 +34,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Small (ids, titles, course order) and built once at build time.
   const catalog = await loadProgressCatalog();
   return (
-    <html lang="en">
+    // `data-theme` is the default; THEME_SCRIPT may change it (and colorScheme) before hydration.
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-dvh bg-app text-fg">
+        <ThemeSync />
         <ReleaseBanner />
         <TooltipProvider>{children}</TooltipProvider>
         <ProgressProvider catalog={catalog} />

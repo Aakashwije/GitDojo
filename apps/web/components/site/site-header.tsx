@@ -1,6 +1,7 @@
 import { Button } from "@gitdojo/ui";
 import Link from "next/link";
 import { AccountControls } from "@/features/auth";
+import { ThemeToggle } from "@/features/theme";
 import { SITE } from "@/lib/site";
 import { GitHubIcon } from "./github-icon";
 import { Logo } from "./logo";
@@ -45,6 +46,7 @@ export function SiteHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button asChild variant="secondary" size="sm">
             <a href={SITE.githubUrl} aria-label="Star GitDojo on GitHub">
               <GitHubIcon />

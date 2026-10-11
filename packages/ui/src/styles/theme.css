@@ -1,6 +1,10 @@
 /*
  * GitDojo design tokens (see docs/ui.md). Dark-first; every component is built from these.
  * Import after `@import "tailwindcss";` so the @theme block becomes Tailwind utilities.
+ *
+ * Two themes share one set of semantic variables: dark on :root (the default) and light under
+ * `[data-theme="light"]` on <html> (docs/theming.md). Components never pick colors per theme;
+ * they use these tokens and follow whichever theme is active.
  */
 
 :root {
@@ -56,6 +60,75 @@
   --text-disabled: #49515c;
   --text-placeholder: #6f7886;
   --text-terminal: #d6dce5;
+  /* Text on filled accent surfaces (primary buttons, avatars, HEAD labels). */
+  --text-on-accent: #ffffff;
+  --text-tooltip: #e6eaf0;
+
+  /* Depth and overlays */
+  --shade: #000000;
+  --overlay: rgb(0 0 0 / 0.6);
+  --selection: rgb(108 140 255 / 0.35);
+  /* Large decorative accent washes behind heroes. */
+  --accent-glow: rgb(108 140 255 / 0.14);
+}
+
+/*
+ * Light theme: the same roles, re-tuned for light surfaces. Every text color meets WCAG AA
+ * (4.5:1) on every surface up to --bg-hover, accents included; --text-faint is for non-text only
+ * and meets 3:1. Blue and orange stay GitDojo's accents, deepened so they read on white.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-app: #f4f6f9;
+  --bg-surface: #f9fafb;
+  --bg-panel: #ffffff;
+  --bg-elevated: #eef1f5;
+  --bg-hover: #e5e9ef;
+  --bg-terminal: #fbfcfd;
+  --bg-editor: #ffffff;
+
+  --border-default: #d6dce4;
+  --border-subtle: #e4e8ee;
+  --border-strong: #c2c9d3;
+  --border-input: #c9d0da;
+  --border-focus: #3a5ad6;
+
+  --accent-primary: #3a5ad6;
+  --accent-hover: #2f4ec4;
+  --accent-active: #2945b0;
+  --accent-strong: #3a5ad6;
+  --accent-strong-hover: #3251c9;
+  --accent-strong-active: #2c48b6;
+  --accent-soft: rgb(58 90 214 / 0.09);
+  --accent-soft-border: rgb(58 90 214 / 0.32);
+  --focus-ring: rgb(58 90 214 / 0.25);
+  --accent-secondary: #a3480a;
+  --accent-secondary-soft: rgb(217 106 31 / 0.12);
+
+  --success: #11703a;
+  --success-soft: rgb(22 163 74 / 0.1);
+  --warning: #8a5a00;
+  --warning-soft: rgb(217 160 20 / 0.14);
+  --danger: #c0263a;
+  --danger-soft: rgb(220 50 70 / 0.09);
+  --info: #0a68b8;
+  --purple: #6d4ad1;
+
+  --text-primary: #111827;
+  --text-secondary: #3d4756;
+  --text-muted: #556070;
+  --text-faint: #78828f;
+  --text-disabled: #a3abb7;
+  --text-placeholder: #5f6a7a;
+  --text-terminal: #1f2733;
+  --text-on-accent: #ffffff;
+  --text-tooltip: #111827;
+
+  --shade: rgb(15 23 42 / 0.35);
+  --overlay: rgb(15 23 42 / 0.4);
+  --selection: rgb(58 90 214 / 0.22);
+  --accent-glow: rgb(58 90 214 / 0.1);
 }
 
 @theme inline {
@@ -103,6 +176,11 @@
   --color-fg-disabled: var(--text-disabled);
   --color-fg-placeholder: var(--text-placeholder);
   --color-fg-terminal: var(--text-terminal);
+  --color-fg-tooltip: var(--text-tooltip);
+  --color-on-accent: var(--text-on-accent);
+  /* `shadow-shade/40`: black in dark, a soft slate in light. */
+  --color-shade: var(--shade);
+  --color-overlay: var(--overlay);
 
   /* shadcn/ui semantic aliases so generated components match the system. */
   --color-background: var(--bg-app);
@@ -112,7 +190,7 @@
   --color-popover: var(--bg-elevated);
   --color-popover-foreground: var(--text-primary);
   --color-primary: var(--accent-strong);
-  --color-primary-foreground: #ffffff;
+  --color-primary-foreground: var(--text-on-accent);
   --color-secondary: var(--bg-elevated);
   --color-secondary-foreground: var(--text-primary);
   --color-muted: var(--bg-surface);
@@ -219,7 +297,7 @@
   }
 
   ::selection {
-    background: rgb(108 140 255 / 0.35);
+    background: var(--selection);
   }
 
   :focus-visible {

@@ -5,6 +5,7 @@ import { SegmentedProgress } from "@gitdojo/ui";
 import Link from "next/link";
 import { LogoMark } from "@/components/site/logo";
 import { AccountControls } from "@/features/auth";
+import { ThemeToggle } from "@/features/theme";
 import { CourseNavigationDialog, lessonNeighbors } from "@/features/course";
 import type { ChallengeContext } from "@/features/challenges";
 import { useLessonStore } from "@/features/lesson";
@@ -93,6 +94,7 @@ export function WorkspaceTopbar({ lesson, course, challenge, terminal }: Workspa
             <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
           </>
         ) : null}
+        <ThemeToggle />
         <AccountControls compact />
       </div>
     </header>

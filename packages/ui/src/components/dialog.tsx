@@ -22,10 +22,10 @@ export function DialogContent({
   const returnFocus = useRef<HTMLElement | null>(null);
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-gd-enter" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-gd-enter" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-input bg-panel p-6 shadow-2xl shadow-black/40 outline-none data-[state=open]:animate-gd-enter",
+          "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border-input bg-panel p-6 shadow-2xl shadow-shade/40 outline-none data-[state=open]:animate-gd-enter",
           className,
         )}
         onOpenAutoFocus={(event) => {

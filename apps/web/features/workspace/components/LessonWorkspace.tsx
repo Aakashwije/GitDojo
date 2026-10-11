@@ -11,7 +11,7 @@ import { ErrorExplanation } from "@/features/errors";
 import { LessonCompleteDialog, LessonPanel, useLessonStore } from "@/features/lesson";
 import { useLessonProgress } from "@/features/progress";
 import { RepositoryGraphPanel } from "@/features/repository";
-import { createTerminalExecutor, type TerminalHandle } from "@/features/terminal";
+import { createTerminalExecutor, terminalBanner, type TerminalHandle } from "@/features/terminal";
 import { useLearningSession } from "../hooks/use-learning-session";
 import { LESSON_TABS, MobileTabs, type WorkspaceTab } from "./MobileTabs";
 import { WorkspaceError } from "./WorkspaceError";
@@ -19,8 +19,13 @@ import { WorkspaceFilePanels } from "./WorkspaceFilePanels";
 import { WorkbenchPanel } from "./WorkbenchPanel";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-const BANNER =
-  "\x1b[38;2;124;133;147mWelcome to GitDojo. This terminal runs Git in a safe sandbox.\r\nType \x1b[38;2;244;247;251mhelp\x1b[38;2;124;133;147m to see available commands.\x1b[39m";
+const BANNER = terminalBanner(
+  [
+    "Welcome to GitDojo. This terminal runs Git in a safe sandbox.",
+    "Type help to see available commands.",
+  ],
+  "help",
+);
 
 export interface LessonWorkspaceProps {
   lesson: LessonDefinition;

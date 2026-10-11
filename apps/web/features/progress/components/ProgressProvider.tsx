@@ -99,7 +99,7 @@ export function ProgressStatusNotice() {
       {message && dismissed !== message ? (
         <div
           data-testid="progress-status"
-          className="fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-warning/40 bg-elevated p-3 shadow-xl shadow-black/40 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))] max-md:left-4"
+          className="fixed right-4 bottom-4 z-50 flex max-w-sm items-start gap-3 rounded-lg border border-warning/40 bg-elevated p-3 shadow-xl shadow-shade/40 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))] max-md:left-4"
         >
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <p className="text-small text-fg-secondary">

@@ -3,4 +3,5 @@
 export { Terminal } from "./components/Terminal";
 export { TerminalActions, TerminalPanel } from "./components/TerminalPanel";
 export { type TerminalHandle } from "./hooks/use-terminal";
+export { terminalBanner } from "./services/ansi";
 export { createTerminalExecutor, type TerminalExecutor } from "./services/terminal-executor";

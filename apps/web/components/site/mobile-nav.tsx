@@ -51,7 +51,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
         id={id}
         aria-label="Main"
         hidden={!open}
-        className="absolute inset-x-0 top-14 border-b border-border-subtle bg-app px-4 py-3 shadow-xl shadow-black/40"
+        className="absolute inset-x-0 top-14 border-b border-border-subtle bg-app px-4 py-3 shadow-xl shadow-shade/40"
       >
         <ul className="space-y-1">
           {items.map((item) => (

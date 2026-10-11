@@ -6,6 +6,7 @@ import { Badge } from "@gitdojo/ui";
 import { ReactFlow, type EdgeTypes, type NodeTypes } from "@xyflow/react";
 import { FolderGit2, GitBranch } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTheme } from "@/features/theme";
 import { buildCommitGraph } from "../services/build-commit-graph";
 import { useRepositoryStore } from "../state/use-repository-store";
 import { CommitDetails } from "./CommitDetails";
@@ -83,6 +84,7 @@ export function RepositoryGraph() {
   const graph = useMemo(() => buildCommitGraph(repository, selectedOid), [repository, selectedOid]);
   const selected = repository.allCommits.find((commit) => commit.oid === selectedOid);
   const [canvasRef, visible] = useHasSize<HTMLDivElement>();
+  const theme = useTheme();
 
   if (graph.nodes.length === 0) return <EmptyGraph />;
 
@@ -101,7 +103,7 @@ export function RepositoryGraph() {
             onNodeClick={(_event, node) => {
               selectCommit(node.id === selectedOid ? null : node.id);
             }}
-            colorMode="dark"
+            colorMode={theme}
             fitView
             fitViewOptions={FIT_VIEW_OPTIONS}
             minZoom={0.4}
