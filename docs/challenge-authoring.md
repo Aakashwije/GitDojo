@@ -143,14 +143,14 @@ produced it, or what the learner meant. So:
 
 Some mistakes are invisible to the current repository model, and a tip must not guess at them:
 
-- **How a conflict was resolved.** `ConflictState` records only whether the markers are gone and
-  the file is staged, so "you kept the old host" or "you staged the file with the markers still in
-  it" cannot be told apart from a correct resolution. Detecting either would need the resolved
-  content in the state, or a validator that matches a file's contents.
 - **Which command produced a state.** The reflog is in the state and names operations, but a tip's
   conditions are validators over the repository, not over command history.
 - **"More than N commits".** `commit_count` is exact, so a tip can catch a specific wrong count
   (three commits where two are wanted) but not a range.
+
+Content-sensitive tips can use `file_content` to describe an exact working-tree result, and
+history-editing tips can use `commit_changes` to match the exact paths changed by a named commit.
+They still must describe only the state those validators observe.
 
 ## Locked challenges
 

@@ -14,6 +14,7 @@ import { operationKind, readMergeState } from "../engine/merge-state";
 import { readStashes, toStashEntry } from "../engine/stash-store";
 import { readReflog, ZERO_OID } from "../engine/reflog";
 import { readStatusEntries } from "../engine/status-matrix";
+import { readWorkingText } from "../engine/working-tree";
 
 export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapshot> {
   if (!(await isRepository(ctx))) {
@@ -30,16 +31,19 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       merge: null,
       reflog: [],
       stashes: [],
-      entries: files
-        .filter((file) => file.type === "file")
-        .map((file) => ({
-          path: file.path,
-          inHead: false,
-          inIndex: false,
-          inWorkdir: true,
-          staged: null,
-          unstaged: "untracked",
-        })),
+      entries: await Promise.all(
+        files
+          .filter((file) => file.type === "file")
+          .map(async (file) => ({
+            path: file.path,
+            inHead: false,
+            inIndex: false,
+            inWorkdir: true,
+            staged: null,
+            unstaged: "untracked" as const,
+            content: await new WorkspaceFileSystem(ctx.fs).readFile(ctx.workspaceId, file.path),
+          })),
+      ),
     };
   }
 
@@ -65,7 +69,12 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     branches,
     commits: head === null ? [] : await readCommitsFromHead(ctx, cache),
     allCommits: await readCommitsFrom(ctx, tips, cache),
-    entries,
+    entries: await Promise.all(
+      entries.map(async (entry) => ({
+        ...entry,
+        ...(entry.inWorkdir ? { content: (await readWorkingText(ctx, entry.path)) ?? "" } : {}),
+      })),
+    ),
     reflog: reflog.map((entry, index) => ({
       index,
       oid: entry.newOid,

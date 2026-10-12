@@ -72,9 +72,9 @@ describe("setupLesson with history", () => {
       { name: "main", oid: state.head, current: true },
     ]);
     expect(state.files).toEqual([
-      { path: "index.html", status: "committed" },
-      { path: "notes.txt", status: "untracked" },
-      { path: "README.md", status: "modified" },
+      { path: "index.html", status: "committed", content: "<h1>Hi</h1>\n" },
+      { path: "notes.txt", status: "untracked", content: "draft\n" },
+      { path: "README.md", status: "modified", content: "# Hello, edited\n" },
     ]);
   });
 });
@@ -189,6 +189,6 @@ describe("setup commands", () => {
       env,
     );
     expect(state.commits.map((commit) => commit.message)).toEqual(["Remove docs", "A"]);
-    expect(state.files).toEqual([{ path: "a.txt", status: "committed" }]);
+    expect(state.files).toEqual([{ path: "a.txt", status: "committed", content: "a\n" }]);
   });
 });

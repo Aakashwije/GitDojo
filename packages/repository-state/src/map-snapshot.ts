@@ -7,17 +7,22 @@ import { type CommitState, type FileState, type RepositoryState } from "@gitdojo
 
 /** Working-tree status of a path, i.e. what the learner sees in "Working Tree". */
 function workingTreeFile(entry: GitStatusEntry): FileState | null {
+  const content = entry.content === undefined ? {} : { content: entry.content };
   switch (entry.unstaged) {
     case "untracked":
-      return { path: entry.path, status: "untracked" };
+      return { path: entry.path, status: "untracked", ...content };
     case "modified":
-      return { path: entry.path, status: "modified" };
+      return { path: entry.path, status: "modified", ...content };
     case "deleted":
       return { path: entry.path, status: "deleted" };
     case null:
       // A path whose deletion is already staged no longer exists in the working tree.
       if (!entry.inWorkdir) return null;
-      return { path: entry.path, status: entry.staged === null ? "committed" : "staged" };
+      return {
+        path: entry.path,
+        status: entry.staged === null ? "committed" : "staged",
+        ...content,
+      };
   }
 }
 
@@ -36,6 +41,7 @@ function commitState(commit: GitCommitInfo): CommitState {
     authorEmail: commit.author.email,
     timestamp: commit.author.timestamp,
     parents: commit.parents,
+    changedPaths: commit.changedPaths,
   };
 }
 

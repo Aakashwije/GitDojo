@@ -1,0 +1,103 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: rebase-feature-branch
+title: Rebase a Feature Branch
+category: history
+difficulty: advanced
+order: 3
+
+scenario: |
+  `feature/notifications` was created before the latest production configuration landed on
+  `main`. Its two notification commits are ready for review, but the team wants a straight
+  history with those commits following the current tip of `main`.
+
+  You are on `feature/notifications`. Nobody has changed `main` locally.
+
+mission: >
+  Put both notification commits directly on top of the current `main`, keep `main` exactly where
+  it is, and finish on `feature/notifications` with a clean working tree.
+
+concepts: [rebase, branches, history]
+requires: [rebase]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Alerts Service
+        src/app.js: |
+          export const app = {};
+    - message: Add email notifications
+      branch: feature/notifications
+      files:
+        src/email.js: |
+          export const sendEmail = (message) => message;
+    - message: Add notification preferences
+      branch: feature/notifications
+      files:
+        src/preferences.js: |
+          export const preferences = { email: true };
+    - message: Update production region
+      files:
+        config/production.json: |
+          { "region": "eu-west-1" }
+  currentBranch: feature/notifications
+
+objectives:
+  - id: rebased
+    description: "`feature/notifications` is based on the current `main` with a linear history."
+    validator:
+      type: branch_rebased
+      branch: feature/notifications
+      onto: main
+  - id: main-unchanged
+    description: "`main` still points at `Update production region`."
+    validator:
+      type: branch_points_to_commit
+      branch: main
+      message: Update production region
+  - id: email-kept
+    description: The email notification commit remains on the feature branch.
+    validator:
+      type: branch_contains_commit
+      branch: feature/notifications
+      message: Add email notifications
+  - id: preferences-kept
+    description: The preferences commit remains on the feature branch.
+    validator:
+      type: branch_contains_commit
+      branch: feature/notifications
+      message: Add notification preferences
+  - id: on-feature
+    description: You finish on `feature/notifications`.
+    validator:
+      type: current_branch
+      branch: feature/notifications
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  rebased:
+    - The feature commits need new parents so they follow the newest commit on `main`.
+    - A straight history has no join commit between the updated base and the feature work.
+  main-unchanged:
+    - Only the feature branch should move.
+  clean:
+    - Check for any unfinished operation or uncommitted file.
+
+tips:
+  - id: main-merged-into-feature
+    when:
+      - type: merge_commit_exists
+        branch: feature/notifications
+      - type: branch_points_to_commit
+        branch: main
+        message: Update production region
+    text: >-
+      `feature/notifications` contains a merge commit. The requested history is a straight line
+      from the current `main` through the two notification commits, with no join commit between
+      them.

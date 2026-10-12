@@ -1,0 +1,90 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: revert-shared-change
+title: Revert a Shared Change
+category: recovery
+difficulty: intermediate
+order: 4
+
+scenario: |
+  `main` is shared by the team. It contains a valid order-export improvement followed by
+  `Enable unfinished checkout`, which turned on a feature that is not ready for customers.
+  Teammates may already have based work on this history.
+
+mission: >
+  Turn the unfinished checkout back off while preserving the faulty commit, the earlier export
+  work, and the shared history. Leave `main` clean.
+
+concepts: [revert, shared-history, recovery]
+requires: [revert]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Orders
+        config/features.json: |
+          { "checkoutEnabled": false }
+    - message: Add order export
+      files:
+        src/export.js: |
+          export const exportOrders = (orders) => JSON.stringify(orders);
+    - message: Enable unfinished checkout
+      files:
+        config/features.json: |
+          { "checkoutEnabled": true }
+
+objectives:
+  - id: faulty-change-reverted
+    description: The shared history contains an undo commit for `Enable unfinished checkout`.
+    validator:
+      type: commit_reverted
+      message: Enable unfinished checkout
+      branch: main
+  - id: checkout-disabled
+    description: The feature configuration has checkout disabled again.
+    validator:
+      type: file_content
+      file: config/features.json
+      content: |
+        { "checkoutEnabled": false }
+  - id: original-preserved
+    description: The original faulty commit remains in `main` history.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Enable unfinished checkout
+  - id: export-preserved
+    description: The valid order-export work remains in `main` history.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add order export
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  faulty-change-reverted:
+    - Shared history should gain a record of the correction rather than lose existing commits.
+  checkout-disabled:
+    - The final configuration must match the state before the faulty change.
+  original-preserved:
+    - Both the faulty change and its correction belong in the final history.
+
+tips:
+  - id: shared-history-removed
+    when:
+      - type: branch_points_to_commit
+        branch: main
+        message: Add order export
+      - type: commit_not_on_branch
+        branch: main
+        message: Enable unfinished checkout
+    text: >-
+      `main` now ends at `Add order export`, so the faulty commit has disappeared from the shared
+      branch instead of being followed by a recorded correction. The mission preserves the
+      existing history.

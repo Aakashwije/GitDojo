@@ -293,6 +293,7 @@ describe("IsomorphicGitEngine", () => {
             inWorkdir: true,
             staged: null,
             unstaged: "untracked",
+            content: README,
           },
         ],
       });

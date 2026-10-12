@@ -6,6 +6,7 @@ import { branchNotExists } from "./validators/branch-not-exists";
 import { branchPointsToCommit } from "./validators/branch-points-to-commit";
 import { branchesMerged } from "./validators/branches-merged";
 import { cleanWorktree } from "./validators/clean-worktree";
+import { commitChanges, fileContent } from "./validators/content";
 import { commitCount } from "./validators/commit-count";
 import { commitExists } from "./validators/commit-exists";
 import { commitOnBranch } from "./validators/commit-on-branch";
@@ -32,9 +33,11 @@ export const validatorRegistry: ValidatorRegistry = {
   file_staged: fileStaged,
   file_committed: fileCommitted,
   file_not_tracked: fileNotTracked,
+  file_content: fileContent,
   file_status: fileStatus,
   commit_exists: commitExists,
   commit_count: commitCount,
+  commit_changes: commitChanges,
   clean_worktree: cleanWorktree,
   branch_exists: branchExists,
   branch_not_exists: branchNotExists,
