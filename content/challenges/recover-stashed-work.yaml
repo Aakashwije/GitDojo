@@ -1,0 +1,120 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: recover-stashed-work
+title: Recover Stashed Work
+category: recovery
+difficulty: intermediate
+order: 3
+
+scenario: |
+  You are on `feature/invoice-notes`, partway through an unfinished edit to
+  `src/invoice.js`. You also created an untracked draft at `notes/launch-draft.md`.
+
+  An urgent request means you need to visit `main`, but that branch already has the team's
+  version of `notes/launch-draft.md` at the same path.
+
+mission: >
+  Visit `main`, then return to `feature/invoice-notes` with the invoice edit still modified and
+  uncommitted, your launch draft restored as an untracked file, and no work left in the stash.
+
+concepts:
+  - stash
+  - branches
+  - untracked-files
+
+requires:
+  - stash
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Start invoice service
+      files:
+        README.md: |
+          # Billing App
+        src/invoice.js: |
+          export const invoiceTotal = (items) => items.reduce((sum, item) => sum + item.price, 0);
+    - message: Add invoice discount support
+      branch: feature/invoice-notes
+      files:
+        src/discount.js: |
+          export const applyDiscount = (total, rate) => total * (1 - rate);
+    - message: Add team launch draft
+      files:
+        notes/launch-draft.md: |
+          # Team launch plan
+
+          Review the rollout checklist with support.
+  currentBranch: feature/invoice-notes
+  files:
+    src/invoice.js: |
+      export const invoiceTotal = (items, taxRate = 0) =>
+        items.reduce((sum, item) => sum + item.price, 0) * (1 + taxRate);
+    notes/launch-draft.md: |
+      # Personal launch notes
+
+      Confirm the invoice examples before the demo.
+
+objectives:
+  - id: urgent-visit
+    description: You have visited `main` for the urgent request.
+    validator:
+      type: current_branch
+      branch: main
+
+  - id: back-on-feature
+    description: You are back on `feature/invoice-notes`.
+    validator:
+      type: current_branch
+      branch: feature/invoice-notes
+
+  - id: invoice-edit-restored
+    description: "The unfinished `src/invoice.js` edit is restored and uncommitted."
+    validator:
+      type: file_status
+      file: src/invoice.js
+      status: modified
+
+  - id: draft-restored
+    description: "Your `notes/launch-draft.md` is restored and remains untracked."
+    validator:
+      type: file_status
+      file: notes/launch-draft.md
+      status: untracked
+
+  - id: stash-empty
+    description: Nothing is left in the stash.
+    validator:
+      type: stash_count
+      count: 0
+
+hints:
+  urgent-visit:
+    - The destination branch needs a clear path for every file it tracks.
+    - Unfinished tracked and untracked work can be held together while you visit another branch.
+  back-on-feature:
+    - Your unfinished work belongs back on the feature branch where it started.
+  invoice-edit-restored:
+    - The stash still holds the tracked edit until you recover it.
+  draft-restored:
+    - Check that the recovered draft has not become part of the feature branch's history.
+  stash-empty:
+    - Recovered work and an empty stash are separate parts of the final state.
+
+tips:
+  - id: untracked-draft-blocks-switch
+    when:
+      - type: current_branch
+        branch: feature/invoice-notes
+      - type: stash_count
+        count: 1
+      - type: file_status
+        file: src/invoice.js
+        status: committed
+      - type: file_status
+        file: notes/launch-draft.md
+        status: untracked
+    text: >-
+      The stash contains one entry and `src/invoice.js` is unchanged, but
+      `notes/launch-draft.md` is still untracked on `feature/invoice-notes`. `main` tracks the
+      same path, so the untracked file conflicts with the destination branch.
