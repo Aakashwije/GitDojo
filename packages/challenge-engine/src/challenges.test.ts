@@ -216,6 +216,12 @@ const SOLUTIONS: Record<string, PlayStep[]> = {
     "git switch main",
     "git stash pop",
   ],
+  "recover-stashed-work": [
+    "git stash -u",
+    "git switch main",
+    "git switch feature/invoice-notes",
+    "git stash pop",
+  ],
   "undo-last-commit": [
     "git reset HEAD~1",
     { write: ".gitignore", content: "secrets.env\n" },
@@ -402,6 +408,12 @@ const MISTAKES: { challenge: string; tip: string; steps: PlayStep[] }[] = [
       "git switch main",
       "git stash apply",
     ],
+  },
+  // The tracked edit is stored, but the colliding untracked draft remains in the working tree.
+  {
+    challenge: "recover-stashed-work",
+    tip: "untracked-draft-blocks-switch",
+    steps: ["git stash", "git switch main"],
   },
   // Merging main into the release instead of the other way round.
   {
