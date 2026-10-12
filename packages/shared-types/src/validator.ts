@@ -6,6 +6,8 @@ export type ValidatorDefinition =
   | { type: "file_committed"; file: string }
   /** The file is neither committed nor staged: untracked, ignored or absent. */
   | { type: "file_not_tracked"; file: string }
+  /** The working-tree file has exactly this text. */
+  | { type: "file_content"; file: string; content: string }
   /** The file's working-tree status is exactly `status` (as the Working Tree panel shows it). */
   | {
       type: "file_status";
@@ -14,6 +16,8 @@ export type ValidatorDefinition =
     }
   | { type: "commit_exists"; message?: string }
   | { type: "commit_count"; count: number }
+  /** A named commit reachable from a branch changes exactly these paths. */
+  | { type: "commit_changes"; branch: string; message: string; files: string[] }
   | { type: "clean_worktree" }
   | { type: "branch_exists"; branch: string }
   | { type: "branch_not_exists"; branch: string }

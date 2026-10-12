@@ -1,0 +1,88 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: repair-reset-branches
+title: Repair Reset Branches
+category: advanced
+difficulty: advanced
+order: 2
+
+scenario: |
+  Two teams have independent work: product filters on `feature/catalog` and a checkout summary on
+  `feature/checkout`. A mistaken branch reset moved `feature/catalog` back before its completed
+  filters commit. `feature/checkout` still points at its own finished work.
+
+  You are on the damaged `feature/catalog` branch.
+
+mission: >
+  Restore each branch to its own completed commit without moving the other branch, then finish on
+  `feature/catalog` with a clean working tree and both pieces of work reachable.
+
+concepts: [reflog, reset, branches, recovery]
+requires: [reflog, reset]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Storefront
+    - message: Add product filters
+      branch: feature/catalog
+      files:
+        src/filters.js: |
+          export const filterProducts = (products, query) => products.filter(query);
+    - message: Add checkout summary
+      branch: feature/checkout
+      files:
+        src/summary.js: |
+          export const summarize = (cart) => ({ items: cart.length });
+  currentBranch: feature/catalog
+  commands:
+    - git reset --hard HEAD~1
+
+objectives:
+  - id: catalog-restored
+    description: "`feature/catalog` points at `Add product filters` again."
+    validator:
+      type: branch_points_to_commit
+      branch: feature/catalog
+      message: Add product filters
+  - id: checkout-unchanged
+    description: "`feature/checkout` still points at `Add checkout summary`."
+    validator:
+      type: branch_points_to_commit
+      branch: feature/checkout
+      message: Add checkout summary
+  - id: on-catalog
+    description: You finish on `feature/catalog`.
+    validator:
+      type: current_branch
+      branch: feature/catalog
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  catalog-restored:
+    - The branch label moved, but the record of earlier HEAD positions still knows the filters
+      commit.
+  checkout-unchanged:
+    - Each branch should end at its own work; repairing one should not repoint the other.
+  on-catalog:
+    - The final branch is the one that was damaged.
+
+tips:
+  - id: filters-restored-to-checkout
+    when:
+      - type: branch_contains_commit
+        branch: feature/checkout
+        message: Add product filters
+      - type: commit_not_on_branch
+        branch: feature/catalog
+        message: Add product filters
+    text: >-
+      `feature/checkout` now contains `Add product filters`, while `feature/catalog` still does
+      not. The recovered catalog work belongs at the tip of `feature/catalog`, and the checkout
+      branch should remain at its own summary commit.

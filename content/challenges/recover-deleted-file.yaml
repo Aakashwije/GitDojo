@@ -1,0 +1,89 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: recover-deleted-file
+title: Recover a Deleted File
+category: recovery
+difficulty: intermediate
+order: 5
+
+scenario: |
+  A cleanup removed `docs/deploy.md`, but the operations team still needs its deployment
+  checklist. Since then, `Add health endpoint` introduced unrelated production work that must
+  stay in place.
+
+mission: >
+  Restore the deployment checklist with its original contents, preserve the newer health
+  endpoint work, and leave the restoration recorded on a clean `main` branch.
+
+concepts: [restore, history, recovery]
+requires: [restore]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Add deployment runbook
+      files:
+        README.md: |
+          # Operations API
+        docs/deploy.md: |
+          # Deployment checklist
+
+          - Verify database migrations
+          - Notify support
+    - message: Remove obsolete runbook
+      files:
+        docs/deploy.md: null
+    - message: Add health endpoint
+      files:
+        src/health.js: |
+          export const health = () => ({ status: "ok" });
+
+objectives:
+  - id: restoration-recorded
+    description: "`main` contains a commit called `Restore deployment runbook`."
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Restore deployment runbook
+  - id: file-restored
+    description: The deployment checklist is restored with its original contents.
+    validator:
+      type: file_content
+      file: docs/deploy.md
+      content: |
+        # Deployment checklist
+
+        - Verify database migrations
+        - Notify support
+  - id: newer-work-preserved
+    description: The newer health endpoint commit remains in `main` history.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add health endpoint
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  restoration-recorded:
+    - An earlier snapshot can supply one path without moving the branch back to that snapshot.
+  file-restored:
+    - The checklist contents still exist in the commit before its deletion.
+  newer-work-preserved:
+    - Recovery should add to the current history, not replace its newer commits.
+
+tips:
+  - id: newer-work-rolled-back
+    when:
+      - type: branch_points_to_commit
+        branch: main
+        message: Add deployment runbook
+      - type: commit_not_on_branch
+        branch: main
+        message: Add health endpoint
+    text: >-
+      The checklist is present because `main` now points at `Add deployment runbook`, but the
+      newer health endpoint is no longer in the branch history. The mission restores one file
+      without rolling the branch back.

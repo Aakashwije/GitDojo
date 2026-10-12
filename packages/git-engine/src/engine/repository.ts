@@ -3,6 +3,7 @@ import { hasErrorCode } from "../filesystem/fs-errors";
 import { pathExists } from "../filesystem/fs-helpers";
 import { type GitContext } from "./context";
 import { type GitCommitInfo } from "./git-engine";
+import { readTreeFiles } from "./working-tree";
 
 export async function isRepository(ctx: GitContext): Promise<boolean> {
   return pathExists(ctx.fs.promises, `${ctx.dir}/.git/HEAD`);
@@ -49,6 +50,13 @@ async function readCachedCommit(
   const cached = cache.get(oid);
   if (cached) return cached;
   const { commit } = await git.readCommit({ fs: ctx.fs, dir: ctx.dir, oid });
+  const [tree, parentTree] = await Promise.all([
+    readTreeFiles(ctx, oid),
+    readTreeFiles(ctx, commit.parent[0] ?? null),
+  ]);
+  const changedPaths = [...new Set([...tree.keys(), ...parentTree.keys()])]
+    .filter((path) => tree.get(path) !== parentTree.get(path))
+    .sort();
   const entry: CachedCommit = {
     info: {
       oid,
@@ -61,6 +69,7 @@ async function readCachedCommit(
         timezoneOffset: commit.author.timezoneOffset,
       },
       parents: commit.parent,
+      changedPaths,
     },
     committerTimestamp: commit.committer.timestamp,
   };

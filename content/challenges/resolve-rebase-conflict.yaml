@@ -1,0 +1,88 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: resolve-rebase-conflict
+title: Resolve a Rebase Conflict
+category: conflicts
+difficulty: advanced
+order: 2
+
+scenario: |
+  `feature/retries` increased retry attempts for unreliable requests. While it was in progress,
+  `main` moved production to a new region in the same settings line. The feature must now follow
+  the current `main` history, and production needs both settings.
+
+mission: >
+  Put `feature/retries` on top of the current `main` while keeping the new region and the higher
+  retry count in `src/settings.js`. Finish on the feature branch with no conflict or local change.
+
+concepts: [rebase, conflicts, conflict-resolution]
+requires: [rebase]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial settings
+      files:
+        README.md: |
+          # Request Gateway
+        src/settings.js: |
+          export const settings = { region: "us-east", retries: 2 };
+    - message: Increase retry attempts
+      branch: feature/retries
+      files:
+        src/settings.js: |
+          export const settings = { region: "us-east", retries: 5 };
+    - message: Move production region
+      files:
+        src/settings.js: |
+          export const settings = { region: "eu-west", retries: 2 };
+  currentBranch: feature/retries
+
+objectives:
+  - id: settings-combined
+    description: The settings retain the new region and the higher retry count.
+    validator:
+      type: file_content
+      file: src/settings.js
+      content: |
+        export const settings = { region: "eu-west", retries: 5 };
+  - id: rebased
+    description: "`feature/retries` is based on the current `main` with a linear history."
+    validator:
+      type: branch_rebased
+      branch: feature/retries
+      onto: main
+  - id: on-feature
+    description: You finish on `feature/retries`.
+    validator:
+      type: current_branch
+      branch: feature/retries
+  - id: clean
+    description: No conflict or working-tree change remains.
+    validator:
+      type: clean_worktree
+
+hints:
+  settings-combined:
+    - The two branch versions changed different values in the same line; the final line needs one
+      value from each.
+    - A conflict is resolved only after the intended combined file is recorded.
+  rebased:
+    - Once the conflict is settled, the interrupted history update can finish.
+  clean:
+    - Check that no operation or local file change remains.
+
+tips:
+  - id: main-region-lost
+    when:
+      - type: branch_rebased
+        branch: feature/retries
+        onto: main
+      - type: file_content
+        file: src/settings.js
+        content: |
+          export const settings = { region: "us-east", retries: 5 };
+    text: >-
+      `feature/retries` has a linear history on the current `main`, but `src/settings.js` contains
+      the old `us-east` region. The updated base uses `eu-west`; the final file must preserve that
+      region as well as the higher retry count.

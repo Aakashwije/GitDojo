@@ -6,16 +6,18 @@ all satisfy "README.md is staged".
 
 ## Supported validators
 
-| Type                     | Fields     | Passes when                                                                    |
-| ------------------------ | ---------- | ------------------------------------------------------------------------------ |
-| `repository_initialized` | –          | The workspace is a Git repository.                                             |
-| `file_exists`            | `file`     | The file exists in the working tree (works before `git init` too).             |
-| `file_staged`            | `file`     | The file has staged changes (added, modified or deleted in the index).         |
-| `file_committed`         | `file`     | The file is in the last commit and unchanged since.                            |
-| `file_not_tracked`       | `file`     | Git does not track the file: untracked, ignored or absent.                     |
-| `commit_exists`          | `message?` | At least one commit exists; with `message`, a commit has exactly that message. |
-| `commit_count`           | `count`    | HEAD's history has exactly `count` commits.                                    |
-| `clean_worktree`         | –          | Initialized, nothing staged, and every file is committed and unmodified.       |
+| Type                     | Fields                       | Passes when                                                                    |
+| ------------------------ | ---------------------------- | ------------------------------------------------------------------------------ |
+| `repository_initialized` | –                            | The workspace is a Git repository.                                             |
+| `file_exists`            | `file`                       | The file exists in the working tree (works before `git init` too).             |
+| `file_staged`            | `file`                       | The file has staged changes (added, modified or deleted in the index).         |
+| `file_committed`         | `file`                       | The file is in the last commit and unchanged since.                            |
+| `file_not_tracked`       | `file`                       | Git does not track the file: untracked, ignored or absent.                     |
+| `file_content`           | `file`, `content`            | The working-tree file has exactly the authored text.                           |
+| `commit_exists`          | `message?`                   | At least one commit exists; with `message`, a commit has exactly that message. |
+| `commit_count`           | `count`                      | HEAD's history has exactly `count` commits.                                    |
+| `commit_changes`         | `branch`, `message`, `files` | The named commit changes exactly those paths.                                  |
+| `clean_worktree`         | –                            | Initialized, nothing staged, and every file is committed and unmodified.       |
 
 | Type          | Fields           | Passes when                                                                        |
 | ------------- | ---------------- | ---------------------------------------------------------------------------------- |
@@ -25,6 +27,11 @@ all satisfy "README.md is staged".
 `.gitignore`) rather than committed or merely left untracked. `file_status` with
 `status: modified` checks that an edit is still there, uncommitted and unstaged (after
 `git stash pop`, `git restore --staged`, ...).
+
+`file_content` compares exact text, including line breaks. `commit_changes` finds the named commit
+in the selected branch's history and compares its changed paths with `files`; order does not
+matter. These validators let content-sensitive challenges verify both the final file and focused
+commit boundaries.
 
 ### Branch validators
 

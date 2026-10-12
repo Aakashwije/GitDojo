@@ -12,6 +12,8 @@ export type StagedChange = "added" | "modified" | "deleted";
 export interface FileState {
   path: string;
   status: FileStatus;
+  /** Current working-tree text, when the path exists. Used by content-sensitive validators. */
+  content?: string;
   /** Present on staged entries so the UI can say "new file" vs "modified". */
   change?: StagedChange;
 }
@@ -25,6 +27,8 @@ export interface CommitState {
   /** Seconds since the Unix epoch, as recorded in the commit object. */
   timestamp: number;
   parents: string[];
+  /** Paths whose blobs differ from the first parent (or every path for a root commit). */
+  changedPaths: string[];
 }
 
 export interface BranchState {

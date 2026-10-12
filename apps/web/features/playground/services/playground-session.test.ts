@@ -82,7 +82,13 @@ describe("PlaygroundSession", () => {
 
     const blank = await session.load(NEW_REPOSITORY_SETUP, "new");
     expect(blank.repository.initialized).toBe(false);
-    expect(blank.repository.files).toEqual([{ path: "README.md", status: "untracked" }]);
+    expect(blank.repository.files).toEqual([
+      {
+        path: "README.md",
+        status: "untracked",
+        content: "# My project\n\nStart with `git init`.\n",
+      },
+    ]);
   });
 
   it("exports files and repository state as JSON", async () => {
@@ -96,7 +102,11 @@ describe("PlaygroundSession", () => {
       scenario: "two-commits",
       files: { "a.txt": "changed\n", "b.txt": "b\n" },
     });
-    expect(snapshot.repository.files).toContainEqual({ path: "a.txt", status: "modified" });
+    expect(snapshot.repository.files).toContainEqual({
+      path: "a.txt",
+      status: "modified",
+      content: "changed\n",
+    });
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
   });
 });

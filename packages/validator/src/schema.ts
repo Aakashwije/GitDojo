@@ -12,6 +12,7 @@ export const validatorDefinitionSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("file_staged"), file: filePath }),
   z.strictObject({ type: z.literal("file_committed"), file: filePath }),
   z.strictObject({ type: z.literal("file_not_tracked"), file: filePath }),
+  z.strictObject({ type: z.literal("file_content"), file: filePath, content: z.string() }),
   z.strictObject({
     type: z.literal("file_status"),
     file: filePath,
@@ -19,6 +20,17 @@ export const validatorDefinitionSchema = z.discriminatedUnion("type", [
   }),
   z.strictObject({ type: z.literal("commit_exists"), message: commitMessage.optional() }),
   z.strictObject({ type: z.literal("commit_count"), count: z.number().int().nonnegative() }),
+  z.strictObject({
+    type: z.literal("commit_changes"),
+    branch: branchName,
+    message: commitMessage,
+    files: z
+      .array(filePath)
+      .min(1)
+      .refine((files) => new Set(files).size === files.length, {
+        message: "commit_changes files must be unique",
+      }),
+  }),
   z.strictObject({ type: z.literal("clean_worktree") }),
   z.strictObject({ type: z.literal("branch_exists"), branch: branchName }),
   z.strictObject({ type: z.literal("branch_not_exists"), branch: branchName }),

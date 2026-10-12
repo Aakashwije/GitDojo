@@ -14,6 +14,7 @@ const commit = (oid: string, parents: string[] = []): CommitState => ({
   authorEmail: "learner@gitdojo.local",
   timestamp: 0,
   parents,
+  changedPaths: [],
 });
 
 describe("buildCommitGraph", () => {

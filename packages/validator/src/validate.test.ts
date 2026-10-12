@@ -21,6 +21,7 @@ function commit(message: string, oid = "a".repeat(40)): CommitState {
     authorEmail: "learner@gitdojo.local",
     timestamp: 0,
     parents: [],
+    changedPaths: [],
   };
 }
 
@@ -65,6 +66,30 @@ describe("validators", () => {
       expect((await check({ type: "file_exists", file: "README.md" }, uninitialized)).passed).toBe(
         true,
       );
+    });
+  });
+
+  describe("file_content", () => {
+    const repo = state({
+      files: [{ path: "config/app.json", status: "committed", content: '{ "enabled": true }\n' }],
+    });
+
+    it("compares exact working-tree text and accepts ./ prefixes", async () => {
+      expect(
+        (
+          await check(
+            { type: "file_content", file: "./config/app.json", content: '{ "enabled": true }\n' },
+            repo,
+          )
+        ).passed,
+      ).toBe(true);
+      expect(
+        (await check({ type: "file_content", file: "config/app.json", content: "wrong\n" }, repo))
+          .reason,
+      ).toBe("config/app.json does not have the expected contents.");
+      expect(
+        (await check({ type: "file_content", file: "missing.txt", content: "" }, repo)).reason,
+      ).toBe("missing.txt is not in the working tree.");
     });
   });
 
@@ -156,6 +181,51 @@ describe("validators", () => {
       expect(await check({ type: "commit_count", count: 1 }, repo)).toEqual({
         passed: false,
         reason: "Expected 1 commit, found 2.",
+      });
+    });
+  });
+
+  describe("commit_changes", () => {
+    const initial = { ...commit("Initial", "a".repeat(40)), changedPaths: ["README.md"] };
+    const focused = {
+      ...commit("Add service", "b".repeat(40)),
+      parents: [initial.oid],
+      changedPaths: ["src/service.js"],
+    };
+    const repo = state({
+      head: focused.oid,
+      branches: [{ name: "feature", oid: focused.oid, current: true }],
+      commits: [focused, initial],
+      allCommits: [focused, initial],
+    });
+
+    it("matches the exact changed paths of a named commit on a branch", async () => {
+      expect(
+        (
+          await check(
+            {
+              type: "commit_changes",
+              branch: "feature",
+              message: "Add service",
+              files: ["./src/service.js"],
+            },
+            repo,
+          )
+        ).passed,
+      ).toBe(true);
+      expect(
+        await check(
+          {
+            type: "commit_changes",
+            branch: "feature",
+            message: "Add service",
+            files: ["docs/service.md", "src/service.js"],
+          },
+          repo,
+        ),
+      ).toEqual({
+        passed: false,
+        reason: '"Add service" changes src/service.js; expected docs/service.md, src/service.js.',
       });
     });
   });

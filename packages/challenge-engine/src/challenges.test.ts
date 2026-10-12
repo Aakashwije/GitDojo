@@ -222,6 +222,30 @@ const SOLUTIONS: Record<string, PlayStep[]> = {
     "git switch feature/invoice-notes",
     "git stash pop",
   ],
+  "rebase-feature-branch": ["git rebase main"],
+  "revert-shared-change": ["git revert HEAD"],
+  "recover-deleted-file": [
+    "git restore --source HEAD~2 docs/deploy.md",
+    "git add docs/deploy.md",
+    'git commit -m "Restore deployment runbook"',
+  ],
+  "resolve-rebase-conflict": [
+    "git rebase main",
+    {
+      write: "src/settings.js",
+      content: 'export const settings = { region: "eu-west", retries: 5 };\n',
+    },
+    "git add src/settings.js",
+    "git rebase --continue",
+  ],
+  "split-mixed-commit": [
+    "git reset HEAD~1",
+    "git add src/analytics.js",
+    'git commit -m "Add analytics service"',
+    "git add docs/analytics.md",
+    'git commit -m "Document analytics service"',
+  ],
+  "repair-reset-branches": ["git reflog", "git reset --hard HEAD@{1}"],
   "undo-last-commit": [
     "git reset HEAD~1",
     { write: ".gitignore", content: "secrets.env\n" },
@@ -414,6 +438,50 @@ const MISTAKES: { challenge: string; tip: string; steps: PlayStep[] }[] = [
     challenge: "recover-stashed-work",
     tip: "untracked-draft-blocks-switch",
     steps: ["git stash", "git switch main"],
+  },
+  // Joining main with a merge leaves a merge commit instead of a linear rebased feature.
+  {
+    challenge: "rebase-feature-branch",
+    tip: "main-merged-into-feature",
+    steps: ["git merge main"],
+  },
+  // Moving the shared branch backwards removes the faulty commit instead of recording its undo.
+  {
+    challenge: "revert-shared-change",
+    tip: "shared-history-removed",
+    steps: ["git reset --hard HEAD~1"],
+  },
+  // Moving main back restores the file by discarding the newer health endpoint work.
+  {
+    challenge: "recover-deleted-file",
+    tip: "newer-work-rolled-back",
+    steps: ["git reset --hard HEAD~2"],
+  },
+  // Keeping only the feature side loses main's updated production region.
+  {
+    challenge: "resolve-rebase-conflict",
+    tip: "main-region-lost",
+    steps: [
+      "git rebase main",
+      {
+        write: "src/settings.js",
+        content: 'export const settings = { region: "us-east", retries: 5 };\n',
+      },
+      "git add src/settings.js",
+      "git rebase --continue",
+    ],
+  },
+  // Re-recording both paths together leaves the mixed commit unsplit.
+  {
+    challenge: "split-mixed-commit",
+    tip: "changes-still-combined",
+    steps: ["git reset HEAD~1", "git add .", 'git commit -m "Add analytics service"'],
+  },
+  // The lost catalog commit is used to move the checkout branch instead of repairing catalog.
+  {
+    challenge: "repair-reset-branches",
+    tip: "filters-restored-to-checkout",
+    steps: ["git switch feature/checkout", "git reset --hard HEAD@{2}"],
   },
   // Merging main into the release instead of the other way round.
   {
