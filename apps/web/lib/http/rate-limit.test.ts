@@ -26,6 +26,13 @@ function request(path: string, client = CLIENT, address = "203.0.113.42"): NextR
   });
 }
 
+function requestWith(
+  path: string,
+  init: ConstructorParameters<typeof NextRequest>[1],
+): NextRequest {
+  return new NextRequest(`https://gitdojo.dev${path}`, init);
+}
+
 describe("sensitive request rate limiter", () => {
   it.each(["/sign-in", "/sign-up", "/api/auth/session", "/api/progress/lessons"])(
     "allows requests through the configured limit, then refuses %s",
@@ -79,6 +86,38 @@ describe("sensitive request rate limiter", () => {
         retryAfterSeconds: null,
       });
     }
+  });
+
+  it.each([
+    ["next-router-prefetch", "1"],
+    ["purpose", "prefetch"],
+    ["sec-purpose", "prefetch"],
+  ])("does not charge Next.js prefetch traffic with the %s header", (header, value) => {
+    const limiter = new SensitiveRequestRateLimiter(() => 1_000);
+    const prefetched = request("/sign-in");
+    prefetched.headers.set(header, value);
+
+    for (let count = 0; count < 10; count += 1) {
+      expect(limiter.check(prefetched, env)).toEqual({
+        clientId: null,
+        retryAfterSeconds: null,
+      });
+    }
+    expect(limiter.check(request("/sign-in"), env).retryAfterSeconds).toBeNull();
+  });
+
+  it("still charges API requests and sign-in submissions carrying a prefetch header", () => {
+    const limiter = new SensitiveRequestRateLimiter(() => 1_000);
+    const headers = {
+      cookie: `gitdojo_rate_limit=${CLIENT}`,
+      "next-router-prefetch": "1",
+      "x-forwarded-for": "203.0.113.42",
+    };
+
+    expect(limiter.check(requestWith("/api/auth/session", { headers }), env).clientId).toBe(CLIENT);
+    expect(limiter.check(requestWith("/sign-in", { method: "POST", headers }), env).clientId).toBe(
+      CLIENT,
+    );
   });
 
   it("returns the same uncached 429 response and sets a private client cookie", async () => {

@@ -43,6 +43,14 @@ function scopeFor(pathname: string): RateLimitScope | null {
   return null;
 }
 
+function isPrefetch(headers: Headers): boolean {
+  return (
+    headers.has("next-router-prefetch") ||
+    headers.get("purpose")?.toLowerCase() === "prefetch" ||
+    headers.get("sec-purpose")?.toLowerCase() === "prefetch"
+  );
+}
+
 function limitFor(scope: RateLimitScope, env: Env): ScopeLimit {
   const windowSeconds = integer(env.GITDOJO_RATE_LIMIT_WINDOW_SECONDS, 60, 3_600);
   const clientMax = integer(
@@ -125,7 +133,17 @@ export class SensitiveRequestRateLimiter {
   ) {}
 
   check(request: NextRequest, env: Env = process.env): RateLimitCheck {
-    const scope = scopeFor(request.nextUrl.pathname);
+    // Next.js may prefetch the sign-in page repeatedly from anonymous pages. Prefetches do not
+    // perform authentication and must not consume the quota a learner needs for a real attempt.
+    const { pathname } = request.nextUrl;
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      (pathname === "/sign-in" || pathname === "/sign-up") &&
+      isPrefetch(request.headers)
+    ) {
+      return { clientId: null, retryAfterSeconds: null };
+    }
+    const scope = scopeFor(pathname);
     if (!scope) return { clientId: null, retryAfterSeconds: null };
 
     const network = clientNetwork(request.headers);
