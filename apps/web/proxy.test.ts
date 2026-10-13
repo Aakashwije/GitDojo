@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { config, proxy } from "./proxy";
+import { SensitiveRequestRateLimiter } from "@/lib/http/rate-limit";
+import { config, handleProxy, proxy } from "./proxy";
 
 // The SDK's proxy helper: records what GitDojo's handler asks of it.
 const middleware = vi.hoisted(() => ({
@@ -88,6 +89,27 @@ describe("proxy", () => {
       expect((await proxy(request(path))).headers.get("x-proxy")).toBe("next");
     }
     // Signed-out API requests reach the route, which answers 401 itself.
+    expect(middleware.protectRoute).not.toHaveBeenCalled();
+  });
+
+  it("returns the common 429 response before doing authentication work", async () => {
+    vi.stubEnv("GITDOJO_RATE_LIMIT_AUTH_MAX", "1");
+    const limiter = new SensitiveRequestRateLimiter(() => 1_000);
+    const limitedRequest = () =>
+      new NextRequest("http://localhost/sign-in", {
+        headers: {
+          cookie: "gitdojo_rate_limit=0123456789abcdef0123456789abcdef",
+          "x-forwarded-for": "203.0.113.42",
+        },
+      });
+
+    expect((await handleProxy(limitedRequest(), limiter)).status).toBe(200);
+    const response = await handleProxy(limitedRequest(), limiter);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(await response.json()).toEqual({
+      error: { code: "rate_limited", message: "Too many requests. Try again shortly." },
+    });
     expect(middleware.protectRoute).not.toHaveBeenCalled();
   });
 });
