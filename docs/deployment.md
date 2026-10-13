@@ -87,7 +87,9 @@ pinned in `package.json`.
 
 `next.config.ts` traces server files from the workspace root and includes `content/**/*.yaml` in
 the progress API functions, which read lesson data at request time. All pages are prerendered at
-build time. `proxy.ts` runs on the Node.js runtime.
+build time. `proxy.ts` runs on the Node.js runtime. Browser response protections are configured in
+`apps/web/lib/security-headers.ts`; see [Browser security headers](./security.md) before changing
+the policy.
 
 **Domains.** Production project: your domain. Staging project: the stable staging domain, as its
 production domain. **Deployment Protection**: Standard Protection (the default) protects
