@@ -1,6 +1,7 @@
 import { type NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createSecurityHeaders } from "./lib/security-headers";
 
 // The pnpm workspace root. Server files are traced from here, so deployed functions (Vercel)
 // include workspace packages and the lesson content outside apps/web.
@@ -10,6 +11,14 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
+  headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: createSecurityHeaders(process.env.NODE_ENV === "development"),
+      },
+    ];
+  },
   // Routes that read lesson YAML at request time (the progress API validates lesson ids against
   // it). Pages are prerendered at build time and don't need it.
   outputFileTracingIncludes: {

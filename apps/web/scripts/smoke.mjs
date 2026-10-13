@@ -67,6 +67,25 @@ let landing = "";
 await check("Landing page", async () => {
   const response = await request("/");
   expect(response.status === 200, `status ${String(response.status)}`);
+  const requiredHeaders = {
+    "content-security-policy": [
+      "default-src 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+    ],
+    "permissions-policy": ["camera=()", "microphone=()", "geolocation=()"],
+    "referrer-policy": ["strict-origin-when-cross-origin"],
+    "strict-transport-security": ["max-age=31536000"],
+    "x-content-type-options": ["nosniff"],
+    "x-frame-options": ["DENY"],
+  };
+  for (const [header, requiredValues] of Object.entries(requiredHeaders)) {
+    const value = response.headers.get(header) ?? "";
+    expect(value !== "", `missing ${header}`);
+    for (const required of requiredValues) {
+      expect(value.includes(required), `${header} is missing ${required}`);
+    }
+  }
   landing = await response.text();
   expect(landing.includes("GitDojo"), "page does not mention GitDojo");
 });
