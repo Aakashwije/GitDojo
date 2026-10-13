@@ -97,6 +97,7 @@ describe("proxy", () => {
     const limiter = new SensitiveRequestRateLimiter(() => 1_000);
     const limitedRequest = () =>
       new NextRequest("http://localhost/sign-in", {
+        method: "POST",
         headers: {
           cookie: "gitdojo_rate_limit=0123456789abcdef0123456789abcdef",
           "x-forwarded-for": "203.0.113.42",

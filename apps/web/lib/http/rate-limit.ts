@@ -36,19 +36,14 @@ function integer(value: string | undefined, fallback: number, maximum: number): 
   return parsed >= 1 && parsed <= maximum ? parsed : fallback;
 }
 
-function scopeFor(pathname: string): RateLimitScope | null {
-  if (pathname === "/sign-in" || pathname === "/sign-up") return "auth";
+function scopeFor(request: NextRequest): RateLimitScope | null {
+  const { pathname } = request.nextUrl;
+  if ((pathname === "/sign-in" || pathname === "/sign-up") && request.method === "POST") {
+    return "auth";
+  }
   if (pathname === "/api/auth/session") return "session";
   if (pathname === "/api/progress" || pathname.startsWith("/api/progress/")) return "progress";
   return null;
-}
-
-function isPrefetch(headers: Headers): boolean {
-  return (
-    headers.has("next-router-prefetch") ||
-    headers.get("purpose")?.toLowerCase() === "prefetch" ||
-    headers.get("sec-purpose")?.toLowerCase() === "prefetch"
-  );
 }
 
 function limitFor(scope: RateLimitScope, env: Env): ScopeLimit {
@@ -133,17 +128,7 @@ export class SensitiveRequestRateLimiter {
   ) {}
 
   check(request: NextRequest, env: Env = process.env): RateLimitCheck {
-    // Next.js may prefetch the sign-in page repeatedly from anonymous pages. Prefetches do not
-    // perform authentication and must not consume the quota a learner needs for a real attempt.
-    const { pathname } = request.nextUrl;
-    if (
-      (request.method === "GET" || request.method === "HEAD") &&
-      (pathname === "/sign-in" || pathname === "/sign-up") &&
-      isPrefetch(request.headers)
-    ) {
-      return { clientId: null, retryAfterSeconds: null };
-    }
-    const scope = scopeFor(pathname);
+    const scope = scopeFor(request);
     if (!scope) return { clientId: null, retryAfterSeconds: null };
 
     const network = clientNetwork(request.headers);
