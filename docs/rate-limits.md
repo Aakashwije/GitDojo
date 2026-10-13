@@ -1,8 +1,9 @@
 # Request rate limits
 
-GitDojo limits bursts to `/sign-in`, `/sign-up`, `/api/auth/session` and every
-`/api/progress/*` endpoint before authentication or database work begins. All refused requests
-receive HTTP `429`, `Retry-After`, `Cache-Control: private, no-store` and the same JSON error:
+GitDojo limits bursts of sign-in and sign-up submissions, `/api/auth/session` reads and every
+`/api/progress/*` request before authentication or database work begins. Rendering or prefetching
+the sign-in and sign-up pages does not consume the submission quota. All refused requests receive
+HTTP `429`, `Retry-After`, `Cache-Control: private, no-store` and the same JSON error:
 
 ```json
 {
@@ -32,15 +33,15 @@ All values are read at runtime. Invalid, zero or excessively large values fall b
 
 | Variable                                | Default | Meaning                                     |
 | --------------------------------------- | ------: | ------------------------------------------- |
-| `GITDOJO_RATE_LIMIT_AUTH_MAX`           |      20 | Sign-in and sign-up requests per browser    |
+| `GITDOJO_RATE_LIMIT_AUTH_MAX`           |      20 | Sign-in and sign-up submissions per browser |
 | `GITDOJO_RATE_LIMIT_SESSION_MAX`        |     120 | Session reads per browser                   |
 | `GITDOJO_RATE_LIMIT_PROGRESS_MAX`       |     180 | Progress reads and writes per browser       |
 | `GITDOJO_RATE_LIMIT_WINDOW_SECONDS`     |      60 | Fixed-window duration for every bucket      |
 | `GITDOJO_RATE_LIMIT_NETWORK_MULTIPLIER` |      25 | Network ceiling as a multiple of client max |
 
-For example, the default authentication limits permit 20 requests per browser and 500 requests
-per network in a minute. Tune from observed production traffic, preserve a generous network
-multiplier, and change one environment at a time.
+For example, the default authentication limits permit 20 submissions per browser and 500
+submissions per network in a minute. Tune from observed production traffic, preserve a generous
+network multiplier, and change one environment at a time.
 
 ## Deployment scope
 
