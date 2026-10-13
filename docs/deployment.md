@@ -113,6 +113,7 @@ anonymous. In `gitdojo-staging`, set them for **Production** (its staging domain
 | `DATABASE_POOL_MAX`                   | Runtime                                       | Optional                    | Optional                             | Connections per function instance, 1–20, default 5                                            |
 | `GITDOJO_SELF_REGISTRATION`           | Runtime                                       | Optional                    | Optional                             | `disabled` if self sign-up is off                                                             |
 | `ASGARDEO_SESSION_COOKIE_EXPIRY_TIME` | Runtime                                       | Optional                    | Optional                             | Seconds, default 86400                                                                        |
+| `GITDOJO_RATE_LIMIT_*`                | Runtime                                       | Optional                    | Optional                             | Per-client burst limits and shared-network multiplier; see [rate limits](./rate-limits.md)    |
 | `ENABLE_EXPERIMENTAL_COREPACK`        | Build                                         | `1`                         | `1`                                  | Pinned pnpm                                                                                   |
 
 Never give a secret a `NEXT_PUBLIC_` name: those are published in the browser bundle. Don't set

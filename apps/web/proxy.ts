@@ -2,6 +2,11 @@ import { asgardeoMiddleware } from "@asgardeo/nextjs/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { readAuthConfig } from "@/lib/auth/config";
 import { withReturnPath } from "@/lib/auth/return-path";
+import {
+  attachRateLimitCookie,
+  rateLimitedResponse,
+  SensitiveRequestRateLimiter,
+} from "@/lib/http/rate-limit";
 
 /**
  * Keeps the account session fresh (token refresh, clearing dead sessions) and sends signed-out
@@ -16,10 +21,30 @@ const accountSession = asgardeoMiddleware(async (asgardeo, request) => {
   return undefined;
 });
 
-export async function proxy(request: NextRequest) {
+const requestRateLimiter = new SensitiveRequestRateLimiter();
+
+export async function handleProxy(
+  request: NextRequest,
+  limiter: Pick<SensitiveRequestRateLimiter, "check"> = requestRateLimiter,
+) {
+  const limit = limiter.check(request);
+  if (limit.retryAfterSeconds !== null) {
+    return attachRateLimitCookie(
+      rateLimitedResponse(limit.retryAfterSeconds),
+      request,
+      limit.clientId,
+    );
+  }
+
   // Without configuration there is no session to manage; learning is never affected.
-  if (!readAuthConfig().configured) return NextResponse.next();
-  return accountSession(request);
+  const response = !readAuthConfig().configured
+    ? NextResponse.next()
+    : await accountSession(request);
+  return attachRateLimitCookie(response, request, limit.clientId);
+}
+
+export async function proxy(request: NextRequest) {
+  return handleProxy(request);
 }
 
 export const config = {
