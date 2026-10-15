@@ -6,4 +6,4 @@ export {
   type ValidatorOfType,
   type ValidatorRegistry,
 } from "./types";
-export { evaluateTips, validateLesson, validateObjective } from "./validate";
+export { evaluateAdaptiveHints, evaluateTips, validateLesson, validateObjective } from "./validate";

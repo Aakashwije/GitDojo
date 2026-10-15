@@ -104,3 +104,36 @@ hints:
     - Resetting to the newest lost commit brings back its parent too.
   clean:
     - "`git status` should say the working tree is clean."
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: reset-too-far
+    objective: payment
+    when:
+      - type: commit_count
+        count: 1
+    hints:
+      - "`main` went back even further, to **Initial commit**. Nothing is lost: the reflog lists every position, including **Validate card numbers**."
+      - "`git reflog` shows them, newest first. Reset to the entry for **Validate card numbers**."
+      - Run `git reflog`, then `git reset --hard HEAD@{2}`.
+
+  - id: files-left-behind-staged
+    objective: clean
+    when:
+      - type: file_staged
+        file: src/payment.js
+    hints:
+      - "`main` is back, but the files are not: a `--soft` reset moves only the branch, so the staging area still reflects the old state."
+      - A `--hard` reset to where `main` already is brings the staging area and working tree in line.
+      - Run `git reset --hard HEAD`.
+
+  - id: files-left-behind
+    objective: clean
+    when:
+      - type: file_status
+        file: src/payment.js
+        status: deleted
+    hints:
+      - "`main` is back, but `src/payment.js` is missing from the working tree: a mixed reset moves the branch and the staging area, not your files."
+      - A `--hard` reset to where `main` already is brings the working tree in line.
+      - Run `git reset --hard HEAD`.

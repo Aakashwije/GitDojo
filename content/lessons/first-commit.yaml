@@ -64,3 +64,15 @@ hints:
     - A commit records everything in the staging area as a snapshot.
     - Every commit needs a short message describing the change.
     - Try `git commit -m "Initial commit"`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: readme-staged-not-committed
+    objective: first-commit
+    when:
+      - type: file_staged
+        file: README.md
+    hints:
+      - "`README.md` is staged, which only prepares it: nothing is saved in the history until you commit."
+      - "`git commit` records everything that is staged, with a message given after `-m`."
+      - Run `git commit -m "Initial commit"`.

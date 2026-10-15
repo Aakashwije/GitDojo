@@ -104,3 +104,14 @@ tips:
       `fix/rounding` exists, but its history does not include `Fix rounding of totals`. A branch
       starts at whatever commit it was created from; comparing where the branch points with where
       the fix lives shows the gap.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: still-on-rescue-branch
+    objective: on-main
+    when:
+      - type: current_branch
+        branch: fix/rounding
+    hints:
+      - The rounding work is safe on `fix/rounding`, and HEAD is still there. The mission ends on `main`.
+      - With the work on a branch of its own, leaving it is safe.

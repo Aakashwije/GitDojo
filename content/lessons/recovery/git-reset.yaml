@@ -107,3 +107,35 @@ hints:
   log-not-committed:
     - "`git status` should list `debug.log` as untracked, not staged."
     - If you staged it, run `git restore --staged debug.log`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: hard-reset-lost-files
+    objective: kept
+    when:
+      - type: file_not_tracked
+        file: src/login.js
+    hints:
+      - "`src/login.js` is gone: a `--hard` reset moves the branch and discards the files too. The `WIP` commit still exists; no branch points at it any more."
+      - The reflog remembers where `main` was before the reset, and resetting back there brings the files with it.
+      - Run `git reset --hard HEAD@{1}`, then `git reset HEAD~1`.
+
+  - id: log-staged
+    objective: recommit
+    when:
+      - type: file_staged
+        file: debug.log
+    hints:
+      - "`debug.log` is staged, so the new commit would include the log again."
+      - "`git restore --staged` takes it back out of the staging area."
+      - Run `git restore --staged debug.log`, then `git commit -m "Add login form"`.
+
+  - id: log-committed
+    objective: log-not-committed
+    when:
+      - type: file_committed
+        file: debug.log
+    hints:
+      - "`debug.log` went into the new commit along with the login form."
+      - Undo that commit the same way as before, then stage only `src/login.js`.
+      - Run `git reset HEAD~1`, then `git add src/login.js` and `git commit -m "Add login form"`.

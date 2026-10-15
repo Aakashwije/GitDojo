@@ -78,6 +78,7 @@ export const validatorDefinitionSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("stash_count"), count: z.number().int().nonnegative() }),
   z.strictObject({ type: z.literal("conflict_exists"), file: filePath.optional() }),
   z.strictObject({ type: z.literal("conflict_resolved"), file: filePath }),
+  z.strictObject({ type: z.literal("conflict_ready_to_stage"), file: filePath }),
   z.strictObject({ type: z.literal("all_conflicts_resolved") }),
   z.strictObject({ type: z.literal("merge_completed"), branch: branchName.optional() }),
   z.strictObject({

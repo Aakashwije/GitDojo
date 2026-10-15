@@ -86,3 +86,31 @@ tips:
       `feature/retries` has a linear history on the current `main`, but `src/settings.js` contains
       the old `us-east` region. The updated base uses `eu-west`; the final file must preserve that
       region as well as the higher retry count.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: markers-gone-wrong-line
+    objective: settings-combined
+    when:
+      - type: conflict_ready_to_stage
+        file: src/settings.js
+    hints:
+      - The markers are gone, but the line does not hold both changes yet.
+      - Keep the region from `main` and the retry count from your branch, in one line.
+
+  - id: combined-not-continued
+    objective: rebased
+    when:
+      - type: all_conflicts_resolved
+    hints:
+      - The combined line is recorded, but the rebase is still paused at the conflict.
+      - Tell the interrupted rebase to carry on with the next step.
+
+  - id: combined-not-staged
+    objective: rebased
+    when:
+      - type: conflict_ready_to_stage
+        file: src/settings.js
+    hints:
+      - The combined line is in place, but Git still lists the file as conflicted.
+      - The same command that stages any change marks a conflict as resolved; then the rebase can carry on.

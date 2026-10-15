@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { solveLesson, waitForTerminal } from "./helpers";
+import { run, show, solveLesson, waitForTerminal } from "./helpers";
 
 // Scans run with reduced motion, so text is measured at rest rather than mid-animation (and the
 // reduced-motion path gets exercised).
@@ -59,6 +59,20 @@ for (const theme of THEMES) {
     }) => {
       await page.goto("/learn/demo");
       await waitForTerminal(page, isMobile);
+      await expectNoViolations(page, THIRD_PARTY);
+    });
+
+    test("adaptive hints have no detectable accessibility violations", async ({
+      page,
+      isMobile,
+    }) => {
+      await page.goto("/learn/git-basics/git-add");
+      await waitForTerminal(page, isMobile);
+      await run(page, "git add index.js");
+      await show(page, "Lesson", isMobile);
+      const suggestion = page.getByTestId("adaptive-hint");
+      await suggestion.getByRole("button", { name: "Show a hint based on your progress" }).click();
+      await expect(suggestion.getByTestId("adaptive-hint-step")).toHaveCount(1);
       await expectNoViolations(page, THIRD_PARTY);
     });
 

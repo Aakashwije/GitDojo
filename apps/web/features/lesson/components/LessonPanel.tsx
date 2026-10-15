@@ -22,7 +22,10 @@ export interface LessonPanelProps {
   onPracticeAgain: () => void;
   /** What completing this counts as in progress; defaults to the lesson itself. */
   content?: Pick<ContentRef, "kind" | "id">;
-  /** Called when a hint is revealed: its objective and position (0 = first hint). */
+  /**
+   * Called when a hint is revealed: its objective (or adaptive hint rule) id and position
+   * (0 = first hint).
+   */
   onHintRevealed?: (objectiveId: string, index: number) => void;
   /** Phones show one panel at a time; lets the lesson send the learner to the terminal. */
   onGoToTerminal?: () => void;
@@ -46,6 +49,7 @@ export function LessonPanel({
   const revealHint = useLessonStore((state) => state.revealHint);
   const commandCount = useLessonStore((state) => state.commandCount);
   const matchingTips = useLessonStore((state) => state.tips);
+  const recommendation = useLessonStore((state) => state.adaptiveHint);
   const validation = useLessonStore((state) =>
     state.validation?.lessonId === lesson.id ? state.validation : null,
   );
@@ -59,6 +63,14 @@ export function LessonPanel({
       ? (validation?.objectives.find((o) => o.objectiveId === currentId && !o.passed)?.reason ??
         null)
       : null;
+  // The rule matching the current state, but never one evaluated for another lesson or objective.
+  const adaptiveRule =
+    commandCount > 0 &&
+    recommendation?.lessonId === lesson.id &&
+    recommendation.objectiveId === currentId
+      ? lesson.adaptiveHints?.find((rule) => rule.id === recommendation.ruleId)
+      : undefined;
+  const adaptiveHints = adaptiveRule ? normalizeHints(adaptiveRule.hints, { challenge }) : [];
   const currentIndex = lesson.objectives.findIndex((objective) => objective.id === currentId);
   const current = currentIndex === -1 ? undefined : lesson.objectives[currentIndex];
   const done = progress?.completed ?? false;
@@ -138,6 +150,21 @@ export function LessonPanel({
                   hints={hints}
                   state={hintStates[current.id]}
                   missing={missing}
+                  adaptive={
+                    adaptiveRule
+                      ? {
+                          id: adaptiveRule.id,
+                          hints: adaptiveHints,
+                          state: hintStates[adaptiveRule.id],
+                          onReveal: () => {
+                            const index = hintStates[adaptiveRule.id]?.revealedHints ?? 0;
+                            if (index >= adaptiveHints.length) return;
+                            revealHint(adaptiveRule.id, adaptiveHints.length);
+                            onHintRevealed?.(adaptiveRule.id, index);
+                          },
+                        }
+                      : null
+                  }
                   className="mt-3"
                   onReveal={() => {
                     const index = hintStates[current.id]?.revealedHints ?? 0;

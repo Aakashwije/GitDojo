@@ -108,3 +108,13 @@ tips:
       `feature/payments` exists again, but its history does not reach `Send receipt emails`, so it
       was created somewhere other than where those commits live. The record of HEAD's positions
       still lists the moment each one was made.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: detached-at-lost-work
+    objective: branch-back
+    when:
+      - type: head_detached
+    hints:
+      - HEAD is on a commit directly, with no branch. Looking around like this is safe, but nothing keeps a name on these commits yet.
+      - A new branch starts wherever HEAD is when you create it.

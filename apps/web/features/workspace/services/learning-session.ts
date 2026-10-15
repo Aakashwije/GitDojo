@@ -7,11 +7,12 @@ import {
   type LessonProgress,
 } from "@gitdojo/lesson-engine";
 import {
+  type AdaptiveHintRecommendation,
   type LessonDefinition,
   type LessonValidationResult,
   type RepositoryState,
 } from "@gitdojo/shared-types";
-import { evaluateTips, validateLesson } from "@gitdojo/validator";
+import { evaluateAdaptiveHints, evaluateTips, validateLesson } from "@gitdojo/validator";
 import {
   WorkspaceSession,
   type CommandOutcome as WorkspaceCommandOutcome,
@@ -23,6 +24,8 @@ export interface SessionSnapshot {
   progress: LessonProgress;
   /** Ids of the lesson's tips whose conditions hold right now, in authored order. */
   tips: string[];
+  /** The first adaptive hint rule for the current objective that matches right now. */
+  adaptiveHint: AdaptiveHintRecommendation | null;
 }
 
 export type CommandOutcome = WorkspaceCommandOutcome<SessionSnapshot>;
@@ -78,8 +81,20 @@ export class LearningSession extends WorkspaceSession<SessionSnapshot> {
     // Tips describe the state right now, so they are recomputed rather than accumulated: one
     // stops showing the moment the learner resolves what it describes.
     const tips = this.lesson.tips ? await evaluateTips(this.lesson.tips, { repository }) : [];
-    this.latest = { repository, validation, progress: this.progress, tips };
+    const adaptiveHint = await this.matchAdaptiveHint(repository);
+    this.latest = { repository, validation, progress: this.progress, tips, adaptiveHint };
     return this.latest;
+  }
+
+  /** Recomputed like tips, and only for the objective that is current after this step. */
+  private async matchAdaptiveHint(
+    repository: RepositoryState,
+  ): Promise<AdaptiveHintRecommendation | null> {
+    const rules = this.lesson.adaptiveHints;
+    const objectiveId = this.progress.currentObjectiveId;
+    if (!rules || objectiveId === null) return null;
+    const ruleId = await evaluateAdaptiveHints(rules, objectiveId, { repository });
+    return ruleId === null ? null : { lessonId: this.lesson.id, objectiveId, ruleId };
   }
 
   private requireLatest(): SessionSnapshot {

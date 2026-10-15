@@ -1,8 +1,12 @@
 import { InvalidLessonError, validateLessonDefinition } from "@gitdojo/lesson-engine";
 import { createDirectoryLessonSource } from "@gitdojo/lesson-engine/node";
 import { play, type PlayStep } from "@gitdojo/lesson-engine/testing";
-import { type ChallengeDefinition, type LessonTip } from "@gitdojo/shared-types";
-import { evaluateTips } from "@gitdojo/validator";
+import {
+  type ChallengeDefinition,
+  type LessonDefinition,
+  type LessonTip,
+} from "@gitdojo/shared-types";
+import { evaluateAdaptiveHints, evaluateTips } from "@gitdojo/validator";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CHALLENGE_CATEGORIES, categoryInfo } from "./categories";
@@ -130,6 +134,41 @@ describe("tips", () => {
         ),
       ).join("\n"),
     ).toContain("must not name the command");
+  });
+});
+
+describe("adaptive hints", () => {
+  const withRule = (hint: string) =>
+    `${VALID}adaptiveHints:\n  - id: on-main\n    objective: branch\n    when:\n      - type: current_branch\n        branch: main\n    hints:\n      - ${hint}\n`;
+
+  it("are passed on to the challenge's lesson", () => {
+    const challenge = parseChallenge(withRule("Branches are cheap labels."));
+    const lesson = toLessonDefinition(challenge);
+    expect(lesson.adaptiveHints).toEqual([
+      {
+        id: "on-main",
+        objective: "branch",
+        when: [{ type: "current_branch", branch: "main" }],
+        hints: ["Branches are cheap labels."],
+      },
+    ]);
+    expect(() => validateLessonDefinition(lesson, "sample")).not.toThrow();
+    expect(toLessonDefinition(parseChallenge(VALID)).adaptiveHints).toBeUndefined();
+  });
+
+  it("never name the command or give the answer", () => {
+    expect(issuesFor(withRule("Run `git branch feature`.")).join("\n")).toContain(
+      "challenges must not name the command, in adaptive hints",
+    );
+    expect(issuesFor(withRule('{ level: 3, text: "Make the branch." }')).join("\n")).toContain(
+      "challenges must not give the exact command (level 3)",
+    );
+  });
+
+  it("refer to the challenge's own objectives", () => {
+    expect(
+      issuesFor(withRule("Hm.").replace("objective: branch", "objective: nope")).join("\n"),
+    ).toContain('adaptive hint refers to unknown objective "nope"');
   });
 });
 
@@ -625,4 +664,256 @@ describe("mistake tips", async () => {
       afterReset && (await evaluateTips(tipsOf("cherry-pick-fix"), { repository: afterReset })),
     ).toEqual([]);
   }, 120_000);
+});
+
+const SETTINGS_COMBINED = 'export const settings = { region: "eu-west", retries: 5 };\n';
+const MERGED_CONFIG =
+  'export const api = { host: "v2.api.example.com", timeout: 15000 };\nexport const retries = 2;\n';
+
+/**
+ * For every challenge's adaptive hint rules: steps into the stuck state each describes, and steps
+ * out of it. Every rule must have one.
+ */
+const STUCK: Record<string, { stuck: PlayStep[]; resolved: PlayStep[] }> = {
+  "cherry-pick-fix/on-main": { stuck: ["git switch main"], resolved: ["git switch release/1.4"] },
+  "clean-up-history/squashed-and-staged": {
+    stuck: ["git reset --soft HEAD~4"],
+    resolved: ['git commit -m "Add search"'],
+  },
+  "clean-up-history/squashed-but-unstaged": {
+    stuck: ["git reset HEAD~4"],
+    resolved: ["git add src/search.js"],
+  },
+  "clean-up-history/not-back-far-enough": {
+    stuck: ["git reset --soft HEAD~3"],
+    resolved: ["git reset --soft HEAD~1"],
+  },
+  "detached-head/still-on-rescue-branch": {
+    stuck: ["git switch -c fix/rounding"],
+    resolved: ["git switch main"],
+  },
+  "first-commit/log-staged": {
+    stuck: ["git init", "git add ."],
+    resolved: ["git restore --staged debug.log"],
+  },
+  "first-commit/ignore-file-not-committed": {
+    stuck: [
+      "git init",
+      "git add README.md index.html style.css",
+      'git commit -m "Add site"',
+      { write: ".gitignore", content: "debug.log\n" },
+    ],
+    resolved: ["git add .gitignore", 'git commit -m "Ignore the log"'],
+  },
+  "first-commit/log-still-reported": {
+    stuck: ["git init", "git add README.md index.html style.css", 'git commit -m "Add site"'],
+    resolved: [{ write: ".gitignore", content: "debug.log\n" }],
+  },
+  "lost-commit/detached-at-lost-work": {
+    stuck: ["git switch --detach HEAD@{2}"],
+    resolved: ["git switch -c feature/payments"],
+  },
+  "merge-conflict/merging-the-wrong-way": {
+    stuck: ["git merge main"],
+    resolved: ["git merge --abort"],
+  },
+  "merge-conflict/config-ready-to-stage": {
+    stuck: [
+      "git switch main",
+      "git merge release/2.0",
+      { write: "src/config.js", content: MERGED_CONFIG },
+    ],
+    resolved: ["git add src/config.js"],
+  },
+  "merge-conflict/guide-decision-missing": {
+    stuck: [
+      "git switch main",
+      "git merge release/2.0",
+      { write: "src/config.js", content: MERGED_CONFIG },
+      "git add src/config.js",
+    ],
+    resolved: [{ delete: "docs/setup.md" }, "git add docs/setup.md"],
+  },
+  "merge-conflict/resolved-not-committed": {
+    stuck: [
+      "git switch main",
+      "git merge release/2.0",
+      { write: "src/config.js", content: MERGED_CONFIG },
+      "git add src/config.js",
+      { delete: "docs/setup.md" },
+      "git add docs/setup.md",
+    ],
+    resolved: ["git commit"],
+  },
+  "rebase-feature-branch/on-main": {
+    stuck: ["git switch main"],
+    resolved: ["git switch feature/notifications"],
+  },
+  "recover-deleted-file/restored-not-staged": {
+    stuck: ["git restore --source HEAD~2 docs/deploy.md"],
+    resolved: ["git add docs/deploy.md"],
+  },
+  "recover-deleted-file/restored-and-staged": {
+    stuck: ["git restore --source HEAD~2 docs/deploy.md", "git add docs/deploy.md"],
+    resolved: ['git commit -m "Restore deployment runbook"'],
+  },
+  "recover-stashed-work/edit-still-stashed": {
+    stuck: ["git stash -u", "git switch main", "git switch feature/invoice-notes"],
+    resolved: ["git stash pop"],
+  },
+  "recover-stashed-work/applied-not-dropped": {
+    stuck: [
+      "git stash -u",
+      "git switch main",
+      "git switch feature/invoice-notes",
+      "git stash apply",
+    ],
+    resolved: ["git stash drop"],
+  },
+  "repair-reset-branches/on-checkout": {
+    stuck: ["git switch feature/checkout"],
+    resolved: ["git switch feature/catalog"],
+  },
+  "repository-recovery/detached-at-pdfs": {
+    stuck: ["git switch --detach HEAD@{1}"],
+    resolved: ["git switch main"],
+  },
+  "repository-recovery/dark-mode-not-committed": {
+    stuck: ["git reset --hard HEAD@{1}", "git branch feature/reports HEAD@{5}", "git stash pop"],
+    resolved: ["git add src/theme.css", 'git commit -m "Add dark mode"'],
+  },
+  "resolve-rebase-conflict/markers-gone-wrong-line": {
+    stuck: [
+      "git rebase main",
+      {
+        write: "src/settings.js",
+        content: 'export const settings = { region: "us-east", retries: 5 };\n',
+      },
+    ],
+    resolved: [{ write: "src/settings.js", content: SETTINGS_COMBINED }],
+  },
+  "resolve-rebase-conflict/combined-not-staged": {
+    stuck: ["git rebase main", { write: "src/settings.js", content: SETTINGS_COMBINED }],
+    resolved: ["git add src/settings.js"],
+  },
+  "resolve-rebase-conflict/combined-not-continued": {
+    stuck: [
+      "git rebase main",
+      { write: "src/settings.js", content: SETTINGS_COMBINED },
+      "git add src/settings.js",
+    ],
+    resolved: ["git rebase --continue"],
+  },
+  "revert-shared-change/wrong-commit-reverted": {
+    stuck: ["git revert HEAD~1"],
+    resolved: ["git revert HEAD", "git revert HEAD~2"],
+  },
+  "split-mixed-commit/taken-apart-unstaged": {
+    stuck: ["git reset HEAD~1"],
+    resolved: ["git add src/analytics.js"],
+  },
+  "split-mixed-commit/taken-apart-both-staged": {
+    stuck: ["git reset --soft HEAD~1"],
+    resolved: ["git restore --staged docs/analytics.md"],
+  },
+  "split-mixed-commit/docs-left": {
+    stuck: [
+      "git reset HEAD~1",
+      "git add src/analytics.js",
+      'git commit -m "Add analytics service"',
+    ],
+    resolved: ["git add docs/analytics.md", 'git commit -m "Document analytics service"'],
+  },
+  "uncommitted-changes/rework-committed": {
+    stuck: ["git add src/price.js", 'git commit -m "Rework prices"'],
+    resolved: ["git reset HEAD~1"],
+  },
+  "uncommitted-changes/on-hotfix-branch": {
+    stuck: ["git stash", "git switch hotfix/rounding"],
+    resolved: ["git switch release"],
+  },
+  "undo-last-commit/secret-staged-again": {
+    stuck: ["git reset HEAD~1", "git add ."],
+    resolved: ["git restore --staged secrets.env"],
+  },
+  "undo-last-commit/config-loose": {
+    stuck: ["git reset HEAD~1"],
+    resolved: ["git add config.js"],
+  },
+  "undo-last-commit/removal-staged": {
+    stuck: ["git rm --cached secrets.env"],
+    resolved: ["git reset HEAD~1"],
+  },
+  "undo-last-commit/ignore-file-not-committed": {
+    stuck: [
+      "git reset HEAD~1",
+      "git add config.js",
+      'git commit -m "Add API config"',
+      { write: ".gitignore", content: "secrets.env\n" },
+    ],
+    resolved: [
+      "git reset HEAD~1",
+      "git add config.js .gitignore",
+      'git commit -m "Add API config"',
+    ],
+  },
+  "undo-last-commit/secret-still-reported": {
+    stuck: ["git reset HEAD~1", "git add config.js", 'git commit -m "Add API config"'],
+    resolved: [{ write: ".gitignore", content: "secrets.env\n" }],
+  },
+  "wrong-branch/on-new-branch": {
+    stuck: ["git switch -c feature/login"],
+    resolved: ["git switch main"],
+  },
+  "wrong-branch/files-left-staged": {
+    stuck: ["git branch feature/login", "git reset --soft HEAD~2"],
+    resolved: ["git reset --hard HEAD"],
+  },
+};
+
+describe("adaptive hints in content", async () => {
+  const challenges = await loadAllChallenges(source);
+  const playable = challenges.filter((challenge) => missingCommands(challenge).length === 0);
+  const rules = challenges.flatMap((challenge) =>
+    (challenge.adaptiveHints ?? []).map((rule) => ({
+      lesson: toLessonDefinition(challenge),
+      rule,
+      key: `${challenge.id}/${rule.id}`,
+    })),
+  );
+
+  /** The rule offered after `steps`, for whichever objective is current by then. */
+  async function offeredAfter(lesson: LessonDefinition, steps: PlayStep[]) {
+    const { progress, states } = await play(lesson, steps);
+    const repository = states.at(-1);
+    if (!repository || progress.currentObjectiveId === null) return null;
+    return evaluateAdaptiveHints(lesson.adaptiveHints ?? [], progress.currentObjectiveId, {
+      repository,
+    });
+  }
+
+  it("are authored for every playable challenge", () => {
+    for (const challenge of playable) {
+      expect(challenge.adaptiveHints?.length, `${challenge.id} has none`).toBeGreaterThan(0);
+    }
+  });
+
+  it("has a stuck state for every rule", () => {
+    expect(Object.keys(STUCK).sort()).toEqual(rules.map(({ key }) => key).sort());
+  });
+
+  it("never offers a rule at the start of a challenge", async () => {
+    for (const lesson of new Set(rules.map(({ lesson: owner }) => owner))) {
+      expect(await offeredAfter(lesson, []), lesson.id).toBeNull();
+    }
+  });
+
+  it.each(rules.map(({ key, lesson, rule }) => [key, lesson, rule.id] as const))(
+    "%s is offered in its stuck state and gone once it is resolved",
+    async (key, lesson, ruleId) => {
+      const { stuck, resolved } = STUCK[key] ?? { stuck: [], resolved: [] };
+      expect(await offeredAfter(lesson, stuck)).toBe(ruleId);
+      expect(await offeredAfter(lesson, [...stuck, ...resolved])).not.toBe(ruleId);
+    },
+  );
 });

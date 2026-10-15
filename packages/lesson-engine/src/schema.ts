@@ -275,6 +275,77 @@ export function checkObjectives(
   }
 }
 
+/**
+ * Hint ladders offered for one objective while specific conditions hold. Conditions are the same
+ * validators objectives and tips use; the ladder follows the same rules as `hints`.
+ */
+export const adaptiveHintsSchema = z
+  .array(
+    z.strictObject({
+      id: identifier,
+      objective: identifier,
+      when: z
+        .array(validatorDefinitionSchema)
+        .min(1, "an adaptive hint needs at least one condition"),
+      hints: hintsSchema.valueType,
+    }),
+  )
+  .min(1);
+
+/**
+ * Adaptive hint ids are unique and never reuse an objective id (both name hint progress), each
+ * rule names an objective of this lesson, its ladder is valid, and in challenges it gives no
+ * command away at any level.
+ */
+export function checkAdaptiveHints(
+  content: {
+    objectives: readonly { id: string }[];
+    adaptiveHints?: z.infer<typeof adaptiveHintsSchema>;
+  },
+  ctx: z.RefinementCtx,
+  { challenge = false }: { challenge?: boolean } = {},
+): void {
+  const objectives = new Set(content.objectives.map((objective) => objective.id));
+  const seen = new Set<string>();
+  for (const [index, rule] of (content.adaptiveHints ?? []).entries()) {
+    const path = ["adaptiveHints", index];
+    if (seen.has(rule.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [...path, "id"],
+        message: `duplicate adaptive hint id "${rule.id}"`,
+      });
+    } else if (objectives.has(rule.id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [...path, "id"],
+        message: `adaptive hint id "${rule.id}" is already an objective id`,
+      });
+    }
+    seen.add(rule.id);
+    if (!objectives.has(rule.objective)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [...path, "objective"],
+        message: `adaptive hint refers to unknown objective "${rule.objective}"`,
+      });
+    }
+    for (const { index: hint, message } of hintIssues(rule.hints, { challenge })) {
+      ctx.addIssue({ code: "custom", path: [...path, "hints", hint], message });
+    }
+    if (!challenge) continue;
+    for (const [hint, input] of rule.hints.entries()) {
+      if (namesCommand(typeof input === "string" ? input : input.text)) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...path, "hints", hint],
+          message: "challenges must not name the command, in adaptive hints any more than in tips",
+        });
+      }
+    }
+  }
+}
+
 // Strict objects everywhere: a typo such as `objective:` should fail loudly, not be ignored.
 export const lessonDefinitionSchema = z
   .strictObject({
@@ -292,6 +363,7 @@ export const lessonDefinitionSchema = z
     objectives: z.array(objectiveSchema).default([]),
     hints: hintsSchema.optional(),
     tips: tipsSchema.optional(),
+    adaptiveHints: adaptiveHintsSchema.optional(),
     editor: z.strictObject({ readOnly: z.boolean().optional() }).optional(),
   })
   .superRefine((lesson, ctx) => {
@@ -322,4 +394,5 @@ export const lessonDefinitionSchema = z
     }
 
     checkObjectives(lesson, ctx, { challenge: lesson.type === "challenge" });
+    checkAdaptiveHints(lesson, ctx, { challenge: lesson.type === "challenge" });
   }) satisfies z.ZodType<LessonDefinition>;

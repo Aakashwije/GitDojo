@@ -304,3 +304,97 @@ describe("loadLesson", () => {
     await expect(loadLesson("other", source)).rejects.toBeInstanceOf(InvalidLessonError);
   });
 });
+
+describe("adaptive hints", () => {
+  const RULE = `
+adaptiveHints:
+  - id: staged-not-committed
+    objective: stage
+    when:
+      - type: file_staged
+        file: README.md
+    hints:
+      - README.md is staged; nothing is committed yet.
+      - Run \`git commit -m "Add README"\`.
+`;
+  const withRule = (rule = RULE) => `${VALID}${rule}`;
+
+  it("parses rules as authored", () => {
+    expect(parseLesson(withRule()).adaptiveHints).toEqual([
+      {
+        id: "staged-not-committed",
+        objective: "stage",
+        when: [{ type: "file_staged", file: "README.md" }],
+        hints: [
+          "README.md is staged; nothing is committed yet.",
+          'Run `git commit -m "Add README"`.',
+        ],
+      },
+    ]);
+  });
+
+  it("rejects rules for unknown objectives", () => {
+    expect(
+      issuesFor(withRule(RULE.replace("objective: stage", "objective: nope"))).join("\n"),
+    ).toContain('adaptive hint refers to unknown objective "nope"');
+  });
+
+  it("rejects rules without conditions or hints", () => {
+    const noConditions = RULE.replace(/ {4}when:\n(?: {6}.*\n)+/, "    when: []\n");
+    expect(issuesFor(withRule(noConditions)).join("\n")).toContain(
+      "an adaptive hint needs at least one condition",
+    );
+    const noHints = RULE.replace(/ {4}hints:\n(?: {6}.*\n)+/, "    hints: []\n");
+    expect(issuesFor(withRule(noHints))).not.toHaveLength(0);
+  });
+
+  it("rejects invalid conditions", () => {
+    expect(
+      issuesFor(withRule(RULE.replace("type: file_staged", "type: file_stagd"))),
+    ).not.toHaveLength(0);
+  });
+
+  it("rejects duplicate ids and ids that are objective ids", () => {
+    const second = RULE.replace("adaptiveHints:\n", "");
+    expect(issuesFor(withRule(`${RULE}${second}`)).join("\n")).toContain(
+      'duplicate adaptive hint id "staged-not-committed"',
+    );
+    expect(
+      issuesFor(withRule(RULE.replace("id: staged-not-committed", "id: init"))).join("\n"),
+    ).toContain('adaptive hint id "init" is already an objective id');
+  });
+
+  it("rejects malformed ladders", () => {
+    const descending = RULE.replace(
+      "      - README.md is staged; nothing is committed yet.\n",
+      '      - { level: 2, text: "Commit it." }\n      - { level: 1, text: "Think about it." }\n',
+    );
+    expect(issuesFor(withRule(descending)).join("\n")).toContain("must not go down");
+    const vagueAnswer = RULE.replace(
+      '      - Run `git commit -m "Add README"`.',
+      '      - { level: 3, text: "Commit it." }',
+    );
+    expect(issuesFor(withRule(vagueAnswer)).join("\n")).toContain("must name the command");
+  });
+
+  it("never let a challenge give a command away", () => {
+    const challenge = VALID.replace(
+      "title: Sample lesson",
+      "title: Sample lesson\ntype: challenge",
+    );
+    const issues = issuesFor(`${challenge}${RULE}`).join("\n");
+    expect(issues).toContain("challenges must not name the command, in adaptive hints");
+    const answer = RULE.replace(
+      '      - Run `git commit -m "Add README"`.',
+      '      - { level: 3, text: "Run `git commit`." }',
+    );
+    expect(issuesFor(`${challenge}${answer}`).join("\n")).toContain(
+      "challenges must not give the exact command (level 3)",
+    );
+    const vague = RULE.replace(
+      '      - Run `git commit -m "Add README"`.',
+      "      - Record what is staged.",
+    );
+    expect(parseLesson(`${challenge}${vague}`).adaptiveHints).toHaveLength(1);
+  });
+});

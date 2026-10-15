@@ -1,4 +1,5 @@
 import {
+  type AdaptiveHintRule,
   type LessonDefinition,
   type LessonObjective,
   type LessonTip,
@@ -67,16 +68,50 @@ export async function evaluateTips(
   registry: ValidatorRegistry = validatorRegistry,
 ): Promise<string[]> {
   const matches = await Promise.all(
-    tips.map(async (tip) => {
-      const results = await Promise.all(
-        tip.when.map((condition) =>
-          checkCondition(condition, context, registry, "This tip could not be checked."),
-        ),
-      );
-      return results.length > 0 && results.every((result) => result.passed) ? tip.id : null;
-    }),
+    tips.map(async (tip) =>
+      (await allConditionsHold(tip.when, context, registry, "This tip could not be checked."))
+        ? tip.id
+        : null,
+    ),
   );
   return matches.filter((id) => id !== null);
+}
+
+/**
+ * The id of the first adaptive hint rule, in authored order, that belongs to `objectiveId` and
+ * whose every condition holds right now; `null` when none does. Authors put the most specific
+ * rule first.
+ *
+ * Like tips, this reads the current state only, so a suggestion goes away (or is replaced by
+ * another rule's) as soon as the state changes. A rule whose condition cannot be checked simply
+ * does not match.
+ */
+export async function evaluateAdaptiveHints(
+  rules: readonly AdaptiveHintRule[],
+  objectiveId: string,
+  context: ValidatorContext,
+  registry: ValidatorRegistry = validatorRegistry,
+): Promise<string | null> {
+  const candidates = rules.filter((rule) => rule.objective === objectiveId);
+  const matches = await Promise.all(
+    candidates.map((rule) =>
+      allConditionsHold(rule.when, context, registry, "This hint could not be checked."),
+    ),
+  );
+  return candidates.find((_rule, index) => matches[index])?.id ?? null;
+}
+
+/** True when there is at least one condition and every one passes. Never rejects. */
+async function allConditionsHold(
+  conditions: readonly ValidatorDefinition[],
+  context: ValidatorContext,
+  registry: ValidatorRegistry,
+  failureReason: string,
+): Promise<boolean> {
+  const results = await Promise.all(
+    conditions.map((condition) => checkCondition(condition, context, registry, failureReason)),
+  );
+  return results.length > 0 && results.every((result) => result.passed);
 }
 
 /**

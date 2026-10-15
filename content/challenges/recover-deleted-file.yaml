@@ -87,3 +87,24 @@ tips:
       The checklist is present because `main` now points at `Add deployment runbook`, but the
       newer health endpoint is no longer in the branch history. The mission restores one file
       without rolling the branch back.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: restored-not-staged
+    objective: restoration-recorded
+    when:
+      - type: file_status
+        file: docs/deploy.md
+        status: untracked
+    hints:
+      - The checklist is back, but only in the working tree. The mission wants it recorded in the history.
+      - Stage it, then record a commit with the message the mission names.
+
+  - id: restored-and-staged
+    objective: restoration-recorded
+    when:
+      - type: file_staged
+        file: docs/deploy.md
+    hints:
+      - The checklist is staged, so one commit is all that is missing.
+      - Record it with the message the mission names.

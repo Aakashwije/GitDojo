@@ -83,3 +83,30 @@ hints:
   stage-style:
     - "`.` means the current folder, including everything inside it."
     - Run `git add .`, then `git status` to confirm nothing is left.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: index-staged-first
+    objective: stage-readme
+    when:
+      - type: file_staged
+        file: index.js
+      - type: file_status
+        file: README.md
+        status: untracked
+    hints:
+      - "`index.js` is staged already, and it will count for the next step. This step is about `README.md`, which is still untracked."
+      - Stage `README.md` with `git add`, the same way you staged `index.js`.
+      - Run `git add README.md`.
+
+  - id: style-staged-first
+    objective: stage-index
+    when:
+      - type: file_staged
+        file: style.css
+      - type: file_status
+        file: index.js
+        status: untracked
+    hints:
+      - "`style.css` is staged already, so the last step is done early. This step is about `index.js`, which is still untracked."
+      - Run `git add index.js`.

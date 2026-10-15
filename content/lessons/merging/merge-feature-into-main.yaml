@@ -92,3 +92,30 @@ hints:
   merged:
     - "`main` has not moved, so this will be a fast-forward."
     - Run `git merge feature/search`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: branch-created-not-switched
+    objective: on-feature
+    when:
+      - type: branch_exists
+        branch: feature/search
+      - type: current_branch
+        branch: main
+    hints:
+      - "`feature/search` exists, but HEAD is still on `main`: `git branch` creates a branch without switching to it."
+      - "`git switch` moves HEAD to it, so the next commit lands there."
+      - Run `git switch feature/search`.
+
+  - id: commit-shared-with-main
+    objective: committed
+    when:
+      - type: branch_points_to_commit
+        branch: feature/search
+        sameAs: main
+      - type: commit_count
+        count: 3
+    hints:
+      - The new commit is on `main` as well as `feature/search`, because it was made on `main` before the branch existed.
+      - Undoing a commit on `main` comes in a later lesson. Start over with **Reset** in the top bar, and switch to the new branch before committing.
+      - After resetting, run `git switch -c feature/search`, then `git add search.js` and `git commit -m "Add city search"`.

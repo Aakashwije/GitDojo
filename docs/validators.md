@@ -56,22 +56,27 @@ validator:
 
 ### Merge validators
 
-| Type                     | Fields                | Passes when                                                                           |
-| ------------------------ | --------------------- | ------------------------------------------------------------------------------------- |
-| `branches_merged`        | `branch`, `into?`     | `branch`'s tip is reachable from `into` (default: the current branch).                |
-| `merge_commit_exists`    | `branch?`, `message?` | A commit with two or more parents is in `branch`'s history (default: HEAD).           |
-| `branch_contains_commit` | `branch`, `message`   | A commit with exactly `message` is in `branch`'s history.                             |
-| `conflict_exists`        | `file?`               | A merge is in progress with a conflict (in `file`, if given).                         |
-| `conflict_resolved`      | `file`                | The conflict in `file` has had its markers removed and been staged with `git add`.    |
-| `all_conflicts_resolved` | –                     | A merge is in progress, it has conflicts, and every one is resolved.                  |
-| `merge_completed`        | `branch?`             | No merge is in progress and HEAD's history has a merge commit (with `branch` merged). |
+| Type                      | Fields                | Passes when                                                                           |
+| ------------------------- | --------------------- | ------------------------------------------------------------------------------------- |
+| `branches_merged`         | `branch`, `into?`     | `branch`'s tip is reachable from `into` (default: the current branch).                |
+| `merge_commit_exists`     | `branch?`, `message?` | A commit with two or more parents is in `branch`'s history (default: HEAD).           |
+| `branch_contains_commit`  | `branch`, `message`   | A commit with exactly `message` is in `branch`'s history.                             |
+| `conflict_exists`         | `file?`               | A merge is in progress with a conflict (in `file`, if given).                         |
+| `conflict_resolved`       | `file`                | The conflict in `file` has had its markers removed and been staged with `git add`.    |
+| `conflict_ready_to_stage` | `file`                | `file` is still in conflict, but its working-tree text has no marker lines left.      |
+| `all_conflicts_resolved`  | –                     | A merge is in progress, it has conflicts, and every one is resolved.                  |
+| `merge_completed`         | `branch?`             | No merge is in progress and HEAD's history has a merge commit (with `branch` merged). |
 
 `branches_merged` passes for fast-forwards and merge commits alike; pair it with
 `branch_points_to_commit` (`sameAs`) or `merge_commit_exists` to require one or the other.
 `merge_completed` needs a merge commit, so a fast-forward does not count. Conflict validators
 describe the operation in progress (a merge, or a revert, cherry-pick or rebase step stopped for
 conflicts): once it is committed they stop passing, which is fine because progress is sticky.
-`clean_worktree` fails while any such operation is in progress.
+`clean_worktree` fails while any such operation is in progress. `conflict_ready_to_stage` exists
+for [adaptive hints](./lesson-authoring.md#adaptive-hints): it passes while a learner has edited
+the markers out of a conflicted file but not staged it yet, and stops passing once `git add` marks
+the conflict resolved. A marker is a line that starts with seven `<`, `=` or `>`, the same rule
+`git add` uses to refuse a file.
 
 ### Recovery validators
 
@@ -99,13 +104,24 @@ validator:
 ## API
 
 ```ts
-import { validateLesson, validateObjective } from "@gitdojo/validator";
+import {
+  evaluateAdaptiveHints,
+  evaluateTips,
+  validateLesson,
+  validateObjective,
+} from "@gitdojo/validator";
 
 const result = await validateObjective(objective, { repository });
 // { passed: false, reason: "README.md is not staged." }
 
 const lessonResult = await validateLesson(lesson, { repository });
 // { lessonId, objectives: [{ objectiveId, passed, reason? }], passedCount, totalCount, completed }
+
+const tips = await evaluateTips(lesson.tips ?? [], { repository });
+// ids of the tips whose every condition holds, in authored order
+
+const rule = await evaluateAdaptiveHints(lesson.adaptiveHints ?? [], "commit-rest", { repository });
+// id of the first rule for that objective whose every condition holds, or null
 ```
 
 Validation never rejects. A handler that throws counts as not passed, and the error is logged.

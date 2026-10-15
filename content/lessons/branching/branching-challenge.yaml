@@ -90,3 +90,53 @@ hints:
     - Where does HEAD point right now? The graph and `git status` both tell you.
   clean:
     - "`git status` shows whether anything is left over."
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: committed-on-main-first
+    objective: branch
+    when:
+      - type: current_branch
+        branch: main
+      - type: commit_count
+        count: 3
+      - type: branch_not_exists
+        branch: feature/search
+    hints:
+      - "`main` has a new commit: a commit lands on whichever branch HEAD points to. The mission needs `main` to stay at **Add homepage**."
+      - Starting over with **Reset** is the simplest way back. This time give the work its own branch, and move HEAD there, before committing.
+
+  - id: commit-shared-with-main
+    objective: commit
+    when:
+      - type: branch_points_to_commit
+        branch: feature/search
+        sameAs: main
+      - type: commit_count
+        count: 3
+    hints:
+      - The new commit is on `main` as well as `feature/search`, because it was made on `main` before the branch existed.
+      - Starting over with **Reset** is the simplest way back. This time move HEAD to the new branch before committing.
+
+  - id: committed-on-main-after-branching
+    objective: commit
+    when:
+      - type: current_branch
+        branch: main
+      - type: branch_points_to_commit
+        branch: feature/search
+        message: Add homepage
+      - type: commit_count
+        count: 3
+    hints:
+      - "`feature/search` exists, but the new commit went onto `main`: creating a branch does not move HEAD to it."
+      - Starting over with **Reset** is the simplest way back. This time move HEAD to `feature/search` before committing.
+
+  - id: still-on-feature
+    objective: on-main
+    when:
+      - type: current_branch
+        branch: feature/search
+    hints:
+      - The search commit is safe on `feature/search`, and HEAD is still there. The mission ends on `main`.
+      - The command that moved HEAD to the feature branch moves it back too.

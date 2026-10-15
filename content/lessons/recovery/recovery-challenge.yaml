@@ -86,3 +86,23 @@ hints:
     - Bringing an entry back does not always remove it from the list.
   clean:
     - Check the status for anything left over.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: export-popped-not-committed
+    objective: export
+    when:
+      - type: file_status
+        file: src/app.js
+        status: modified
+    hints:
+      - The export edit is back in the working tree, but it is not committed yet. The mission wants it in a commit named `Add export button`.
+      - Stage it and record it with exactly that message.
+
+  - id: applied-not-dropped
+    objective: stash-empty
+    when:
+      - type: stash_count
+        count: 1
+    hints:
+      - Your work is committed, but its stash entry is still in the list. Applying an entry keeps it; it needs removing separately.

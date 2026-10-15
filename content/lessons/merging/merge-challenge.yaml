@@ -108,3 +108,23 @@ hints:
     - The graph shows where HEAD is.
   clean:
     - "`git status` shows whether anything is left over."
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: on-profile-branch
+    objective: profile-merged
+    when:
+      - type: current_branch
+        branch: feature/profile
+    hints:
+      - HEAD is on `feature/profile`. A merge brings work into the branch you are on, and `main` is the one receiving it.
+      - Move HEAD back to `main` before merging anything.
+
+  - id: on-typo-branch
+    objective: typo-merged
+    when:
+      - type: current_branch
+        branch: bugfix/typo
+    hints:
+      - HEAD is on `bugfix/typo`. A merge brings work into the branch you are on, and `main` is the one receiving it.
+      - Move HEAD back to `main` before merging anything.

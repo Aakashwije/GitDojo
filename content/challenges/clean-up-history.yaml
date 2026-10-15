@@ -129,3 +129,40 @@ tips:
       `Add search` is on the branch, but `wip` is still in its history too. Squashing means the
       messy commits are no longer part of the branch at all; a one-line log shows which commits it
       still reaches.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: squashed-and-staged
+    objective: squashed
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_staged
+        file: src/search.js
+    hints:
+      - The branch is back at `Initial commit` and the final search code is staged, so one commit is all that is missing.
+      - Record what is staged, with the message the mission names.
+
+  - id: squashed-but-unstaged
+    objective: squashed
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_status
+        file: src/search.js
+        status: untracked
+    hints:
+      - The branch is back at `Initial commit` and the final search code is in the working tree, but not staged.
+      - Stage it, then record a single commit with the message the mission names.
+
+  - id: not-back-far-enough
+    objective: squashed
+    when:
+      - type: branch_contains_commit
+        branch: feature/search
+        message: wip
+      - type: commit_count
+        count: 2
+    hints:
+      - The branch moved back to `wip`, not to `Initial commit`, so `wip` would stay in the history.
+      - Move it back one commit further, keeping the changes, and the messy commits are all gone.

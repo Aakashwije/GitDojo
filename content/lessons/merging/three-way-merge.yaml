@@ -113,3 +113,17 @@ hints:
     - Run `git merge feature/login`.
   merge-commit:
     - Run `git log --oneline`. The merge commit is at the top.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: merged-the-wrong-way
+    objective: on-main
+    when:
+      - type: current_branch
+        branch: feature/login
+      - type: merge_commit_exists
+        branch: feature/login
+    hints:
+      - "`feature/login` has a merge commit: `main` was merged into it, the opposite direction. A merge always brings work into the branch you are on."
+      - Switch to `main`, the receiving branch, and merge `feature/login` from there.
+      - Run `git switch main`, then `git merge feature/login`.

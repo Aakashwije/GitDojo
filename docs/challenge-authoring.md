@@ -80,6 +80,15 @@ tips: # optional; feedback for states that lead away from the mission (see "Mist
     text: >-
       You are on `main` and `fix/rounding` does not exist, so nothing points at the rounding work
       any more.
+
+adaptiveHints: # optional; hint ladders for stuck states (see "Adaptive hints")
+  - id: still-on-rescue-branch
+    objective: on-main
+    when:
+      - type: current_branch
+        branch: fix/rounding
+    hints:
+      - The rounding work is safe on `fix/rounding`, and HEAD is still there.
 ```
 
 Every challenge earns the same XP (100), awarded once; see [Local progress](progress.md#xp).
@@ -152,6 +161,40 @@ Content-sensitive tips can use `file_content` to describe an exact working-tree 
 history-editing tips can use `commit_changes` to match the exact paths changed by a named commit.
 They still must describe only the state those validators observe.
 
+## Adaptive hints
+
+Tips say what is _off_. Adaptive hints help a learner who is on the right track but stuck: the
+conflict is edited but not staged, the branch is back at the right commit but nothing is recorded
+yet. They work exactly as in [lessons](./lesson-authoring.md#adaptive-hints): a rule names an
+objective, conditions and a hint ladder, and while that objective is current and every condition
+holds, the hint panel offers the ladder under **Based on your progress**.
+
+```yaml
+adaptiveHints:
+  - id: squashed-and-staged # unique, not an objective id; names the state
+    objective: squashed # only considered while this objective is current
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_staged
+        file: src/search.js
+    hints:
+      - The branch is back at `Initial commit` and the final search code is staged.
+      - Record what is staged, with the message the mission names.
+```
+
+In challenges the schema rejects any adaptive hint that names a command in backticks, at any
+level, so they point at concepts and at what to look at, like every other challenge text. Use tips
+for wrong turns and adaptive hints for stuck states, and do not write both for the same state.
+
+**Reachable, and gone once resolved.** Progress is sticky and ordered, so a condition can only
+help while its objective is the current one; check that the state can exist at that point (a rule
+on "draft restored" for a draft that is restored by the same step that completes it is never
+seen). `challenges.test.ts` requires every playable challenge to have at least one rule and every
+rule to have an entry in `STUCK`: steps that reach the state, where the rule must be the one
+offered, and steps out of it, after which it must not be. No rule may match when the challenge
+starts.
+
 ## Locked challenges
 
 `requires` lists the Git commands a challenge depends on, by name (`reset`, `stash`,
@@ -174,3 +217,5 @@ tests until then.
   objective that catches it (`file_not_tracked` before `clean_worktree`).
 - **Then explain the wrong route.** An objective that refuses to pass says _something_ is wrong;
   a [mistake tip](#mistake-tips) says what, in terms of the state the learner can see.
+- **And help the stuck.** Where learners commonly stall halfway, an
+  [adaptive hint](#adaptive-hints) meets them there without giving the command away.

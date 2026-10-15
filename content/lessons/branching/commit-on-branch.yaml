@@ -98,3 +98,56 @@ hints:
   back-to-main:
     - Run `git switch main`.
     - "`login.js` is committed on `feature/login`, so Git removes it while you are on `main`. Switch back and it returns."
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: committed-on-main-first
+    objective: on-feature
+    when:
+      - type: current_branch
+        branch: main
+      - type: commit_count
+        count: 3
+      - type: branch_not_exists
+        branch: feature/login
+    hints:
+      - "`main` has a new commit: a commit lands on the branch HEAD points to, and that was `main`. This lesson needs `main` to stay at **Add homepage**."
+      - Moving `main` back takes a command from a later lesson. Start over with **Reset** in the top bar, and create the branch before committing.
+      - After resetting, run `git switch -c feature/login`, then `git add login.js` and `git commit -m "Add login page"`.
+
+  - id: branch-created-not-switched
+    objective: on-feature
+    when:
+      - type: branch_exists
+        branch: feature/login
+      - type: current_branch
+        branch: main
+    hints:
+      - "`feature/login` exists, but HEAD is still on `main`: `git branch` creates a branch without switching to it."
+      - "`git switch` moves HEAD to it, so the next commit lands there."
+      - Run `git switch feature/login`.
+
+  - id: commit-shared-with-main
+    objective: commit-login
+    when:
+      - type: branch_points_to_commit
+        branch: feature/login
+        sameAs: main
+      - type: commit_count
+        count: 3
+    hints:
+      - The new commit is on `main` as well as `feature/login`, because it was made on `main` before the branch existed. This lesson needs `main` to stay at **Add homepage**.
+      - Moving `main` back takes a command from a later lesson. Start over with **Reset** in the top bar, and switch to the new branch before committing.
+      - After resetting, run `git switch -c feature/login`, then `git add login.js` and `git commit -m "Add login page"`.
+
+  - id: login-staged-not-committed
+    objective: commit-login
+    when:
+      - type: current_branch
+        branch: feature/login
+      - type: file_staged
+        file: login.js
+    hints:
+      - "`login.js` is staged on `feature/login`. Only a commit puts it in the branch's history."
+      - "`git commit -m` records it on the branch HEAD points to: `feature/login`."
+      - Run `git commit -m "Add login page"`.

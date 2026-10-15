@@ -91,3 +91,25 @@ hints:
   fast-forward:
     - Run `git log --oneline` and look at the labels on the newest commit.
     - If you used `--no-ff`, Git made a merge commit instead. Reset the lesson and merge without it.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: on-feature-branch
+    objective: merged
+    when:
+      - type: current_branch
+        branch: feature/login
+    hints:
+      - HEAD is on `feature/login`. A merge brings work into the branch you are on, and here `main` receives it.
+      - Switch back to `main`, then merge from there.
+      - Run `git switch main`, then `git merge feature/login`.
+
+  - id: merge-commit-made
+    objective: fast-forward
+    when:
+      - type: merge_commit_exists
+        branch: main
+    hints:
+      - "`main` has a merge commit, so it no longer points at the same commit as `feature/login`. That happens with `--no-ff`; without it, Git simply moves `main` forward."
+      - The merge is local, so `git reset --hard` can move `main` back to before it.
+      - Run `git reset --hard HEAD~1`, then `git merge feature/login`.

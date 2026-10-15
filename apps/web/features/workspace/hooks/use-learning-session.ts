@@ -27,7 +27,9 @@ export interface LearningSessionControls {
 
 function publish(snapshot: SessionSnapshot): void {
   useRepositoryStore.getState().setRepositoryState(snapshot.repository);
-  useLessonStore.getState().applyEvaluation(snapshot.validation, snapshot.progress, snapshot.tips);
+  useLessonStore
+    .getState()
+    .applyEvaluation(snapshot.validation, snapshot.progress, snapshot.tips, snapshot.adaptiveHint);
 }
 
 function describe(error: unknown): string {

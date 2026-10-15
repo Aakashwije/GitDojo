@@ -101,3 +101,17 @@ tips:
       `feature/notifications` contains a merge commit. The requested history is a straight line
       from the current `main` through the two notification commits, with no join commit between
       them.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: on-main
+    objective: rebased
+    when:
+      - type: current_branch
+        branch: main
+      - type: branch_points_to_commit
+        branch: main
+        message: Update production region
+    hints:
+      - HEAD is on `main`. Replaying commits moves the branch you are on, and `main` has to stay where it is.
+      - Go back to the feature branch, then give its commits the newest `main` as their base.

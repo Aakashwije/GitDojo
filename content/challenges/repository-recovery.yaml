@@ -142,3 +142,25 @@ tips:
     text: >-
       `Add dark mode` is committed, but the stash still holds an entry. Bringing shelved work back
       and taking it off the list are two different things, and the stash list shows what is left.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: detached-at-pdfs
+    objective: pdfs
+    when:
+      - type: head_detached
+    hints:
+      - HEAD is on a commit directly, with no branch, so `main` has not moved. The mission wants `main` itself back at the PDFs commit.
+      - Go back to `main`, then move it to the position the record of HEAD's history shows before the reset.
+
+  - id: dark-mode-not-committed
+    objective: dark-mode
+    when:
+      - type: stash_count
+        count: 0
+      - type: file_status
+        file: src/theme.css
+        status: modified
+    hints:
+      - The dark mode edit is back in the working tree, but not committed yet. The mission wants it in a commit named `Add dark mode`.
+      - Stage it and record it with exactly that message.

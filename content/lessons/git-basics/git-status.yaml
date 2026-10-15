@@ -105,3 +105,30 @@ hints:
     - Staged changes stay in the staging area until you commit them.
     - Every commit needs a message, given with `-m`.
     - Run `git commit -m "Update README and add todo list"`, then `git status`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: untracked-staged-first
+    objective: stage-modified
+    when:
+      - type: file_staged
+        file: todo.txt
+      - type: file_status
+        file: README.md
+        status: modified
+    hints:
+      - "`todo.txt` is staged already, and it will count for the next step. This step is about `README.md`, the tracked file listed under **Changes not staged for commit**."
+      - A modified file is staged with `git add`, exactly like a new one.
+      - Run `git add README.md`.
+
+  - id: both-staged-not-committed
+    objective: clean
+    when:
+      - type: file_staged
+        file: README.md
+      - type: file_staged
+        file: todo.txt
+    hints:
+      - Both changes are staged. `git status` lists them under **Changes to be committed** until a commit records them.
+      - "`git commit` with a message after `-m` empties the staging area into a new commit."
+      - Run `git commit -m "Update README and add todo list"`, then `git status`.

@@ -43,6 +43,8 @@ execute(input)
   → stateReader.read(workspace)  normalized RepositoryState
   → validateLesson(lesson)       current pass/fail per objective
   → advanceProgress(...)         sticky progress (see below)
+  → evaluateTips(...)            tips whose conditions hold right now
+  → evaluateAdaptiveHints(...)   the adaptive hint rule for the current objective, if any
   → { result, snapshot }         published to the stores; the terminal prints the result
 ```
 
@@ -143,6 +145,30 @@ challenge schemas, and provides pure state functions (`createHintState`, `reveal
 panel labels each hint's level, asks before showing an answer, and shows the current
 objective's validator `reason` as "Not yet: ...". The completion card reports how many hints were
 used.
+
+**Adaptive hints** are ladders authored for specific stuck states, in lessons and challenges
+([lesson-authoring.md](./lesson-authoring.md#adaptive-hints),
+[challenge-authoring.md](./challenge-authoring.md#adaptive-hints)). Challenges reach the lesson
+workspace through `toLessonDefinition`, so the same flow runs them. They reuse the validators, so they
+read repository state only, never command text, and nothing leaves the browser:
+
+```text
+snapshot → LearningSession.evaluate
+             progress.currentObjectiveId ─┐
+             lesson.adaptiveHints ────────┼→ evaluateAdaptiveHints (pure; @gitdojo/validator)
+             repository state ────────────┘        first matching rule for that objective, or null
+         → SessionSnapshot.adaptiveHint = { lessonId, objectiveId, ruleId } | null
+         → useLessonStore.applyEvaluation   replaced on every snapshot, cleared on reset/new lesson
+         → LessonPanel                      shown only if lessonId and objectiveId are still current
+         → HintPanel "Based on your progress"   in place of "Not yet: ..."
+```
+
+The recommendation is recomputed from scratch after every step, like tips, so it disappears as
+soon as its state stops holding. Because it carries the lesson and objective it was computed for,
+the panel never shows a stale result for a lesson or objective the learner has moved past. Its
+ladder has its own `HintState`, keyed by the rule id (the schema keeps rule ids apart from
+objective ids), so revealed adaptive hints count towards "hints used" and are recorded in progress
+as `<rule id>#<index>`, the same shape as objective hints.
 
 ## Packages
 

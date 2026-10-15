@@ -94,6 +94,30 @@ export interface LessonTip {
   text: string;
 }
 
+/**
+ * A hint ladder for one objective that is offered only while a specific state holds, e.g. "the
+ * file is staged but not committed yet". Like tips, rules read repository state, never the
+ * commands typed, and are re-evaluated after every action: the suggestion disappears as soon as
+ * its conditions stop holding.
+ */
+export interface AdaptiveHintRule {
+  /** Unique within the lesson, and different from every objective id. */
+  id: string;
+  /** The objective this rule helps with; it is only considered while that objective is current. */
+  objective: string;
+  /** Every condition must pass for the rule to match. */
+  when: ValidatorDefinition[];
+  /** Ordered from vague to explicit, like {@link LessonDefinition.hints}. */
+  hints: LessonHintInput[];
+}
+
+/** The adaptive hint rule matching the current state, for the objective that was current then. */
+export interface AdaptiveHintRecommendation {
+  lessonId: string;
+  objectiveId: string;
+  ruleId: string;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Visual content for concept lessons (and optional extra material in interactive lessons)
 // ---------------------------------------------------------------------------------------------
@@ -175,6 +199,11 @@ export interface LessonDefinition {
   hints?: Record<string, LessonHintInput[]>;
   /** Feedback for states that lead away from the goal; the first matching one is shown. */
   tips?: LessonTip[];
+  /**
+   * Hint ladders for specific states the learner can get stuck in; for the current objective, the
+   * first matching rule is offered next to its regular hints.
+   */
+  adaptiveHints?: AdaptiveHintRule[];
   /** Code editor settings for hands-on lessons. */
   editor?: LessonEditorSettings;
 }
@@ -279,6 +308,8 @@ export interface ChallengeDefinition {
   hints?: Record<string, LessonHintInput[]>;
   /** Feedback for states that lead away from the mission; the first matching one is shown. */
   tips?: LessonTip[];
+  /** Hint ladders for specific stuck states. Like `hints`, they never name the command. */
+  adaptiveHints?: AdaptiveHintRule[];
 }
 
 /** What the challenge browser needs, without setup or objectives. */

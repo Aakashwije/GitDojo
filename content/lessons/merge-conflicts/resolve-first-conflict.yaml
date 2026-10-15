@@ -107,3 +107,39 @@ hints:
   completed:
     - Every conflict is resolved; only the merge commit is missing.
     - Run `git commit`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: edited-not-staged
+    objective: resolved
+    when:
+      - type: conflict_ready_to_stage
+        file: src/auth.ts
+    hints:
+      - The markers are gone from `src/auth.ts`, but Git still lists it as conflicted. Git treats a conflict as settled only once the file is staged.
+      - Mark the file as resolved the same way you stage any change, with `git add`.
+      - Run `git add src/auth.ts`.
+
+  - id: merge-stopped-before-resolving
+    objective: resolved
+    when:
+      - type: clean_worktree
+      - type: commit_not_on_branch
+        branch: main
+        message: Extend session timeout
+    hints:
+      - No merge is in progress any more, so there is no conflict to resolve. Was it aborted?
+      - Start the same merge again. Git stops at the same conflict.
+      - Run `git merge feature/login`.
+
+  - id: merge-stopped-before-committing
+    objective: completed
+    when:
+      - type: clean_worktree
+      - type: commit_not_on_branch
+        branch: main
+        message: Extend session timeout
+    hints:
+      - No merge is in progress any more, so `main` does not have the work from `feature/login`. Was the merge aborted?
+      - Start the same merge again, then resolve the conflict and stage it once more before committing.
+      - Run `git merge feature/login`.

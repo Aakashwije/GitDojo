@@ -97,3 +97,34 @@ tips:
     text: >-
       History has two commits; the mission asks for a single one holding the site. Everything that
       belongs in that snapshot has to be in the staging area together before it is recorded.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: log-staged
+    objective: site-committed
+    when:
+      - type: file_staged
+        file: debug.log
+    hints:
+      - "`debug.log` is staged, so the next commit would record it for good."
+      - Take it back out of the staging area before recording anything; the file itself stays on disk.
+
+  - id: ignore-file-not-committed
+    objective: clean
+    when:
+      - type: file_status
+        file: .gitignore
+        status: untracked
+    hints:
+      - "`.gitignore` exists, but it is itself a new, untracked file, so the working tree is not clean yet."
+      - It belongs to the project like any other file, so record it too. Next time, create it before the first commit, so the site and its ignore rules arrive in one snapshot.
+
+  - id: log-still-reported
+    objective: clean
+    when:
+      - type: file_status
+        file: debug.log
+        status: untracked
+    hints:
+      - "`debug.log` is untracked but still reported, so the working tree is not clean."
+      - Leaving a file out is not the same as ignoring it. Git reads a list of paths to stop reporting from a special file at the top of the project.
