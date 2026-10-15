@@ -25,6 +25,16 @@ if (pullRequestNumbers.length === 0) {
   throw new Error("GitHub generated no pull request links; cannot collect learner release notes.");
 }
 
+function removeHtmlComments(input) {
+  let previous;
+  let current = input;
+  do {
+    previous = current;
+    current = current.replace(/<!--[\s\S]*?-->/g, "");
+  } while (current !== previous);
+  return current;
+}
+
 const highlights = [];
 const missingNotes = [];
 for (const number of pullRequestNumbers) {
@@ -44,10 +54,9 @@ for (const number of pullRequestNumbers) {
 
   const start = heading.index + heading[0].length;
   const nextHeading = /^#{1,6}[ \t]+/m.exec(body.slice(start));
-  const section = body
-    .slice(start, nextHeading ? start + nextHeading.index : undefined)
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .trim();
+  const section = removeHtmlComments(
+    body.slice(start, nextHeading ? start + nextHeading.index : undefined),
+  ).trim();
 
   if (/^(?:[-*+]\s*)?(?:none|no learner-facing change)\.?$/i.test(section)) continue;
 
