@@ -799,11 +799,14 @@ describe("adaptive hints", async () => {
     expect(Object.keys(STUCK).sort()).toEqual(rules.map(({ key }) => key).sort());
   });
 
-  it("never offers a rule at the start of a lesson", async () => {
-    for (const lesson of new Set(rules.map(({ lesson: owner }) => owner))) {
-      expect(await offeredAfter(lesson, []), lesson.id).toBeNull();
-    }
-  });
+  // One case per lesson: setting each one up takes a while, so they get a timeout each.
+  const withRules = lessons.filter((lesson) => (lesson.adaptiveHints ?? []).length > 0);
+  it.each(withRules.map((lesson) => [lesson.id, lesson] as const))(
+    "%s offers no rule at the start",
+    async (_id, lesson) => {
+      expect(await offeredAfter(lesson, [])).toBeNull();
+    },
+  );
 
   it("never gives a challenge's command away", () => {
     for (const { key, lesson, rule } of rules) {

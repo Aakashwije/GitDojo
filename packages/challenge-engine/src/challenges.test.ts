@@ -902,11 +902,14 @@ describe("adaptive hints in content", async () => {
     expect(Object.keys(STUCK).sort()).toEqual(rules.map(({ key }) => key).sort());
   });
 
-  it("never offers a rule at the start of a challenge", async () => {
-    for (const lesson of new Set(rules.map(({ lesson: owner }) => owner))) {
-      expect(await offeredAfter(lesson, []), lesson.id).toBeNull();
-    }
-  });
+  // One case per challenge: setting each one up takes a while, so they get a timeout each.
+  const withRules = challenges.filter((challenge) => (challenge.adaptiveHints ?? []).length > 0);
+  it.each(withRules.map((challenge) => [challenge.id, toLessonDefinition(challenge)] as const))(
+    "%s offers no rule at the start",
+    async (_id, lesson) => {
+      expect(await offeredAfter(lesson, [])).toBeNull();
+    },
+  );
 
   it.each(rules.map(({ key, lesson, rule }) => [key, lesson, rule.id] as const))(
     "%s is offered in its stuck state and gone once it is resolved",
