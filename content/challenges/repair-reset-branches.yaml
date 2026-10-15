@@ -86,3 +86,14 @@ tips:
       `feature/checkout` now contains `Add product filters`, while `feature/catalog` still does
       not. The recovered catalog work belongs at the tip of `feature/catalog`, and the checkout
       branch should remain at its own summary commit.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: on-checkout
+    objective: catalog-restored
+    when:
+      - type: current_branch
+        branch: feature/checkout
+    hints:
+      - HEAD is on `feature/checkout`. Moving a branch moves the one you are on, and the damaged branch is `feature/catalog`.
+      - Go back to `feature/catalog` before moving anything.

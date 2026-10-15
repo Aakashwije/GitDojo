@@ -87,3 +87,37 @@ hints:
   stay-on-main:
     - Run `git branch`. The `*` shows which branch you are on.
     - If you switched to another branch, run `git switch main`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: bugfix-created-first
+    objective: create-feature
+    when:
+      - type: branch_exists
+        branch: bugfix/header
+      - type: branch_not_exists
+        branch: feature/login
+    hints:
+      - "`bugfix/header` exists already, and it will count for a later step. This step asks for `feature/login`."
+      - Create it the same way, with `git branch` and the name.
+      - Run `git branch feature/login`.
+
+  - id: switched-to-feature
+    objective: stay-on-main
+    when:
+      - type: current_branch
+        branch: feature/login
+    hints:
+      - HEAD is on `feature/login`. Creating a branch never moves HEAD, but switching does, and this lesson ends on `main`.
+      - "`git switch` moves HEAD back to the branch you name."
+      - Run `git switch main`.
+
+  - id: switched-to-bugfix
+    objective: stay-on-main
+    when:
+      - type: current_branch
+        branch: bugfix/header
+    hints:
+      - HEAD is on `bugfix/header`. Creating a branch never moves HEAD, but switching does, and this lesson ends on `main`.
+      - "`git switch` moves HEAD back to the branch you name."
+      - Run `git switch main`.

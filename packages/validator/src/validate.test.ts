@@ -1,5 +1,6 @@
 import {
   EMPTY_REPOSITORY_STATE,
+  type AdaptiveHintRule,
   type CommitState,
   type LessonObjective,
   type LessonTip,
@@ -10,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { validatorRegistry } from "./registry";
 import { validatorDefinitionSchema } from "./schema";
 import { type ValidatorRegistry } from "./types";
-import { evaluateTips, validateLesson, validateObjective } from "./validate";
+import { evaluateAdaptiveHints, evaluateTips, validateLesson, validateObjective } from "./validate";
 
 function commit(message: string, oid = "a".repeat(40)): CommitState {
   return {
@@ -504,6 +505,34 @@ describe("merge validators", () => {
     expect((await check({ type: "all_conflicts_resolved" }, resolved)).passed).toBe(true);
   });
 
+  it("conflict_ready_to_stage passes once the markers are edited out, until staged", async () => {
+    const markers = "<<<<<<< HEAD\ntimeout = 15;\n=======\ntimeout = 60;\n>>>>>>> feature/login\n";
+    const editing = (content: string) =>
+      state({
+        ...conflicted,
+        conflicts: conflicted.conflicts.map((conflict) => ({ ...conflict, resolved: false })),
+        files: [
+          { path: "src/auth.ts", status: "conflicted", content },
+          { path: "src/config.ts", status: "conflicted", content: markers },
+        ],
+      });
+    const definition = { type: "conflict_ready_to_stage", file: "src/auth.ts" } as const;
+    expect(await check(definition, editing(markers))).toEqual({
+      passed: false,
+      reason: "src/auth.ts still contains conflict markers.",
+    });
+    expect((await check(definition, editing("timeout = 60;\n"))).passed).toBe(true);
+    // Text that merely contains a marker-like run is not a marker line.
+    expect((await check(definition, editing("// a <<<<<<< b\n"))).passed).toBe(true);
+    expect((await check(definition, before)).reason).toBe("src/auth.ts is not in conflict.");
+    // Once staged, the conflict is resolved and there is nothing left to stage.
+    const staged = state({ ...editing("timeout = 60;\n"), conflicts: conflicted.conflicts });
+    expect(await check(definition, staged)).toEqual({
+      passed: false,
+      reason: "src/auth.ts is already resolved and staged.",
+    });
+  });
+
   it("merge_completed needs the merge committed", async () => {
     expect((await check({ type: "merge_completed" }, conflicted)).reason).toMatch(/in progress/);
     expect((await check({ type: "merge_completed" }, before)).passed).toBe(false);
@@ -591,6 +620,7 @@ describe("validatorDefinitionSchema", () => {
       { type: "conflict_exists" },
       { type: "conflict_exists", file: "src/auth.ts" },
       { type: "conflict_resolved", file: "src/auth.ts" },
+      { type: "conflict_ready_to_stage", file: "src/auth.ts" },
       { type: "all_conflicts_resolved" },
       { type: "merge_completed" },
       { type: "merge_completed", branch: "feature" },
@@ -613,6 +643,7 @@ describe("validatorDefinitionSchema", () => {
     { type: "branch_points_to_commit", branch: "main", message: "x", sameAs: "dev" },
     { type: "branch_contains_commit", branch: "main" },
     { type: "conflict_resolved" },
+    { type: "conflict_ready_to_stage" },
     { type: "branches_merged" },
   ])("rejects %j", (definition) => {
     expect(validatorDefinitionSchema.safeParse(definition).success).toBe(false);
@@ -774,5 +805,73 @@ describe("evaluateTips", () => {
         exploding,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("evaluateAdaptiveHints", () => {
+  const rule = (id: string, objective: string, when: ValidatorDefinition[]): AdaptiveHintRule => ({
+    id,
+    objective,
+    when,
+    hints: [id],
+  });
+  const staged = state({
+    files: [{ path: "README.md", status: "staged" }],
+    stagedFiles: [{ path: "README.md", status: "staged", change: "added" }],
+  });
+  const readmeStaged: ValidatorDefinition = { type: "file_staged", file: "README.md" };
+
+  it("returns the matching rule for the objective", async () => {
+    const rules = [rule("staged-not-committed", "commit", [readmeStaged])];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: staged })).toBe(
+      "staged-not-committed",
+    );
+  });
+
+  it("returns null when no rule matches, or there are none", async () => {
+    const rules = [rule("staged-not-committed", "commit", [readmeStaged])];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: state() })).toBeNull();
+    expect(await evaluateAdaptiveHints([], "commit", { repository: staged })).toBeNull();
+  });
+
+  it("needs every condition to pass", async () => {
+    const rules = [rule("both", "commit", [readmeStaged, { type: "head_detached" }])];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: staged })).toBeNull();
+  });
+
+  it("prefers the first matching rule in authored order", async () => {
+    const rules = [
+      rule("not-matching", "commit", [{ type: "head_detached" }]),
+      rule("specific", "commit", [readmeStaged, { type: "repository_initialized" }]),
+      rule("general", "commit", [{ type: "repository_initialized" }]),
+    ];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: staged })).toBe("specific");
+  });
+
+  it("only considers rules for the given objective", async () => {
+    const rules = [rule("other", "stage", [readmeStaged])];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: staged })).toBeNull();
+    expect(await evaluateAdaptiveHints(rules, "stage", { repository: staged })).toBe("other");
+  });
+
+  it("stops matching once the state changes", async () => {
+    const rules = [rule("staged-not-committed", "commit", [readmeStaged])];
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: staged })).not.toBeNull();
+    const committed = state({ files: [{ path: "README.md", status: "committed" }] });
+    expect(await evaluateAdaptiveHints(rules, "commit", { repository: committed })).toBeNull();
+  });
+
+  it("treats a condition that cannot be checked as not matching", async () => {
+    const exploding: ValidatorRegistry = {
+      ...validatorRegistry,
+      file_staged: () => {
+        throw new Error("boom");
+      },
+    };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const rules = [rule("r", "commit", [readmeStaged])];
+    expect(
+      await evaluateAdaptiveHints(rules, "commit", { repository: staged }, exploding),
+    ).toBeNull();
   });
 });

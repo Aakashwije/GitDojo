@@ -128,3 +128,25 @@ tips:
       Your price rework is back, but the stash still holds an entry. Bringing shelved work back
       and taking it off the list are two different things, and the stash list shows what is still
       held.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: rework-committed
+    objective: hotfix-merged
+    when:
+      - type: current_branch
+        branch: main
+      - type: commit_count
+        count: 2
+    hints:
+      - The price rework was committed to `main`, which made switching possible but put unfinished work in the history. The mission keeps it uncommitted.
+      - Moving `main` back one commit while keeping the files undoes that; then put the work aside without a commit.
+
+  - id: on-hotfix-branch
+    objective: hotfix-merged
+    when:
+      - type: current_branch
+        branch: hotfix/rounding
+    hints:
+      - HEAD is on `hotfix/rounding`. A merge brings work into the branch you are on, and `release` is the one receiving the fix.
+      - Move HEAD to `release`, then merge from there.

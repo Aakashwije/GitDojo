@@ -110,3 +110,25 @@ hints:
   debug-left:
     - If you staged `src/config.js` too, take it back out of the staging area.
     - Run `git restore --staged src/config.js`, or reset the lesson and stage only the fix.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: debug-staged-too
+    objective: commit-fix
+    when:
+      - type: file_staged
+        file: src/config.js
+    hints:
+      - "`src/config.js` is staged next to the fix, so this commit would ship `debug = true`."
+      - "`git restore --staged` takes a file back out of the staging area and keeps the edit."
+      - Run `git restore --staged src/config.js`, then `git commit -m "Fix total for empty carts"`.
+
+  - id: debug-committed
+    objective: debug-left
+    when:
+      - type: file_committed
+        file: src/config.js
+    hints:
+      - The debugging change was committed together with the fix. This step wants it left uncommitted.
+      - "`git reset HEAD~1` undoes the last commit and keeps both edits in the working tree."
+      - Run `git reset HEAD~1`, then commit only the fix again with `git add src/price.js` and `git commit -m "Fix total for empty carts"`.

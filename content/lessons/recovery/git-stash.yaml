@@ -119,3 +119,41 @@ hints:
   stash-empty:
     - "`git stash pop` removes the entry it applied; `git stash apply` keeps it."
     - If you used `apply`, run `git stash drop`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: work-committed
+    objective: stashed
+    when:
+      - type: current_branch
+        branch: feature/profile
+      - type: commit_count
+        count: 3
+    hints:
+      - The unfinished edit was committed rather than stashed, so the feature branch now has a half-done commit.
+      - "`git reset HEAD~1` takes the commit back and leaves the edit in the working tree, ready to stash."
+      - Run `git reset HEAD~1`, then `git stash`.
+
+  - id: work-discarded
+    objective: stashed
+    when:
+      - type: current_branch
+        branch: feature/profile
+      - type: commit_count
+        count: 2
+      - type: clean_worktree
+      - type: stash_count
+        count: 0
+    hints:
+      - The working tree is clean and the stash is empty, so the unfinished edit was discarded, not put aside.
+      - It was never committed or stashed, so Git has no copy. **Reset** in the top bar brings it back.
+
+  - id: applied-not-dropped
+    objective: stash-empty
+    when:
+      - type: stash_count
+        count: 1
+    hints:
+      - Your edit is back, but the stash entry is still in the list. `git stash apply` keeps it; `git stash pop` removes it.
+      - "`git stash drop` removes the newest entry."
+      - Run `git stash drop`.

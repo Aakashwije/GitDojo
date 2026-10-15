@@ -88,3 +88,15 @@ tips:
       `main` now ends at `Add order export`, so the faulty commit has disappeared from the shared
       branch instead of being followed by a recorded correction. The mission preserves the
       existing history.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: wrong-commit-reverted
+    objective: faulty-change-reverted
+    when:
+      - type: commit_reverted
+        message: Add order export
+        branch: main
+    hints:
+      - The new undo commit reverses `Add order export`, which is valid work. The faulty change is the newest commit before it.
+      - A one-line log shows each message; undo that undo the same way, then undo the right one.

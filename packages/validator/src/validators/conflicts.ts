@@ -34,6 +34,35 @@ export const conflictResolved: ValidatorHandler<ValidatorOfType<"conflict_resolv
   );
 };
 
+// Same rule as the Git engine's `git add`: a marker is a whole line starting with seven of them.
+const CONFLICT_MARKER = /^(?:<{7}|={7}|>{7})(?: |$)/m;
+
+/**
+ * Passes while `file` is still in conflict but its markers have been edited out: the edit only
+ * needs staging. Together with `conflict_resolved`, it tells "edited, not staged yet" apart from
+ * "not edited yet" and "done".
+ */
+export const conflictReadyToStage: ValidatorHandler<ValidatorOfType<"conflict_ready_to_stage">> = (
+  { file },
+  { repository },
+) => {
+  const path = normalizeLessonPath(file);
+  const conflict = repository.conflicts.find((candidate) => candidate.path === path);
+  if (!conflict) return Promise.resolve({ passed: false, reason: `${path} is not in conflict.` });
+  if (conflict.resolved) {
+    return Promise.resolve({ passed: false, reason: `${path} is already resolved and staged.` });
+  }
+  const content = repository.files.find((candidate) => candidate.path === path)?.content;
+  if (content === undefined) {
+    return Promise.resolve({ passed: false, reason: `${path} is not in the working tree.` });
+  }
+  return Promise.resolve(
+    CONFLICT_MARKER.test(content)
+      ? { passed: false, reason: `${path} still contains conflict markers.` }
+      : { passed: true },
+  );
+};
+
 export const allConflictsResolved: ValidatorHandler<ValidatorOfType<"all_conflicts_resolved">> = (
   _definition,
   { repository },

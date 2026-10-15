@@ -105,3 +105,40 @@ tips:
       `Add analytics service` changes both the service and the guide, and the branch still has only
       two commits. The requested history records those paths in two focused commits, with the
       documentation second.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: taken-apart-unstaged
+    objective: service-focused
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_status
+        file: src/analytics.js
+        status: untracked
+    hints:
+      - The mixed commit is taken apart and both files are back in the working tree.
+      - Stage only the implementation first, and record it as `Add analytics service`.
+
+  - id: taken-apart-both-staged
+    objective: service-focused
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_staged
+        file: src/analytics.js
+      - type: file_staged
+        file: docs/analytics.md
+    hints:
+      - The mixed commit is taken apart, but both files are still staged, so a commit now would mix them again.
+      - Take the documentation back out of the staging area, then record the implementation alone.
+
+  - id: docs-left
+    objective: docs-focused
+    when:
+      - type: file_status
+        file: docs/analytics.md
+        status: untracked
+    hints:
+      - The implementation has its own commit. The documentation is the last change left.
+      - Stage it and record it as `Document analytics service`.

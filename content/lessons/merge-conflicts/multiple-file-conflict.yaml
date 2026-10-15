@@ -134,3 +134,59 @@ hints:
     - Run `git status` to check nothing is left under "Unmerged paths".
   completed:
     - Run `git commit`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: auth-edited-not-staged
+    objective: auth
+    when:
+      - type: conflict_ready_to_stage
+        file: src/auth.ts
+    hints:
+      - The markers are gone from `src/auth.ts`, but Git still lists it as conflicted until the file is staged.
+      - Mark it as resolved with `git add`, like any change.
+      - Run `git add src/auth.ts`.
+
+  - id: merge-stopped
+    objective: auth
+    when:
+      - type: clean_worktree
+      - type: commit_not_on_branch
+        branch: main
+        message: Add checkout settings
+    hints:
+      - No merge is in progress any more, so there are no conflicts to resolve. Was it aborted?
+      - Start the same merge again. Git stops at the same two conflicts.
+      - Run `git merge feature/checkout`.
+
+  - id: config-edited-not-staged
+    objective: config
+    when:
+      - type: conflict_ready_to_stage
+        file: src/config.ts
+    hints:
+      - The markers are gone from `src/config.ts`, but Git still lists it as conflicted until the file is staged.
+      - Mark it as resolved with `git add`, like any change.
+      - Run `git add src/config.ts`.
+
+  - id: config-still-conflicted
+    objective: config
+    when:
+      - type: conflict_resolved
+        file: src/auth.ts
+      - type: file_status
+        file: src/config.ts
+        status: conflicted
+    hints:
+      - "`src/auth.ts` is settled. `src/config.ts` still has its markers: a merge can stop for several files, and each needs its own decision."
+      - Open `src/config.ts` from the conflict banner, keep one `retries` line, save, and stage it with `git add`.
+      - After saving, run `git add src/config.ts`.
+
+  - id: all-resolved-not-committed
+    objective: completed
+    when:
+      - type: all_conflicts_resolved
+    hints:
+      - Every conflict is resolved, but the merge is still in progress until a commit records it.
+      - "`git commit` creates the merge commit; Git has prepared its message already."
+      - Run `git commit`.

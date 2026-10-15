@@ -23,6 +23,8 @@ export {
 export { formatIssue, parseLesson, validateLessonDefinition } from "./parse";
 export { advanceProgress, createInitialProgress, type LessonProgress } from "./progress";
 export {
+  adaptiveHintsSchema,
+  checkAdaptiveHints,
   checkObjectives,
   checkSetup,
   checkTips,

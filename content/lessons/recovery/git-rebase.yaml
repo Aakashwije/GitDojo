@@ -121,3 +121,28 @@ hints:
     - Run `git rebase main`.
   work-kept:
     - A rebase copies your commits; check them with `git log --oneline`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: merged-instead
+    objective: rebased
+    when:
+      - type: merge_commit_exists
+        branch: feature/search
+    hints:
+      - "`feature/search` has a merge commit, so its history is not a straight line. A rebase replays your commits instead of joining the branches."
+      - The merge is local, so `git reset --hard HEAD~1` can drop it before you rebase.
+      - Run `git reset --hard HEAD~1`, then `git rebase main`.
+
+  - id: on-main
+    objective: rebased
+    when:
+      - type: current_branch
+        branch: main
+      - type: branch_points_to_commit
+        branch: main
+        message: Fix XSS in comments
+    hints:
+      - HEAD is on `main`. A rebase moves the branch you are on, and here `feature/search` is the one to move.
+      - Switch back to the feature branch, then rebase it onto `main`.
+      - Run `git switch feature/search`, then `git rebase main`.

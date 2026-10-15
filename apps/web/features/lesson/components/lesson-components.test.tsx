@@ -179,6 +179,142 @@ describe("HintPanel", () => {
   });
 });
 
+describe("HintPanel adaptive hints", () => {
+  const hints = normalizeHints(["Stage first.", "Try `git add README.md`."]);
+  const adaptiveHints = normalizeHints([
+    "README.md is staged; only the commit is missing.",
+    "`git commit` records what is staged.",
+    'Run `git commit -m "Add README"`.',
+  ]);
+  const adaptive = (revealedHints: number, onReveal = vi.fn(), id = "staged-not-committed") => ({
+    id,
+    hints: adaptiveHints,
+    state: { objectiveId: id, revealedHints, totalHints: 3 },
+    onReveal,
+  });
+
+  it("offers a suggestion based on progress in place of the validator's reason", () => {
+    render(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={vi.fn()}
+        missing="No commit yet."
+        adaptive={adaptive(0)}
+      />,
+    );
+    const suggestion = screen.getByTestId("adaptive-hint");
+    expect(suggestion).toHaveAttribute("data-rule", "staged-not-committed");
+    expect(screen.getByRole("region", { name: "Based on your progress" })).toBe(suggestion);
+    expect(screen.getByRole("status")).toHaveTextContent("There is a hint for the state");
+    expect(screen.queryByTestId("hint-missing")).not.toBeInTheDocument();
+    // Nothing is given away until asked for, and the objective's own ladder is still there.
+    expect(screen.queryByTestId("adaptive-hint-step")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show a hint" })).toBeInTheDocument();
+  });
+
+  it("falls back to the validator's reason when no rule matches", () => {
+    const { rerender } = render(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={vi.fn()}
+        missing="No commit yet."
+        adaptive={adaptive(0)}
+      />,
+    );
+    rerender(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={vi.fn()}
+        missing="No commit yet."
+        adaptive={null}
+      />,
+    );
+    expect(screen.queryByTestId("adaptive-hint")).not.toBeInTheDocument();
+    expect(screen.getByTestId("hint-missing")).toHaveTextContent("Not yet: No commit yet.");
+  });
+
+  it("reveals its own ladder one step at a time, from the keyboard", async () => {
+    const onReveal = vi.fn();
+    const objectiveReveal = vi.fn();
+    const { rerender } = render(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={objectiveReveal}
+        adaptive={adaptive(0, onReveal)}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Show a hint based on your progress" });
+    button.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onReveal).toHaveBeenCalledOnce();
+    expect(objectiveReveal).not.toHaveBeenCalled();
+
+    rerender(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={objectiveReveal}
+        adaptive={adaptive(2, onReveal)}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Hint 2 of 3");
+    expect(screen.getAllByTestId("adaptive-hint-step").map((hint) => hint.dataset.level)).toEqual([
+      "1",
+      "2",
+    ]);
+    // The objective's ladder is untouched.
+    expect(screen.queryByTestId("hint")).not.toBeInTheDocument();
+  });
+
+  it("asks before revealing its exact command", async () => {
+    const onReveal = vi.fn();
+    render(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={vi.fn()}
+        adaptive={adaptive(2, onReveal)}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show the answer based on your progress" }),
+    );
+    expect(onReveal).not.toHaveBeenCalled();
+    const confirm = screen.getByRole("group", { name: "Show the answer?" });
+    expect(screen.getByTestId("adaptive-hint")).toContainElement(confirm);
+    await userEvent.click(screen.getByTestId("confirm-answer"));
+    expect(onReveal).toHaveBeenCalledOnce();
+  });
+
+  it("starts afresh when another rule takes over", async () => {
+    const { rerender } = render(
+      <HintPanel hints={hints} state={undefined} onReveal={vi.fn()} adaptive={adaptive(2)} />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show the answer based on your progress" }),
+    );
+    rerender(
+      <HintPanel
+        hints={hints}
+        state={undefined}
+        onReveal={vi.fn()}
+        adaptive={{ ...adaptive(0), id: "other-rule", state: undefined }}
+      />,
+    );
+    expect(screen.getByTestId("adaptive-hint")).toHaveAttribute("data-rule", "other-rule");
+    expect(screen.queryByRole("group", { name: "Show the answer?" })).not.toBeInTheDocument();
+  });
+
+  it("renders with an adaptive hint alone", () => {
+    render(<HintPanel hints={[]} state={undefined} onReveal={vi.fn()} adaptive={adaptive(0)} />);
+    expect(screen.getByTestId("hint-panel")).toBeInTheDocument();
+  });
+});
+
 describe("RichText", () => {
   it("renders paragraphs, inline code and bold text", () => {
     render(<RichText text={"Use `git add` to **stage**.\n\nSecond paragraph."} />);

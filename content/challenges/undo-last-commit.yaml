@@ -92,3 +92,59 @@ tips:
       `.gitignore` is there, but `secrets.env` is still tracked. Ignore rules only apply to files
       Git is not tracking yet; one that is already in history keeps being reported and committed
       whatever the rules say.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: secret-staged-again
+    objective: config-committed
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_staged
+        file: secrets.env
+    hints:
+      - History is back to one commit, but `secrets.env` is staged again, so the next commit would record the key once more.
+      - Take it back out of the staging area; the file itself stays on disk.
+
+  - id: config-loose
+    objective: config-committed
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_status
+        file: config.js
+        status: untracked
+    hints:
+      - The last commit is taken back, so `config.js` and `secrets.env` are both loose in the working tree.
+      - Record `config.js` without the key. A file telling Git to ignore `secrets.env` can go in the same commit, which keeps history at two.
+
+  - id: removal-staged
+    objective: clean
+    when:
+      - type: commit_count
+        count: 2
+      - type: file_staged
+        file: secrets.env
+    hints:
+      - "`secrets.env` is about to stop being tracked, but committing that would make a third commit and leave the key in `Add API config`."
+      - The commit holding the key itself has to be taken back, keeping its files.
+
+  - id: ignore-file-not-committed
+    objective: clean
+    when:
+      - type: file_status
+        file: .gitignore
+        status: untracked
+    hints:
+      - "`.gitignore` exists but is not committed, and committing it on its own would make a third commit."
+      - Take the last commit back again, keeping its files, and record `config.js` and `.gitignore` together.
+
+  - id: secret-still-reported
+    objective: clean
+    when:
+      - type: file_status
+        file: secrets.env
+        status: untracked
+    hints:
+      - "`secrets.env` is untracked but still reported, so the working tree is not clean."
+      - Git reads a list of paths to stop reporting from a special file at the top of the project, and it should be in the same commit as `config.js`.

@@ -83,3 +83,24 @@ hints:
     - Run `git status`. One file is still untracked.
     - Stage it, then commit it with a message of your own.
     - Run `git add index.js`, then `git commit -m "Add app entry point"`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: commit-with-other-message
+    objective: commit-readme
+    when:
+      - type: commit_exists
+    hints:
+      - There is a commit already, but its message is not exactly `Add README`. A commit cannot be changed once it is made, so this step is still open.
+      - Start this lesson again with **Reset** in the top bar, then stage `README.md` and commit it with `git commit -m` and the exact message.
+      - After resetting, run `git add README.md`, then `git commit -m "Add README"`.
+
+  - id: rest-staged-not-committed
+    objective: commit-rest
+    when:
+      - type: file_staged
+        file: index.js
+    hints:
+      - "`index.js` is staged, which only prepares it: it is not in the history until you commit."
+      - "`git commit` records everything that is staged. Give it a message of your own with `-m`."
+      - Run `git commit -m "Add app entry point"`.

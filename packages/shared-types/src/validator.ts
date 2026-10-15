@@ -46,6 +46,8 @@ export type ValidatorDefinition =
   | { type: "conflict_exists"; file?: string }
   /** The conflict in `file` has been resolved and staged. */
   | { type: "conflict_resolved"; file: string }
+  /** `file` is still in conflict, but its markers are edited out: it only needs staging. */
+  | { type: "conflict_ready_to_stage"; file: string }
   /** A merge is in progress and every one of its conflicts is resolved. */
   | { type: "all_conflicts_resolved" }
   /** No merge is in progress and HEAD's history has a merge commit (bringing in `branch`). */

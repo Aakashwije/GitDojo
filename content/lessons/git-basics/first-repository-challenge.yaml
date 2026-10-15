@@ -84,3 +84,26 @@ hints:
   one-commit:
     - Your history should have a single commit with both files. If you made more than one, reset
       the challenge and try again.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: readme-committed-alone
+    objective: stage-index
+    when:
+      - type: commit_count
+        count: 1
+      - type: file_status
+        file: index.js
+        status: untracked
+    hints:
+      - There is already a commit, and `index.js` is not in it. The finished history has a single commit holding both files.
+      - A second commit would make two. Starting the challenge over with **Reset** is the simplest way back to an empty history; this time, stage both files before recording anything.
+
+  - id: two-commits
+    objective: one-commit
+    when:
+      - type: commit_count
+        count: 2
+    hints:
+      - The history has two commits, and the mission asks for exactly one holding both files.
+      - Combining commits takes commands from a later course. Use **Reset** to start over, and stage everything before the first commit.

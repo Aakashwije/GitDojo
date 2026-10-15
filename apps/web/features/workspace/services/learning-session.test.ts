@@ -110,7 +110,13 @@ describe("LearningSession", () => {
     await session.start();
     const merge = await session.execute("git merge feature");
     expect(merge.result.errorCode).toBe("MERGE_CONFLICT");
-    expect(merge.snapshot.repository.files).toEqual([{ path: "a.txt", status: "conflicted" }]);
+    expect(merge.snapshot.repository.files).toEqual([
+      {
+        path: "a.txt",
+        status: "conflicted",
+        content: expect.stringContaining("<<<<<<< HEAD") as string,
+      },
+    ]);
     expect(await session.readFile("a.txt")).toContain("<<<<<<< HEAD");
 
     const saved = await session.writeFile("a.txt", "ours and theirs\n");
@@ -119,6 +125,45 @@ describe("LearningSession", () => {
     const done = await session.execute("git commit");
     expect(done.result.ok).toBe(true);
     expect(done.snapshot.progress.completed).toBe(true);
+  });
+
+  it("recommends the adaptive hint matching the current objective and state", async () => {
+    const adaptive: LessonDefinition = {
+      ...lesson,
+      adaptiveHints: [
+        // Never offered: its objective is never current while the condition holds.
+        {
+          id: "init-while-staged",
+          objective: "initialize",
+          when: [{ type: "file_staged", file: "README.md" }],
+          hints: ["Never shown."],
+        },
+        {
+          id: "staged-not-committed",
+          objective: "first-commit",
+          when: [{ type: "file_staged", file: "README.md" }],
+          hints: ["README.md is staged; only the commit is missing."],
+        },
+      ],
+    };
+    const session = new LearningSession(adaptive, environment());
+    expect((await session.start()).adaptiveHint).toBeNull();
+    expect((await session.execute("git init")).snapshot.adaptiveHint).toBeNull();
+
+    const staged = await session.execute("git add README.md");
+    expect(staged.snapshot.adaptiveHint).toEqual({
+      lessonId: "first-commit",
+      objectiveId: "first-commit",
+      ruleId: "staged-not-committed",
+    });
+
+    // Recomputed after every step: unstaging takes the suggestion away again.
+    const unstaged = await session.execute("git restore --staged README.md");
+    expect(unstaged.snapshot.progress.currentObjectiveId).toBe("first-commit");
+    expect(unstaged.snapshot.adaptiveHint).toBeNull();
+
+    await session.execute("git add README.md");
+    expect((await session.reset()).adaptiveHint).toBeNull();
   });
 
   it("creates, edits and deletes files like an editor would", async () => {

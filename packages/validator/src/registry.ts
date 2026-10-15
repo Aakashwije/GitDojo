@@ -10,7 +10,12 @@ import { commitChanges, fileContent } from "./validators/content";
 import { commitCount } from "./validators/commit-count";
 import { commitExists } from "./validators/commit-exists";
 import { commitOnBranch } from "./validators/commit-on-branch";
-import { allConflictsResolved, conflictExists, conflictResolved } from "./validators/conflicts";
+import {
+  allConflictsResolved,
+  conflictExists,
+  conflictReadyToStage,
+  conflictResolved,
+} from "./validators/conflicts";
 import { currentBranch } from "./validators/current-branch";
 import { fileExists } from "./validators/file-exists";
 import { fileStaged } from "./validators/file-staged";
@@ -54,6 +59,7 @@ export const validatorRegistry: ValidatorRegistry = {
   stash_count: stashCount,
   conflict_exists: conflictExists,
   conflict_resolved: conflictResolved,
+  conflict_ready_to_stage: conflictReadyToStage,
   all_conflicts_resolved: allConflictsResolved,
   merge_completed: mergeCompleted,
 };

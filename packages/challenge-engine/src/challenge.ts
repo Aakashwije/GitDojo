@@ -103,5 +103,6 @@ export function toLessonDefinition(challenge: ChallengeDefinition): LessonDefini
     objectives: challenge.objectives,
     ...(challenge.hints ? { hints: challenge.hints } : {}),
     ...(challenge.tips ? { tips: challenge.tips } : {}),
+    ...(challenge.adaptiveHints ? { adaptiveHints: challenge.adaptiveHints } : {}),
   };
 }

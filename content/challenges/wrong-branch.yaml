@@ -103,3 +103,23 @@ tips:
       `login.js` is sitting in the working tree untracked. The branch label moved back but the
       files stayed behind; both commits are already safe on `feature/login`, so the working tree
       does not need a loose copy. The mission asks for nothing left over.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: on-new-branch
+    objective: main-restored
+    when:
+      - type: current_branch
+        branch: feature/login
+    hints:
+      - The commits are safe on `feature/login`, but HEAD is there too. Moving a branch back moves the one you are on, which would take the commits off `feature/login`.
+      - Go back to `main` before moving it.
+
+  - id: files-left-staged
+    objective: clean
+    when:
+      - type: file_staged
+        file: login.js
+    hints:
+      - "`main` is back at `Initial commit`, but the login files are still staged. They belong to `feature/login`; nothing should be left on `main`."
+      - Moving a branch back can keep the changes or discard them. Here they are safe on the other branch, so discarding is right.

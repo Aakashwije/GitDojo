@@ -106,3 +106,27 @@ hints:
     - A revert never removes commits. If this fails, the history was reset; reset the lesson.
   footer-kept:
     - Only the dark mode should be undone.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: footer-reverted
+    objective: reverted
+    when:
+      - type: commit_reverted
+        message: Fix footer
+        branch: main
+    hints:
+      - The new commit reverts **Fix footer**, not **Add dark mode**. `HEAD` names the newest commit, which was the footer fix.
+      - This revert has not been shared yet, so `git reset --hard HEAD~1` can drop it. Then revert the commit before the footer fix.
+      - Run `git reset --hard HEAD~1`, then `git revert HEAD~1`.
+
+  - id: history-reset
+    objective: reverted
+    when:
+      - type: commit_not_on_branch
+        branch: main
+        message: Add dark mode
+    hints:
+      - "`Add dark mode` is no longer on `main`: the branch was moved back, which took `Fix footer` with it. Shared history should gain a commit, not lose one."
+      - The reflog remembers where `main` was. Reset back there, then revert.
+      - Run `git reset --hard HEAD@{1}`, then `git revert HEAD~1`.

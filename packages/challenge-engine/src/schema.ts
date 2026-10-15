@@ -1,4 +1,6 @@
 import {
+  adaptiveHintsSchema,
+  checkAdaptiveHints,
   checkObjectives,
   checkSetup,
   checkTips,
@@ -35,9 +37,11 @@ export const challengeDefinitionSchema = z
     objectives: z.array(objectiveSchema).min(1, "a challenge needs at least one success condition"),
     hints: hintsSchema.optional(),
     tips: tipsSchema.optional(),
+    adaptiveHints: adaptiveHintsSchema.optional(),
   })
   .superRefine((challenge, ctx) => {
     checkSetup(challenge.setup, ctx);
     checkObjectives(challenge, ctx, { challenge: true });
     checkTips(challenge.tips, ctx, { challenge: true });
+    checkAdaptiveHints(challenge, ctx, { challenge: true });
   }) satisfies z.ZodType<ChallengeDefinition>;

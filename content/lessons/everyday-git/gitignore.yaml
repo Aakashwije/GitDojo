@@ -140,3 +140,86 @@ hints:
   clean:
     - "`git status` still lists whatever Git can see and you have not committed."
     - One pattern per line. A trailing slash ignores a folder, and `*.log` matches every log file.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: secrets-staged-early
+    objective: create-ignore
+    when:
+      - type: file_staged
+        file: .env
+    hints:
+      - "`.env` is staged, so the next commit would put the API key in the history for good."
+      - "`git restore --staged` takes files back out of the staging area and keeps them on disk."
+      - Run `git restore --staged .`, then create `.gitignore` in the **Editor** tab.
+
+  - id: secrets-staged
+    objective: commit-ignore
+    when:
+      - type: file_staged
+        file: .env
+    hints:
+      - "`.env` is staged next to `.gitignore`, so this commit would put the API key in the history for good."
+      - "`git restore --staged` takes files back out of the staging area and keeps them on disk."
+      - Run `git restore --staged .`, then `git add .gitignore` and `git commit -m "Ignore logs, node_modules and .env"`.
+
+  - id: ignore-staged-not-committed
+    objective: commit-ignore
+    when:
+      - type: file_staged
+        file: .gitignore
+    hints:
+      - "`.gitignore` is staged. Its rules reach your teammates only once a commit records it."
+      - "`git commit -m` records it."
+      - Run `git commit -m "Ignore logs, node_modules and .env"`.
+
+  - id: secrets-committed
+    objective: secrets-safe
+    when:
+      - type: file_committed
+        file: .env
+    hints:
+      - "`.env` is in a commit, so Git tracks it and the key is in the history. Ignore rules only apply to files Git is not tracking yet."
+      - "`git rm --cached` stops tracking a file but leaves it on disk. In a real project, also treat the key as leaked and replace it."
+      - Run `git rm --cached .env`, make sure `.gitignore` lists `.env`, then commit.
+
+  - id: rules-changed-not-committed
+    objective: clean
+    when:
+      - type: file_status
+        file: .gitignore
+        status: modified
+    hints:
+      - "`.gitignore` has changed since you committed it. Git reports the change like any other edit."
+      - Stage and commit it again, so the new rules belong to the project too.
+      - Run `git add .gitignore`, then `git commit -m "Ignore more files"`.
+
+  - id: env-still-reported
+    objective: clean
+    when:
+      - type: file_status
+        file: .env
+        status: untracked
+    hints:
+      - "`.env` is untracked but still reported: no line in `.gitignore` matches it yet."
+      - Add a line with exactly `.env` to `.gitignore`, save, and commit the change.
+
+  - id: log-still-reported
+    objective: clean
+    when:
+      - type: file_status
+        file: debug.log
+        status: untracked
+    hints:
+      - "`debug.log` is still reported as untracked, so no rule in `.gitignore` matches it yet."
+      - "A pattern like `*.log` matches every log file. Add it to `.gitignore`, save, and commit the change."
+
+  - id: node-modules-still-reported
+    objective: clean
+    when:
+      - type: file_status
+        file: node_modules/left-pad/index.js
+        status: untracked
+    hints:
+      - Files in `node_modules` are still reported as untracked, so no rule in `.gitignore` matches the folder yet.
+      - "A trailing slash, as in `node_modules/`, ignores a whole folder. Add it, save, and commit the change."

@@ -182,6 +182,66 @@ command the panel also shows what the current objective's validator says is miss
 ("Not yet: README.md is not staged."). Every guided lesson must let learners reach an answer for
 at least one objective (the content tests check this).
 
+### Adaptive hints
+
+A hint ladder answers "what is the next step?". Some learners are stuck somewhere more specific:
+they staged the wrong file, or edited out the conflict markers but never staged the file.
+`adaptiveHints` lets you write a ladder for that exact state. While the state holds, the hint panel
+offers it under **Based on your progress**, in place of the "Not yet: ..." line; the objective's
+own ladder stays available next to it.
+
+```yaml
+adaptiveHints:
+  - id: edited-not-staged # unique, and not an objective id; name it after the state
+    objective: resolved # only considered while this objective is the current one
+    when: # every condition must pass; the same validators objectives use
+      - type: conflict_ready_to_stage
+        file: src/auth.ts
+    hints: # a ladder, exactly like `hints`
+      - The markers are gone from `src/auth.ts`, but Git still lists it as conflicted.
+      - Mark the file as resolved the same way you stage any change, with `git add`.
+      - Run `git add src/auth.ts`.
+```
+
+| Field       | Meaning                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `id`        | Unique within the lesson and different from every objective id. Names the state.        |
+| `objective` | The objective it helps with. The rule is ignored while any other objective is current.  |
+| `when`      | One or more [validators](./validators.md). The rule matches while **every** one passes. |
+| `hints`     | A [hint ladder](#hints): levels are inferred or explicit, and never go down.            |
+
+**How they behave.** After every command and file save, GitDojo checks the rules for the current
+objective, in authored order, and offers the **first** one whose conditions all hold — so put the
+most specific rule first. Nothing is sticky: the suggestion goes away (or another rule's takes its
+place) as soon as the state changes. Nothing is offered before the learner's first action or after
+the lesson is complete. Hints are revealed one at a time and an answer still needs a second click,
+exactly like the objective's ladder, and every revealed hint counts towards "hints used". A lesson
+without `adaptiveHints` behaves exactly as before.
+
+**Writing a rule that is actually true.** Rules see repository state, never the commands typed, so
+the same advice applies as for [challenge tips](./challenge-authoring.md#writing-a-tip-that-is-actually-true):
+
+- **Describe the state, not the action.** "`index.js` is staged already" is checkable; "you staged
+  the wrong file" is a guess.
+- **Prefer common stuck states over the happy path.** A rule that matches every learner on the way
+  to the answer is just a second copy of the objective's hints.
+- **Make it reachable.** Progress is sticky and ordered, so a rule only helps while its objective
+  is the current one. A state that only appears after the objective has already completed is
+  never seen.
+- **Make it go away.** Add the state to `STUCK` in `packages/lesson-engine/src/content.test.ts`:
+  steps that reach it and steps out of it (or `"reset"` when only the lesson's Reset button undoes
+  it). The test requires every rule to have an entry, to be the rule offered in that state, to be
+  gone after the steps out, and no rule to match at the start of its lesson. It also requires
+  every hands-on lesson to have at least one rule, except those listed in `NO_STUCK_STATE` (such
+  as `git-init`, whose only state before the goal is the starting one).
+- **Be honest about the way out.** Some states can only be undone with commands from later
+  lessons, or not at all in GitDojo (`git commit --amend` is not available). Say so and point at
+  **Reset** rather than suggesting a command that does not work.
+
+**Challenges.** Lessons of `type: challenge` and standalone challenges
+([challenge-authoring.md](./challenge-authoring.md#adaptive-hints)) use adaptive hints too, but no
+hint in them may name a command in backticks, at any level.
+
 ### Content blocks
 
 `content` holds explanations, diagrams, examples and demos. Concept lessons need at least one
@@ -262,6 +322,8 @@ exist.
 - Diagram graphs may only reference commits and branches they define.
 - Unknown keys are rejected, which catches typos such as `objective:`.
 - Objective ids are unique, and every `hints` key must name an existing objective.
+- Adaptive hint ids are unique and differ from objective ids; each rule names an existing
+  objective, has at least one condition and a valid ladder, and in challenges names no command.
 - Setup paths must stay inside the workspace (no `..`) and must not point into `.git`.
 - `commit_count.count` is a non-negative integer, and file paths are non-empty.
 

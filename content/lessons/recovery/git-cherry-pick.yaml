@@ -117,3 +117,16 @@ hints:
     - Merging would bring every commit. If you merged, reset the lesson.
   no-animation:
     - Only one commit should come across.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: whole-branch-merged
+    objective: no-charts
+    when:
+      - type: branch_contains_commit
+        branch: main
+        message: Add charts
+    hints:
+      - "`main` has `Add charts`: merging brought every commit on `feature/charts`, not just the fix."
+      - The merge is local, so the reflog can take `main` back to before it. Then copy only the fix.
+      - Run `git reset --hard HEAD@{1}`, then `git cherry-pick feature/charts~1`.

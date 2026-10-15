@@ -186,7 +186,13 @@ describe("RepositoryStateReader", () => {
     expect(state.conflicts).toEqual([
       { path: "a.txt", base: "base\n", ours: "ours\n", theirs: "theirs\n", resolved: false },
     ]);
-    expect(state.files).toEqual([{ path: "a.txt", status: "conflicted" }]);
+    expect(state.files).toEqual([
+      {
+        path: "a.txt",
+        status: "conflicted",
+        content: expect.stringContaining("<<<<<<<") as string,
+      },
+    ]);
     expect(state.stagedFiles).toEqual([]);
 
     await files.writeFile(WS, "a.txt", "both\n");

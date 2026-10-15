@@ -99,3 +99,15 @@ hints:
   commit-changelog:
     - Commit the staged file with a message describing it.
     - Run `git commit -m "Add changelog"`, then `git log --oneline`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: changelog-staged-not-committed
+    objective: commit-changelog
+    when:
+      - type: file_staged
+        file: CHANGELOG.md
+    hints:
+      - "`CHANGELOG.md` is staged, but the history still has three commits. Staging does not add to the history; committing does."
+      - "`git commit -m` records the staged file as the fourth commit."
+      - Run `git commit -m "Add changelog"`, then `git log --oneline`.

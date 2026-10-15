@@ -90,3 +90,27 @@ hints:
   create-and-switch:
     - "`git switch` has an option that creates the branch first."
     - Run `git switch -c bugfix/header`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: bugfix-first
+    objective: to-feature
+    when:
+      - type: current_branch
+        branch: bugfix/header
+    hints:
+      - You are on `bugfix/header`, which the last step asks for. This step is about `feature/login`; `bugfix/header` will still be there when you come back to it.
+      - "`git switch` moves HEAD to any existing branch."
+      - Run `git switch feature/login`.
+
+  - id: bugfix-created-not-switched
+    objective: create-and-switch
+    when:
+      - type: branch_exists
+        branch: bugfix/header
+      - type: current_branch
+        branch: main
+    hints:
+      - "`bugfix/header` exists, but HEAD is still on `main`: `git branch` creates a branch without switching to it."
+      - Switch to it now. Next time, `git switch -c` creates and switches in one go.
+      - Run `git switch bugfix/header`.

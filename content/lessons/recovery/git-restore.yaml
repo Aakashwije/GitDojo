@@ -105,3 +105,47 @@ hints:
   discard-experiment:
     - Restoring a file in the working tree replaces it with the staged version.
     - Run `git restore index.html`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: notes-deleted-while-staged
+    objective: unstage-notes
+    when:
+      - type: file_staged
+        file: notes.md
+      - type: file_status
+        file: notes.md
+        status: deleted
+    hints:
+      - "`notes.md` is gone from the working tree, but the staging area still has a copy: the only one left."
+      - "`git restore` copies a file from the staging area back into the working tree."
+      - Run `git restore notes.md`, then `git restore --staged notes.md`.
+
+  - id: notes-committed
+    objective: unstage-notes
+    when:
+      - type: file_committed
+        file: notes.md
+    hints:
+      - "`notes.md` was committed, so it is tracked now, not just staged."
+      - "`git reset HEAD~1` undoes the commit and leaves the file in your working tree, untracked."
+      - Run `git reset HEAD~1`.
+
+  - id: notes-lost
+    objective: notes-kept
+    when:
+      - type: file_not_tracked
+        file: notes.md
+    hints:
+      - "`notes.md` is no longer staged, but it is gone from the working tree too. Unstaging never deletes a file, so something else removed it."
+      - It was never committed, so Git has no copy of it. **Reset** in the top bar brings it back.
+
+  - id: experiment-staged
+    objective: discard-experiment
+    when:
+      - type: file_staged
+        file: index.html
+    hints:
+      - The experiment in `index.html` is staged. Restoring the working tree copies the staged version, so it would bring the experiment straight back.
+      - Unstage it first, then restore the working tree from the last commit.
+      - Run `git restore --staged index.html`, then `git restore index.html`.

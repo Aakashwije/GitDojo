@@ -55,7 +55,12 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
   );
   const workingTree = (entry: GitStatusEntry): FileState | null =>
     unresolved.has(entry.path)
-      ? { path: entry.path, status: "conflicted" }
+      ? {
+          path: entry.path,
+          status: "conflicted",
+          // The text with or without markers, e.g. to tell an edited conflict from an open one.
+          ...(entry.content === undefined ? {} : { content: entry.content }),
+        }
       : workingTreeFile(entry);
 
   return {

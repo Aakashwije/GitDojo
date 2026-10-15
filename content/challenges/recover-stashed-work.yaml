@@ -118,3 +118,25 @@ tips:
       The stash contains one entry and `src/invoice.js` is unchanged, but
       `notes/launch-draft.md` is still untracked on `feature/invoice-notes`. `main` tracks the
       same path, so the untracked file conflicts with the destination branch.
+
+# Offered while the learner is in one of these states; see docs/challenge-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: edit-still-stashed
+    objective: invoice-edit-restored
+    when:
+      - type: stash_count
+        count: 1
+      - type: file_status
+        file: src/invoice.js
+        status: committed
+    hints:
+      - You are back on the feature branch, but your work is still shelved in the stash.
+      - Bring the newest entry back, including the untracked draft that went with it.
+
+  - id: applied-not-dropped
+    objective: stash-empty
+    when:
+      - type: stash_count
+        count: 1
+    hints:
+      - Your work is restored, but its stash entry is still in the list. Applying an entry keeps it; it needs removing separately.

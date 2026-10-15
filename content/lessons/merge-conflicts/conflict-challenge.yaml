@@ -115,3 +115,41 @@ hints:
     - "Check the graph: a merge commit has two parents."
   clean:
     - "`git status` shows whether anything is left over."
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: merging-the-wrong-way
+    objective: on-main
+    when:
+      - type: current_branch
+        branch: feature/tax
+      - type: conflict_exists
+    hints:
+      - A merge is in progress on `feature/tax`, so `main` is being brought into the feature branch, the opposite direction.
+      - Cancel this merge (the merge command has an option for that), move HEAD to `main`, and start the merge from there.
+
+  - id: pricing-edited-not-staged
+    objective: resolved
+    when:
+      - type: conflict_ready_to_stage
+        file: src/pricing.ts
+    hints:
+      - The markers are gone from `src/pricing.ts`, but Git still lists it as conflicted.
+      - The same command that stages any change marks a conflict as resolved.
+
+  - id: cart-edited-not-staged
+    objective: resolved
+    when:
+      - type: conflict_ready_to_stage
+        file: src/cart.ts
+    hints:
+      - The markers are gone from `src/cart.ts`, but Git still lists it as conflicted.
+      - The same command that stages any change marks a conflict as resolved.
+
+  - id: resolved-not-committed
+    objective: merged
+    when:
+      - type: all_conflicts_resolved
+    hints:
+      - Every conflict is resolved, but the merge is still in progress until it is recorded.
+      - A merge that stopped for conflicts finishes the way any change is recorded; Git has prepared the message already.
