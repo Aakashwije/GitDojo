@@ -24,6 +24,8 @@ export interface GitStatusEntry {
   staged: StagedChange | null;
   /** Difference between the index and the working directory. */
   unstaged: UnstagedChange | null;
+  /** Current working-tree text, when the path exists. */
+  content?: string;
 }
 
 export interface GitInitData {
@@ -84,6 +86,8 @@ export interface GitCommitInfo {
     timezoneOffset: number;
   };
   parents: string[];
+  /** Paths changed relative to the first parent (or every path for a root commit). */
+  changedPaths: string[];
 }
 
 export interface GitLogData {

@@ -28,7 +28,7 @@ export function createTestEnvironment(): LessonEnvironment {
 export type PlayStep = string | { write: string; content: string } | { delete: string };
 
 /** Error codes that are the expected outcome of a step, not a broken solution. */
-const EXPECTED_FAILURES = new Set(["MERGE_CONFLICT"]);
+const EXPECTED_FAILURES = new Set(["MERGE_CONFLICT", "CHECKOUT_CONFLICT"]);
 
 export interface PlayResult {
   /** Progress before any step: content must never start with objectives done. */

@@ -1,0 +1,107 @@
+# Challenge. Authoring guide: docs/challenge-authoring.md
+# Describe the end state; never prescribe commands, not even in hints.
+id: split-mixed-commit
+title: Split a Mixed Commit
+category: history
+difficulty: advanced
+order: 4
+
+scenario: |
+  The latest commit on `feature/analytics` mixes a new analytics service with its documentation.
+  Reviewers want the implementation and documentation separated so each change can be reviewed
+  and reverted independently. Nobody else has this branch.
+
+mission: >
+  Replace the mixed commit with `Add analytics service`, changing only the service file, followed
+  by `Document analytics service`, changing only the guide. Preserve both files and finish clean.
+
+concepts: [reset, staging, history]
+requires: [reset]
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Store Dashboard
+    - message: Add analytics service and docs
+      branch: feature/analytics
+      files:
+        src/analytics.js: |
+          export const track = (event) => ({ event, recorded: true });
+        docs/analytics.md: |
+          # Analytics
+
+          Events are recorded by the dashboard service.
+  currentBranch: feature/analytics
+
+objectives:
+  - id: service-focused
+    description: "`Add analytics service` changes only `src/analytics.js`."
+    validator:
+      type: commit_changes
+      branch: feature/analytics
+      message: Add analytics service
+      files: [src/analytics.js]
+  - id: docs-focused
+    description: "`Document analytics service` changes only `docs/analytics.md`."
+    validator:
+      type: commit_changes
+      branch: feature/analytics
+      message: Document analytics service
+      files: [docs/analytics.md]
+  - id: docs-last
+    description: The documentation commit follows the implementation commit.
+    validator:
+      type: branch_points_to_commit
+      branch: feature/analytics
+      message: Document analytics service
+  - id: three-commits
+    description: The branch contains the initial commit and the two focused commits.
+    validator:
+      type: commit_count
+      count: 3
+  - id: service-preserved
+    description: The analytics service contents are preserved.
+    validator:
+      type: file_content
+      file: src/analytics.js
+      content: |
+        export const track = (event) => ({ event, recorded: true });
+  - id: docs-preserved
+    description: The analytics guide contents are preserved.
+    validator:
+      type: file_content
+      file: docs/analytics.md
+      content: |
+        # Analytics
+
+        Events are recorded by the dashboard service.
+  - id: clean
+    description: The working tree is clean.
+    validator:
+      type: clean_worktree
+
+hints:
+  service-focused:
+    - The latest commit can be taken apart while leaving both changes available to record again.
+    - Record only the implementation first.
+  docs-focused:
+    - The remaining documentation change belongs in the second commit.
+  docs-last:
+    - The branch tip should tell the documentation part of the story after the implementation.
+
+tips:
+  - id: changes-still-combined
+    when:
+      - type: commit_changes
+        branch: feature/analytics
+        message: Add analytics service
+        files: [docs/analytics.md, src/analytics.js]
+      - type: commit_count
+        count: 2
+    text: >-
+      `Add analytics service` changes both the service and the guide, and the branch still has only
+      two commits. The requested history records those paths in two focused commits, with the
+      documentation second.

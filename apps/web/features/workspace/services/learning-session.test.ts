@@ -135,12 +135,20 @@ describe("LearningSession", () => {
     await session.start();
 
     const created = await session.createFile("src/notes.md");
-    expect(created.repository.files).toContainEqual({ path: "src/notes.md", status: "untracked" });
+    expect(created.repository.files).toContainEqual({
+      path: "src/notes.md",
+      status: "untracked",
+      content: "",
+    });
     await expect(session.createFile("src/notes.md")).rejects.toBeInstanceOf(FileExistsError);
     await expect(session.createFile("../escape.md")).rejects.toThrow(/path traversal/);
 
     const edited = await session.writeFile("README.md", "# B\n");
-    expect(edited.repository.files).toContainEqual({ path: "README.md", status: "modified" });
+    expect(edited.repository.files).toContainEqual({
+      path: "README.md",
+      status: "modified",
+      content: "# B\n",
+    });
 
     const deleted = await session.deleteFile("README.md");
     expect(deleted.repository.files).toContainEqual({ path: "README.md", status: "deleted" });

@@ -33,7 +33,7 @@ describe("RepositoryStateReader", () => {
       branches: [],
       commits: [],
       allCommits: [],
-      files: [{ path: "README.md", status: "untracked" }],
+      files: [{ path: "README.md", status: "untracked", content: "x" }],
       stagedFiles: [],
       conflicts: [],
       merge: null,
@@ -64,7 +64,7 @@ describe("RepositoryStateReader", () => {
     await files.writeFile(WS, "README.md", "x");
     await git.init();
     const state = await reader.read(WS);
-    expect(state.files).toEqual([{ path: "README.md", status: "untracked" }]);
+    expect(state.files).toEqual([{ path: "README.md", status: "untracked", content: "x" }]);
     expect(state.stagedFiles).toEqual([]);
   });
 
@@ -73,7 +73,7 @@ describe("RepositoryStateReader", () => {
     await git.init();
     await git.add(["README.md"]);
     const state = await reader.read(WS);
-    expect(state.files).toEqual([{ path: "README.md", status: "staged" }]);
+    expect(state.files).toEqual([{ path: "README.md", status: "staged", content: "x" }]);
     expect(state.stagedFiles).toEqual([{ path: "README.md", status: "staged", change: "added" }]);
   });
 
@@ -83,7 +83,7 @@ describe("RepositoryStateReader", () => {
     await git.add(["README.md"]);
     const commit = await git.commit({ message: "Initial commit" });
     const state = await reader.read(WS);
-    expect(state.files).toEqual([{ path: "README.md", status: "committed" }]);
+    expect(state.files).toEqual([{ path: "README.md", status: "committed", content: "x" }]);
     expect(state.stagedFiles).toEqual([]);
     expect(state.head).toBe(commit.data?.oid);
     expect(state.branches).toEqual([{ name: "main", oid: commit.data?.oid, current: true }]);
@@ -96,6 +96,7 @@ describe("RepositoryStateReader", () => {
         authorEmail: "learner@gitdojo.local",
         timestamp: expect.any(Number) as number,
         parents: [],
+        changedPaths: ["README.md"],
       },
     ]);
   });
@@ -122,7 +123,7 @@ describe("RepositoryStateReader", () => {
     await git.add(["README.md"]);
     await files.writeFile(WS, "README.md", "three");
     const state = await reader.read(WS);
-    expect(state.files).toEqual([{ path: "README.md", status: "modified" }]);
+    expect(state.files).toEqual([{ path: "README.md", status: "modified", content: "three" }]);
     expect(state.stagedFiles).toEqual([
       { path: "README.md", status: "staged", change: "modified" },
     ]);
@@ -162,7 +163,7 @@ describe("RepositoryStateReader", () => {
     // `commits` follows HEAD, like `git log`; `allCommits` feeds the graph.
     expect(state.commits.map((commit) => commit.message)).toEqual(["First"]);
     expect(state.allCommits.map((commit) => commit.message)).toEqual(["Add login", "First"]);
-    expect(state.files).toEqual([{ path: "README.md", status: "committed" }]);
+    expect(state.files).toEqual([{ path: "README.md", status: "committed", content: "one" }]);
   });
 
   it("reports a merge in progress with its conflicts", async () => {
@@ -192,6 +193,6 @@ describe("RepositoryStateReader", () => {
     await git.add(["a.txt"]);
     const resolved = await reader.read(WS);
     expect(resolved.conflicts[0]?.resolved).toBe(true);
-    expect(resolved.files).toEqual([{ path: "a.txt", status: "staged" }]);
+    expect(resolved.files).toEqual([{ path: "a.txt", status: "staged", content: "both\n" }]);
   });
 });
