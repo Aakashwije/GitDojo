@@ -8,18 +8,22 @@ deployment details stay on GitHub.
 
 ## Writing highlights
 
-When staging passes, the release workflow creates a draft release with the template from
-[`.github/release-highlights-template.md`](../.github/release-highlights-template.md) at the top
-and GitHub's generated changelog below it. Before you click **Publish release**, replace the
-template's comment with the learner announcement:
+When staging passes, the release workflow creates a draft with learner highlights collected from
+the merged pull requests and GitHub's generated changelog below them. The pull request template
+asks contributors to add a `Learner-facing release note` section with one plain-language bullet,
+or write `No learner-facing change.` for internal work. The generator reads that section, removes
+duplicates and places the resulting bullets under `## Highlights for learners` automatically.
+GitHub's technical changelog is grouped using [`.github/release.yml`](../.github/release.yml).
+If all included PRs are marked as internal-only, the draft uses a neutral behind-the-scenes
+highlight instead.
+
+Review the generated draft before clicking **Publish release**. You can edit its learner
+highlights or technical notes if anything needs clarification. The draft workflow does not
+overwrite an existing draft when retried.
 
 ```markdown
-## Highlights for learners
+## Learner-facing release note
 
-Getting unstuck is easier in this release.
-
-- Reveal a hint when an objective has you stuck.
-- See merge commits more clearly in the Git graph.
 - Practise `git restore` in a new lesson on undoing changes.
 ```
 
@@ -35,6 +39,10 @@ Good highlights:
 - **Leave out what learners won't notice**: refactors, tests, CI, dependency updates, deployment.
   A release with nothing learner-facing still needs one honest highlight, such as "Lessons load
   faster on slow connections" or "Small fixes across lessons and the playground".
+- **Mark internal work clearly.** If a pull request has no learner-visible effect, write exactly
+  `No learner-facing change.` in its release-note section. It won't be copied into the announcement.
+- **Keep release groups concise.** GitDojo shows at most five highlights. If a release has more,
+  the draft workflow stops before creating the draft and reports that the notes need curating.
 
 The optional introduction is a single sentence (240 characters or fewer) above the bullets. Without
 one, the app says "Here's what's new for you in this release."
@@ -43,9 +51,17 @@ Formatting: `code` and **bold** are shown; everything else is plain text.
 
 ## What is checked
 
-`apps/web/scripts/release-highlights.mjs` reads the section, and the **Publish release** workflow
-runs it in its first job, before production is requested. The release stops, with one error per
-problem in the run summary, when:
+`apps/web/scripts/compose-release-notes.mjs` assembles the learner highlights from merged PRs when
+the draft is created. It stops before creating a draft if a merged PR is missing the required
+section or the release would exceed five highlights. Add or correct the section in the merged PR
+description and rerun the **Release** workflow. Bot-authored dependency PRs are left out of learner
+highlights. If every human PR is internal-only, the draft gets a neutral behind-the-scenes message.
+The **Publish release** workflow then checks the
+final edited draft with `apps/web/scripts/release-highlights.mjs` before any production deployment.
+If that check fails, edit the release on GitHub and rerun **Publish release**; the check reads the
+current release body from the API.
+
+The publish check rejects a release when:
 
 | Rule                                                            | Why                                     |
 | --------------------------------------------------------------- | --------------------------------------- |
@@ -55,12 +71,8 @@ problem in the run summary, when:
 | No `#123`, `@name`, URL, Markdown link, HTML or dependency bump | Those belong in the GitHub changelog    |
 | No nested bullets, duplicates or text after the bullets         | Nothing is silently dropped             |
 
-Comments (`<!-- … -->`) are ignored, so the template's guidance can stay. The section may be
-`##` or `###` and anywhere in the notes; it ends at the next heading.
-
-**If the check fails:** edit the release on GitHub and re-run the failed **Publish release**
-workflow. Both steps read the release from the API, not from the original event, so a re-run uses
-the edited notes. Nothing has been deployed at that point.
+Comments (`<!-- … -->`) are ignored. The section may be `##` or `###` and anywhere in the notes;
+it ends at the next heading.
 
 To check notes locally, save the release as JSON and run the same check:
 
