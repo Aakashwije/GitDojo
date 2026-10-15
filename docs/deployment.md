@@ -47,9 +47,8 @@ push to main ── CI ──(success, newest main commit only)──▶ Release
 - **Built by Vercel, from source.** Each environment builds with its own variables. CI's build
   artifact contains the mock identity provider's public settings and is never deployed.
 - **Approval is publishing.** Staging must pass before a draft appears in **GitHub → Releases**.
-  Review the tag and generated notes, and write 1–5 learner-focused bullets under
-  `## Highlights for learners` at the top ([release-notes.md](./release-notes.md)). Then click
-  **Publish release**. This is your approval. A published release starts
+  Review the tag and automatically assembled learner highlights and grouped changelog. Edit the
+  notes if needed, then click **Publish release**. This is your approval. A published release starts
   `.github/workflows/publish.yml`; a draft never deploys production.
 - **Learner highlights are required.** The first job of **Publish release** checks the
   highlights before production is requested and stops with one error per problem when they are

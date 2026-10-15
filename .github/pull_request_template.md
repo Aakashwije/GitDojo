@@ -14,6 +14,14 @@
 
 Closes #
 
+## Learner-facing release note
+
+<!--
+  Used to write the learner announcement in the next release draft.
+  Add one plain-language bullet for a change learners will notice (160 characters max).
+  For internal-only changes, enter exactly: No learner-facing change.
+-->
+
 ## 🧩 Type of change
 
 - [ ] 🐛 Bug fix (non-breaking, fixes an issue)

@@ -162,13 +162,14 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.gate.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Create a draft with generated release notes
+      - name: Create a draft with learner highlights and generated changelog
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.gate.outputs.sha }}
@@ -183,13 +184,21 @@ jobs:
             fi
             echo "Release $tag already exists for this commit; leaving it unchanged."
           else
-            gh release create "$tag" --target "$SHA" --title "GitDojo $tag" --generate-notes --draft
-            # The learner announcement goes first; the generated changelog stays below it.
-            gh release view "$tag" --json body --jq .body > "$RUNNER_TEMP/changelog.md"
-            cat .github/release-highlights-template.md "$RUNNER_TEMP/changelog.md" > "$RUNNER_TEMP/release-notes.md"
-            gh release edit "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
+            # Generate notes before creating the draft so an API or metadata error cannot leave
+            # behind an incomplete draft that the idempotency guard would preserve.
+            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              --method POST \
+              -f tag_name="$tag" \
+              -f target_commitish="$SHA" \
+              > "$RUNNER_TEMP/generated-release.json"
+            jq -r '.body // ""' "$RUNNER_TEMP/generated-release.json" > "$RUNNER_TEMP/changelog.md"
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+              node apps/web/scripts/compose-release-notes.mjs \
+                "$RUNNER_TEMP/changelog.md" "$RUNNER_TEMP/release-notes.md"
+            gh release create "$tag" --target "$SHA" --title "GitDojo $tag" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" --draft
           fi
           {
             echo "### Draft release ready for review"
-            echo "Open **Releases** in GitHub, write 1–5 learner-focused bullets under **Highlights for learners** (see docs/release-notes.md), review the full notes, then click **Publish release** to approve the production deployment."
+            echo "Open **Releases** in GitHub and review the automatically collected learner highlights and grouped changelog. Edit anything that needs clarification, then click **Publish release** to approve the production deployment. See docs/release-notes.md."
           } >> "$GITHUB_STEP_SUMMARY"
