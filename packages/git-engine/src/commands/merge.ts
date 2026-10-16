@@ -25,6 +25,8 @@ import {
   resolveRefOrNull,
   shortOid,
 } from "../engine/repository";
+import { resolveCommitRef } from "../engine/refs";
+import { resolveRevision } from "../engine/revisions";
 import { readStatusEntries } from "../engine/status-matrix";
 import { threeWay, threeWayOverwriteError } from "../engine/three-way";
 import {
@@ -52,10 +54,32 @@ async function textOf(ctx: GitContext, oid: string | undefined): Promise<string 
   return oid === undefined ? null : readBlobText(ctx, oid);
 }
 
-function mergeMessage(name: string, into: string | null): string {
+/** What is being merged, which is how Git words the merge commit's message. */
+type MergeSource = "branch" | "remote-tracking branch" | "tag" | "commit";
+
+function mergeMessage(name: string, into: string | null, source: MergeSource = "branch"): string {
   return into === null || into === "main" || into === "master"
-    ? `Merge branch '${name}'`
-    : `Merge branch '${name}' into ${into}`;
+    ? `Merge ${source} '${name}'`
+    : `Merge ${source} '${name}' into ${into}`;
+}
+
+/** A local branch first; then anything else that names a commit (`origin/main`, a tag, an id). */
+async function resolveMergeSource(
+  ctx: GitContext,
+  name: string,
+): Promise<{ oid: string; source: MergeSource } | null> {
+  const branch = isValidBranchName(name) ? await resolveRefOrNull(ctx, `refs/heads/${name}`) : null;
+  if (branch !== null) return { oid: branch, source: "branch" };
+  if (/[~^@{}]/.test(name)) {
+    const oid = await resolveRevision(ctx, name);
+    return oid === null ? null : { oid, source: "commit" };
+  }
+  const tag = await resolveCommitRef(ctx, `refs/tags/${name}`);
+  if (tag !== null) return { oid: tag, source: "tag" };
+  const remote = await resolveCommitRef(ctx, `refs/remotes/${name}`);
+  if (remote !== null) return { oid: remote, source: "remote-tracking branch" };
+  const oid = await resolveRevision(ctx, name);
+  return oid === null ? null : { oid, source: "commit" };
 }
 
 /** `git merge <branch>`. */
@@ -73,10 +97,11 @@ export async function runMerge(
     return failure(gitError("MERGE_IN_PROGRESS", operationInProgressMessage(inProgress)));
   }
 
-  const theirs = isValidBranchName(name) ? await resolveRefOrNull(ctx, `refs/heads/${name}`) : null;
-  if (theirs === null) {
+  const resolved = await resolveMergeSource(ctx, name);
+  if (resolved === null) {
     return failure(gitError("BRANCH_NOT_FOUND", `merge: ${name} - not something we can merge`));
   }
+  const theirs = resolved.oid;
 
   const branch = await currentBranch(ctx);
   const ours = await resolveRefOrNull(ctx, "HEAD");
@@ -155,7 +180,7 @@ export async function runMerge(
   if (problem) return failure(problem);
   await applyWorkingTreeUpdates(ctx, merged.updates);
 
-  const message = mergeMessage(name, branch);
+  const message = options.message ?? mergeMessage(name, branch, resolved.source);
   if (merged.conflicts.length > 0) {
     await writeMergeState(ctx, {
       kind: "merge",

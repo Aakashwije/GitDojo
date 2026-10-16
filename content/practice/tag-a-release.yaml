@@ -1,0 +1,48 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: tag-a-release
+title: Tag a Release
+skill: tags
+difficulty: beginner
+order: 3
+
+scenario: |
+  Version 2.0 of the timer app is done: it is the commit you are on. Someone already made a
+  tag called `v2.0-rc` while testing, and it should not survive the release.
+
+mission: >
+  Mark the current commit as release `v2.0` with an annotated tag, and make sure `v2.0-rc` no
+  longer exists.
+
+concepts:
+  - tags
+  - releases
+
+requires:
+  - tag
+
+related:
+  course: everyday-git
+  lesson: git-tag
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        timer.js: |
+          export const start = () => Date.now();
+    - message: Add pause button
+      files:
+        timer.js: |
+          export const start = () => Date.now();
+          export const pause = (startedAt) => Date.now() - startedAt;
+  commands:
+    - git tag v2.0-rc HEAD~1
+checks:
+  - type: tag_exists
+    tag: v2.0
+    message: Add pause button
+    annotated: true
+  - type: tag_not_exists
+    tag: v2.0-rc

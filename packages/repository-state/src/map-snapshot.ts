@@ -71,6 +71,7 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
       name: branch.name,
       oid: branch.oid,
       current: branch.name === snapshot.currentBranch,
+      ...(branch.upstream ? { upstream: { ...branch.upstream } } : {}),
     })),
     commits: snapshot.commits.map(commitState),
     allCommits: snapshot.allCommits.map(commitState),
@@ -106,5 +107,18 @@ export function toRepositoryState(snapshot: GitRepositorySnapshot): RepositorySt
       message: entry.message,
       timestamp: entry.timestamp,
     })),
+    tags: snapshot.tags.map((tag) => ({
+      name: tag.name,
+      oid: tag.oid,
+      annotated: tag.annotated,
+      ...(tag.message === undefined ? {} : { message: tag.message }),
+    })),
+    remotes: snapshot.remotes.map((remote) => ({
+      name: remote.name,
+      url: remote.url,
+      branches: remote.branches.map((branch) => ({ name: branch.name, oid: branch.oid })),
+    })),
+    remoteBranches: snapshot.remoteBranches.map((ref) => ({ ...ref })),
+    editor: snapshot.editor && { ...snapshot.editor },
   };
 }

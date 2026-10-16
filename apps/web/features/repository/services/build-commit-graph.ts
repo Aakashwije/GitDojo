@@ -24,6 +24,10 @@ export interface CommitNodeData extends Record<string, unknown> {
   /** HEAD's branch, when HEAD is attached to one. */
   currentBranch: string | null;
   branches: string[];
+  /** Tags naming this commit. */
+  tags: string[];
+  /** Remote-tracking branches (`origin/main`) at this commit. */
+  remoteBranches: string[];
   selected: boolean;
   /** True for the newest commit, which animates in when created. */
   latest: boolean;
@@ -51,7 +55,11 @@ export function buildCommitGraph(state: RepositoryState, selectedOid: string | n
   const { lanes, laneCount } = assignLanes(
     commits.map((commit) => ({ id: commit.oid, parents: commit.parents })),
     tipsInLaneOrder(
-      state.branches.map((branch) => ({ name: branch.name, target: branch.oid })),
+      [
+        ...state.branches.map((branch) => ({ name: branch.name, target: branch.oid })),
+        // After the local branches, so `origin/main` shares main's lane when they agree.
+        ...state.remoteBranches.map((ref) => ({ name: ref.name, target: ref.oid })),
+      ],
       state.head,
     ),
   );
@@ -71,6 +79,10 @@ export function buildCommitGraph(state: RepositoryState, selectedOid: string | n
       branches: state.branches
         .filter((branch) => branch.oid === commit.oid)
         .map((branch) => branch.name),
+      tags: state.tags.filter((tag) => tag.oid === commit.oid).map((tag) => tag.name),
+      remoteBranches: state.remoteBranches
+        .filter((ref) => ref.oid === commit.oid)
+        .map((ref) => ref.name),
       selected: commit.oid === selectedOid,
       latest: index === 0,
       lane: laneOf(commit.oid),

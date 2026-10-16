@@ -14,7 +14,7 @@ import {
 type Queryable = postgres.Sql | postgres.TransactionSql;
 
 interface CompletionRow {
-  kind?: "challenge" | null;
+  kind?: "challenge" | "practice" | null;
   lesson_id: string;
   lesson_type: LessonType;
   course_id: string | null;
@@ -23,7 +23,7 @@ interface CompletionRow {
 }
 
 const toCompletion = (row: CompletionRow): StoredCompletion => ({
-  ...(row.kind === "challenge" ? { kind: "challenge" as const } : {}),
+  ...(row.kind === "challenge" || row.kind === "practice" ? { kind: row.kind } : {}),
   lessonId: row.lesson_id,
   lessonType: row.lesson_type,
   courseId: row.course_id,
@@ -62,6 +62,10 @@ export async function listCompletions(sql: Queryable, userId: string): Promise<S
     SELECT challenge_id AS lesson_id, 'challenge' AS lesson_type, NULL AS course_id,
       xp, completed_at, 'challenge' AS kind
     FROM challenge_completions WHERE user_id = ${userId}
+    UNION ALL
+    SELECT task_id AS lesson_id, 'challenge' AS lesson_type, NULL AS course_id,
+      0 AS xp, completed_at, 'practice' AS kind
+    FROM practice_completions WHERE user_id = ${userId}
     ORDER BY completed_at, lesson_id
   `;
   return rows.map(toCompletion);
@@ -76,6 +80,31 @@ export async function insertCompletion(
   userId: string,
   completion: NewCompletion,
 ): Promise<{ created: boolean; completion: StoredCompletion }> {
+  if (completion.kind === "practice") {
+    const [inserted] = await sql<{ task_id: string; completed_at: Date }[]>`
+      INSERT INTO practice_completions (user_id, task_id)
+      VALUES (${userId}, ${completion.lessonId})
+      ON CONFLICT (user_id, task_id) DO NOTHING
+      RETURNING task_id, completed_at
+    `;
+    const [existing] = inserted
+      ? [inserted]
+      : await sql<{ task_id: string; completed_at: Date }[]>`
+      SELECT task_id, completed_at FROM practice_completions
+      WHERE user_id = ${userId} AND task_id = ${completion.lessonId}
+    `;
+    return {
+      created: Boolean(inserted),
+      completion: {
+        kind: "practice",
+        lessonId: existing.task_id,
+        lessonType: "challenge",
+        courseId: null,
+        xp: 0,
+        completedAt: existing.completed_at,
+      },
+    };
+  }
   if (completion.kind === "challenge") {
     const [inserted] = await sql<{ challenge_id: string; xp: number; completed_at: Date }[]>`
       INSERT INTO challenge_completions (user_id, challenge_id, xp)

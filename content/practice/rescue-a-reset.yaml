@@ -1,0 +1,49 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: rescue-a-reset
+title: Rescue a Reset Commit
+skill: recovery
+difficulty: intermediate
+order: 3
+
+scenario: |
+  A moment ago `main` was moved back one commit with a hard reset, and `Add invoice export`
+  vanished from the history. The team has decided `main` should stay where it is now, but the
+  export work must not be lost.
+
+mission: >
+  Give `Add invoice export` a home on a new branch called `rescue`, while `main` stays without
+  it.
+
+concepts:
+  - reflog
+  - recovery
+
+requires:
+  - reflog
+  - branch
+
+related:
+  course: recovery
+  lesson: git-reflog
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        invoices.js: |
+          export const invoices = [];
+    - message: Add invoice export
+      files:
+        export.js: |
+          export const toCsv = (rows) => rows.map((row) => row.join(",")).join("\n");
+  commands:
+    - git reset --hard HEAD~1
+checks:
+  - type: branch_contains_commit
+    branch: rescue
+    message: Add invoice export
+  - type: commit_not_on_branch
+    branch: main
+    message: Add invoice export

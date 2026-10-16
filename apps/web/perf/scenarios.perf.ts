@@ -237,7 +237,7 @@ describe("progress", () => {
     const factory = new IDBFactory();
     const repository = new ProgressRepository({
       storage: createIndexedDbStorage(factory),
-      catalog: { courses: [], lessons: [], challenges: [] },
+      catalog: { courses: [], lessons: [], challenges: [], practice: [], concepts: {} },
     });
     await repository.load();
     const command: ProgressAction = { type: "command", command: "status", ok: true };

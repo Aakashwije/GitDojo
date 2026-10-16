@@ -109,6 +109,53 @@ command GitDojo cannot run yet is shown as locked. Challenge workspaces are `cha
 solved challenges are recorded in local progress as challenges, separately from lessons (see
 [progress.md](./progress.md)).
 
+## Practice mode
+
+`/practice` offers short, unguided tasks; `/practice/<id>` runs one (any other id is a 404).
+Tasks are curated YAML in `content/practice/` (see [practice-authoring.md](./practice-authoring.md)),
+validated by `@gitdojo/challenge-engine` with the challenge safety rules made stricter: no hints
+at all, and no command names in the scenario or mission. A task becomes a lesson of type
+`challenge` whose checks are objectives the learner never sees, run by `PracticeSession`
+(`features/workspace/services`), which evaluates them **non-sticky**: solved means every check
+holds at once. Practice workspaces are `practice-<id>`; error explanations are spoiler-free.
+
+- The `practice` feature (layer 5, next to the playground) has the browser (topic and difficulty
+  filters, **Surprise me**) and the workspace page (task panel with the mission, "Check my work",
+  and after a solve: try again, another task, the related lesson).
+- **Surprise me** is `pickSurpriseTask` (`@gitdojo/progress`): deterministic for a seed, unsolved
+  tasks first, never the current task or the one just solved while others are eligible.
+- Solves are recorded as `{ kind: "practice" }` completions: their own namespace, never XP,
+  synced to accounts through `POST /api/progress/practice` ([progress.md](./progress.md)).
+
+## Git's editor
+
+Some Git commands start an editor and wait (`git rebase -i` for its todo list and for reworded or
+squashed messages). In GitDojo the wait is state the engine persists (see
+[git-engine.md](./git-engine.md#interactive-rebase-and-the-editor)); the web app turns it into a
+dialog without changing the pipeline:
+
+```text
+terminal line → WorkspaceSession.execute     result: "hint: Waiting for your editor..."
+             → snapshot.repository.editor     { file, purpose, content, error? }
+             → settleEditor                   asks useGitEditorStore → GitEditorDialog
+             → WorkspaceSession.closeEditor   (Save and close)  or  abortEditor (Abort rebase)
+             → repeat while Git asks again → one combined result for the terminal
+```
+
+The terminal line stays busy until Git stops waiting, just as a real terminal would. Every step
+is queued, re-read and re-validated like a command, and while Git waits the engine refuses other
+changes (`EDITOR_OPEN`). A playground saved mid-edit aborts the rebase on the next load, as if the
+editor had quit; lessons and practice tasks are rebuilt on load anyway.
+
+## Simulated remotes
+
+The sandbox has no network. Remote lessons and practice tasks get a **simulated** `origin`
+inside the workspace (`setup.remote`), with a `gitdojo://simulated/...` URL; `git remote`,
+`fetch`, `pull` and `push` work against it, and the Repository panel shows its branches under
+"Simulated remote" next to `origin/*`. Commits only cross the boundary through those commands;
+validators read the simulated server from `RepositoryState.remotes`. See
+[git-engine.md](./git-engine.md#simulated-remotes).
+
 ## Error explanations
 
 The terminal always prints Git's real message. Next to it, `@gitdojo/error-engine` explains what
@@ -269,14 +316,15 @@ explanations, completion kinds — behavior lives in a typed table keyed by name
 means adding an entry, not editing a `switch`. Tables are typed `Record<Union, Handler>` so a new
 union member does not compile until it has an entry:
 
-| Registry                                     | Key                    | Adding one                   |
-| -------------------------------------------- | ---------------------- | ---------------------------- |
-| `validatorRegistry` (`@gitdojo/validator`)   | `ValidatorType`        | a file in `src/validators/`  |
-| `GIT_COMMAND_SPECS` + `gitHandlers` (router) | `SupportedGitCommand`  | a spec, then a handler       |
-| `stashSubcommands` (router)                  | `git stash` subcommand | an entry                     |
-| `ERROR_CODE_EXPLANATIONS` + `EXPLANATIONS`   | `CommandErrorCode`     | a mapping and an explanation |
-| `COMPLETION_KINDS` / `RECORD_ENDPOINTS`      | `CompletionKind`       | a resolver and an endpoint   |
-| `HINT_LEVELS`, `CHALLENGE_CATEGORIES`        | level / category       | an entry                     |
+| Registry                                     | Key                                                  | Adding one                   |
+| -------------------------------------------- | ---------------------------------------------------- | ---------------------------- |
+| `validatorRegistry` (`@gitdojo/validator`)   | `ValidatorType`                                      | a file in `src/validators/`  |
+| `GIT_COMMAND_SPECS` + `gitHandlers` (router) | `SupportedGitCommand`                                | a spec, then a handler       |
+| `stashSubcommands` (router)                  | `git stash` subcommand                               | an entry                     |
+| `ERROR_CODE_EXPLANATIONS` + `EXPLANATIONS`   | `CommandErrorCode`                                   | a mapping and an explanation |
+| `COMPLETION_KINDS` / `RECORD_ENDPOINTS`      | `CompletionKind` (`lesson`, `challenge`, `practice`) | a resolver and an endpoint   |
+| `COMPLETION_FIELDS` (`@gitdojo/progress`)    | `ContentRef["kind"]`                                 | the `LocalProgress` field    |
+| `HINT_LEVELS`, `CHALLENGE_CATEGORIES`        | level / category                                     | an entry                     |
 
 ### 5. Facade (third-party code)
 
@@ -303,7 +351,7 @@ Each third-party SDK is imported in one place, so replacing or upgrading it touc
 
   | Layer | Features                                      |
   | ----- | --------------------------------------------- |
-  | 5     | `playground`                                  |
+  | 5     | `playground`, `practice`                      |
   | 4     | `workspace`, `dashboard` (page shells)        |
   | 3     | `lesson`, `errors`                            |
   | 2     | `course`, `challenges`, `editor`, `conflicts` |
@@ -354,8 +402,10 @@ What a learner has done is kept by `@gitdojo/progress` in its own IndexedDB data
 account needed; see [progress.md](./progress.md). A hands-on lesson is recorded as finished when
 its objectives are complete; a concept lesson when the learner marks it complete. Course
 completion is never stored: it is derived from completed lessons and the course's current lesson
-list. The dashboard (`/dashboard`) shows totals, course progress, recent activity and command
-usage, and lets the learner export or reset their progress.
+list. The dashboard (`/dashboard`) shows totals (practice on its own, with no XP), recommended
+next steps, the skills practiced and mastered (derived from content `concepts`; see
+[progress.md](./progress.md#skills-and-recommendations)), course progress, recent activity and
+command usage, and lets the learner export or reset their progress.
 
 ## Accounts
 
@@ -366,8 +416,9 @@ work without any configuration. Headers learn the account state from `/api/auth/
 validates the session on the server. `proxy.ts` refreshes sessions and guards `/account` on
 account routes only. Signing in never reads or changes anonymous local progress.
 
-With `DATABASE_URL` set, `GET /api/progress`, `POST /api/progress/lessons` and
-`POST /api/progress/challenges` store signed-in learners' completions in PostgreSQL ([account-progress.md](./account-progress.md)). The
+With `DATABASE_URL` set, `GET /api/progress`, `POST /api/progress/lessons`,
+`POST /api/progress/challenges` and `POST /api/progress/practice` store signed-in learners'
+completions in PostgreSQL ([account-progress.md](./account-progress.md)). The
 account is identified by the provider's OIDC `sub` from the userinfo endpoint, namespaced by
 issuer; XP and lesson metadata come from the content catalog on the server. Route handlers stay
 thin: `lib/auth/identity.ts` verifies the learner, `lib/account-progress/` holds the use cases,
@@ -385,7 +436,8 @@ and hosting: [deployment.md](./deployment.md).
 ```text
 apps/web/
 ├── app/                        routes: /, /learn, /learn/[course], /learn/[course]/[lesson], /learn/demo,
-│                               /playground, /challenges, /challenges/[slug], /dashboard,
+│                               /playground, /challenges, /challenges/[slug], /practice,
+│                               /practice/[task], /dashboard,
 │                               (account)/: /sign-in, /sign-up, /account, /auth/*; /api/auth/session
 ├── components/                 site chrome, landing page, shared content (RichText)
 ├── features/                   each with an index.ts public API; layers in "Module boundaries"
@@ -401,7 +453,9 @@ apps/web/
 │   ├── auth/                   account controls, sign-in/up/out components, session store
 │   ├── lesson/                 lesson panel, objectives, hints, completion, lesson content
 │   ├── playground/             PlaygroundSession, scenario picker, playground layout
-│   └── workspace/              WorkspaceSession, LearningSession, browser environment, layouts
+│   ├── practice/               practice browser, Surprise me, practice workspace and task panel
+│   └── workspace/              WorkspaceSession, LearningSession, PracticeSession, Git editor dialog,
+│                               browser environment, layouts
 │                               (lesson workspace, concept lessons, file panels)
 ├── lib/account-progress/       ports, use cases, HTTP adapter, PostgreSQL adapter, composition root
 ├── lib/auth/                   auth config, return-path validation, server session (SDK boundary)

@@ -44,11 +44,15 @@ export const GIT_COMMAND_SPECS = {
   },
   branch: {
     name: "branch",
-    summary: "List, create (at a start point) or delete branches",
-    usage: "git branch [-d | -D] [<name> [<start-point>]]",
+    summary: "List (-r remote, -a all, -v details), create or delete branches",
+    usage: "git branch [-r | -a] [-v] [-d | -D] [<name> [<start-point>]]",
     flags: [
       { name: "d", aliases: ["delete"], takesValue: false },
       { name: "D", takesValue: false },
+      { name: "r", aliases: ["remotes"], takesValue: false },
+      { name: "a", aliases: ["all"], takesValue: false },
+      // `-vv` is two of these; GitDojo shows the upstream for either.
+      { name: "v", aliases: ["verbose"], takesValue: false },
     ],
     acceptsArguments: true,
     maxArguments: 2,
@@ -171,8 +175,8 @@ export const GIT_COMMAND_SPECS = {
   },
   rebase: {
     name: "rebase",
-    summary: "Replay your branch's commits on top of another",
-    usage: "git rebase <upstream>",
+    summary: "Replay your branch's commits on top of another (-i: edit them first)",
+    usage: "git rebase [-i] <upstream>",
     flags: [
       { name: "continue", takesValue: false },
       { name: "abort", takesValue: false },
@@ -181,6 +185,56 @@ export const GIT_COMMAND_SPECS = {
     ],
     acceptsArguments: true,
     maxArguments: 1,
+  },
+  tag: {
+    name: "tag",
+    summary: "List, create (-a -m: annotated) or delete (-d) tags",
+    usage: 'git tag [-l [<pattern>] | -n] | [-a -m "<message>"] <name> [<commit>] | -d <name>',
+    flags: [
+      { name: "l", aliases: ["list"], takesValue: false },
+      { name: "n", takesValue: false },
+      { name: "a", aliases: ["annotate"], takesValue: false },
+      { name: "m", aliases: ["message"], takesValue: true, repeatSeparator: "\n\n" },
+      { name: "d", aliases: ["delete"], takesValue: false },
+    ],
+    acceptsArguments: true,
+    maxArguments: 2,
+  },
+  remote: {
+    name: "remote",
+    summary: "List remotes (-v: with their URLs)",
+    usage: "git remote [-v]",
+    flags: [{ name: "v", aliases: ["verbose"], takesValue: false }],
+    acceptsArguments: true,
+    maxArguments: 3,
+  },
+  fetch: {
+    name: "fetch",
+    summary: "Download a remote's new commits into origin/* (simulated remote)",
+    usage: "git fetch [<remote>]",
+    flags: [],
+    acceptsArguments: true,
+    maxArguments: 1,
+  },
+  pull: {
+    name: "pull",
+    summary: "Fetch, then integrate the upstream (--rebase, --no-rebase, --ff-only)",
+    usage: "git pull [--rebase | --no-rebase | --ff-only] [<remote> [<branch>]]",
+    flags: [
+      { name: "rebase", aliases: ["r"], takesValue: false },
+      { name: "no-rebase", takesValue: false },
+      { name: "ff-only", takesValue: false },
+    ],
+    acceptsArguments: true,
+    maxArguments: 2,
+  },
+  push: {
+    name: "push",
+    summary: "Publish a branch to a remote (-u: remember it as upstream)",
+    usage: "git push [-u] [<remote> [<branch>]]",
+    flags: [{ name: "u", aliases: ["set-upstream"], takesValue: false }],
+    acceptsArguments: true,
+    maxArguments: 2,
   },
 } as const satisfies Record<string, GitCommandSpec>;
 
@@ -191,17 +245,7 @@ export function isSupportedGitCommand(command: string): command is SupportedGitC
 }
 
 /** Real Git commands that later GitDojo phases will support; they get a friendlier message. */
-export const PLANNED_GIT_COMMANDS: ReadonlySet<string> = new Set([
-  "clone",
-  "config",
-  "fetch",
-  "mv",
-  "pull",
-  "push",
-  "remote",
-  "show",
-  "tag",
-]);
+export const PLANNED_GIT_COMMANDS: ReadonlySet<string> = new Set(["clone", "config", "mv", "show"]);
 
 /** Terminal built-ins. They are parsed like any other input and never reach an OS shell. */
 export const BUILTIN_PROGRAMS = {

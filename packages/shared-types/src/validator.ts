@@ -51,7 +51,38 @@ export type ValidatorDefinition =
   /** A merge is in progress and every one of its conflicts is resolved. */
   | { type: "all_conflicts_resolved" }
   /** No merge is in progress and HEAD's history has a merge commit (bringing in `branch`). */
-  | { type: "merge_completed"; branch?: string };
+  | { type: "merge_completed"; branch?: string }
+  /**
+   * `branch`'s newest commits, following first parents, have exactly these subjects, newest
+   * first. With `complete`, that is the whole history.
+   */
+  | { type: "branch_history"; branch: string; messages: string[]; complete?: boolean }
+  /** A tag exists, optionally naming the commit with `message`, and annotated or lightweight. */
+  | { type: "tag_exists"; tag: string; message?: string; annotated?: boolean }
+  | { type: "tag_not_exists"; tag: string }
+  /**
+   * The simulated remote's `branch` exists and points at the commit with `message`, or at the
+   * same commit as the local branch `sameAs`. `remote` defaults to `origin`.
+   */
+  | {
+      type: "remote_branch_points_to_commit";
+      branch: string;
+      remote?: string;
+      message?: string;
+      sameAs?: string;
+    }
+  /**
+   * The remote-tracking branch `ref` (`origin/main`) exists and points at the commit with
+   * `message`, or at the same commit as the remote's branch right now (`matchesRemote`).
+   */
+  | {
+      type: "remote_tracking_branch_points_to_commit";
+      ref: string;
+      message?: string;
+      matchesRemote?: boolean;
+    }
+  /** `branch` has `upstream` (`origin/feature`) as its upstream. */
+  | { type: "branch_upstream"; branch: string; upstream: string };
 
 export type ValidatorType = ValidatorDefinition["type"];
 

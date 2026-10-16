@@ -1,0 +1,158 @@
+# Lesson: Mark Releases with git tag
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-tag
+slug: git-tag
+title: Mark Releases with git tag
+type: interactive
+
+goal: Name commits with tags, the way projects mark their releases, and clean up a tag you no longer want.
+
+description: |
+  The weather app is ready for its first release. Branches move with every commit, so they are
+  no good for remembering "this is exactly what we shipped". A **tag** is a name for one commit
+  that stays put.
+
+  Mark the preview build, tag the release itself, and remove a tag someone made by mistake.
+
+difficulty: beginner
+
+concepts:
+  - tags
+  - releases
+  - history
+
+commands:
+  - git tag
+  - git tag -a
+  - git tag -d
+  - git log --oneline
+
+content:
+  - type: comparison
+    title: Branches move, tags do not
+    columns:
+      - title: A branch
+        items:
+          - Moves forward with every commit
+          - Names the work in progress
+          - "`git switch` moves you onto it"
+      - title: A tag
+        items:
+          - Stays on one commit for good
+          - Names a moment, such as a release
+          - "`git switch --detach v1.0` visits it"
+
+  - type: comparison
+    title: Two kinds of tag
+    columns:
+      - title: Lightweight — git tag v0.9
+        items:
+          - Just a name pointing at a commit
+          - Good for a private bookmark
+      - title: Annotated — git tag -a v1.0 -m "…"
+        items:
+          - A tag object with its own message, author and date
+          - What releases use; `git tag -n` shows the message
+
+  - type: example
+    title: Tags in the history
+    command: git log --oneline
+    output: |
+      8d4c21e (HEAD -> main, tag: v1.0) Fix rounding in forecast
+      52c9e10 (tag: v0.9) Add forecast panel
+      1f0e6d2 Initial commit
+    explanation: >-
+      `git log` decorates tagged commits with `tag:`. Without a commit, `git tag` tags HEAD;
+      name a commit to tag an older one: `git tag v0.9 HEAD~1`.
+
+  - type: callout
+    tone: tip
+    body: >-
+      Use tags anywhere Git expects a commit: `git switch --detach v1.0` to look at the release,
+      or `git branch hotfix v1.0` to start a fix from it. `git tag -l "v1.*"` lists only the
+      tags matching a pattern.
+
+  - type: callout
+    tone: note
+    body: >-
+      On a real server, tags are shared with `git push origin v1.0`. GitDojo's simulated remote
+      pushes branches only, so this lesson keeps its tags local.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather
+    - message: Add forecast panel
+      files:
+        forecast.js: |
+          export const forecast = (temperature) => `${temperature}°`;
+    - message: Fix rounding in forecast
+      files:
+        forecast.js: |
+          export const forecast = (temperature) => `${Math.round(temperature)}°`;
+  commands:
+    - git tag temp-release HEAD~2
+
+objectives:
+  - id: preview
+    description: A lightweight tag `v0.9` marks `Add forecast panel`.
+    validator:
+      type: tag_exists
+      tag: v0.9
+      message: Add forecast panel
+      annotated: false
+
+  - id: release
+    description: An annotated tag `v1.0` marks `Fix rounding in forecast`.
+    validator:
+      type: tag_exists
+      tag: v1.0
+      message: Fix rounding in forecast
+      annotated: true
+
+  - id: cleanup
+    description: The stray `temp-release` tag is gone.
+    validator:
+      type: tag_not_exists
+      tag: temp-release
+
+hints:
+  preview:
+    - A tag names one commit. Without a commit, Git tags the one HEAD is on; the preview is one commit back.
+    - "`git tag <name> <commit>` creates a lightweight tag on any commit, such as `HEAD~1`."
+    - Run `git tag v0.9 HEAD~1`.
+  release:
+    - Releases deserve an annotated tag, with a message of its own. HEAD is already on the release commit.
+    - "`git tag -a <name> -m <message>` creates an annotated tag."
+    - Run `git tag -a v1.0 -m "Version 1.0"`.
+  cleanup:
+    - "`git tag` lists every tag in the repository."
+    - "`git tag -d` deletes a tag. The commit it named stays exactly where it is."
+    - Run `git tag -d temp-release`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: preview-on-release
+    objective: preview
+    when:
+      - type: tag_exists
+        tag: v0.9
+        message: Fix rounding in forecast
+    hints:
+      - "`v0.9` is on `Fix rounding in forecast`, the commit HEAD is on. The preview was the commit before it."
+      - Delete the tag and create it again on `HEAD~1`.
+      - Run `git tag -d v0.9`, then `git tag v0.9 HEAD~1`.
+
+  - id: release-lightweight
+    objective: release
+    when:
+      - type: tag_exists
+        tag: v1.0
+        annotated: false
+    hints:
+      - "`v1.0` exists, but it is a lightweight tag: just a name, with no message of its own."
+      - Delete it and create it again with `-a` and `-m`.
+      - Run `git tag -d v1.0`, then `git tag -a v1.0 -m "Version 1.0"`.

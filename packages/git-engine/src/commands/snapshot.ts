@@ -10,6 +10,9 @@ import {
   resolveRefOrNull,
 } from "../engine/repository";
 import { readBranches } from "./branch";
+import { readEditorRecord, toPendingEditor } from "../engine/editor-state";
+import { readRemoteTrackingBranches, readTags } from "../engine/refs";
+import { readRemotes } from "../engine/remote-store";
 import { operationKind, readMergeState } from "../engine/merge-state";
 import { readStashes, toStashEntry } from "../engine/stash-store";
 import { readReflog, ZERO_OID } from "../engine/reflog";
@@ -31,6 +34,10 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       merge: null,
       reflog: [],
       stashes: [],
+      tags: [],
+      remotes: [],
+      remoteBranches: [],
+      editor: null,
       entries: await Promise.all(
         files
           .filter((file) => file.type === "file")
@@ -57,8 +64,24 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
     readReflog(ctx, "HEAD"),
     readStashes(ctx),
   ]);
-  const branches: GitBranchInfo[] = branchStates.map(({ name, oid }) => ({ name, oid }));
-  const tips = [head, ...branches.map((info) => info.oid)].filter((oid) => oid !== null);
+  const [tags, remotes, remoteBranches, editor] = await Promise.all([
+    readTags(ctx),
+    readRemotes(ctx),
+    readRemoteTrackingBranches(ctx),
+    readEditorRecord(ctx),
+  ]);
+  const branches: GitBranchInfo[] = branchStates.map(({ name, oid, upstream }) => ({
+    name,
+    oid,
+    ...(upstream ? { upstream } : {}),
+  }));
+  // Like `git log --all`: tags and remote-tracking branches keep their commits in the graph too.
+  const tips = [
+    head,
+    ...branches.map((info) => info.oid),
+    ...tags.map((tag) => tag.oid),
+    ...remoteBranches.map((ref) => ref.oid),
+  ].filter((oid) => oid !== null);
   // HEAD's history and every branch's share most commits: read each one once.
   const cache = createCommitCache();
 
@@ -83,6 +106,10 @@ export async function readSnapshot(ctx: GitContext): Promise<GitRepositorySnapsh
       timestamp: entry.timestamp,
     })),
     stashes: stashes.map(toStashEntry),
+    tags,
+    remotes,
+    remoteBranches,
+    editor: editor && toPendingEditor(editor),
     merge: merge && {
       kind: operationKind(merge),
       ...(merge.rebase

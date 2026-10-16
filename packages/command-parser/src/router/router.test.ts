@@ -174,7 +174,8 @@ describe("command router", () => {
     expect(await command("clear")).toBeUndefined();
     expect(await command("ls")).toBeUndefined();
     expect(await command("git")).toBeUndefined();
-    expect(await command("git push")).toBeUndefined();
+    expect(await command("git push")).toBe("push");
+    expect(await command("git clone x")).toBeUndefined();
     expect(await command("git --help")).toBeUndefined();
     expect(await command("   ")).toBeUndefined();
   });
@@ -268,14 +269,71 @@ describe("command router", () => {
       expect((await run("git cherry-pick HEAD~1")).output).toMatch(/\] Second\n Date: /);
     });
 
-    it("rebases, and refuses interactive rebases", async () => {
-      expect((await run("git rebase -i main")).output).toContain(
-        "does not support interactive rebase",
-      );
+    it("rebases, and opens the editor for interactive rebases", async () => {
+      // Local changes block a rebase, interactive or not.
+      expect((await run("git rebase -i main")).errorCode).toBe("LOCAL_CHANGES");
       expect((await run("git rebase")).errorCode).toBe("INVALID_ARGUMENT");
+      expect((await run("git rebase -i")).errorCode).toBe("INVALID_ARGUMENT");
       expect((await run("git rebase --abort")).output).toBe("fatal: No rebase in progress?");
       await run("git restore README.md");
       expect((await run("git rebase main")).output).toBe("Current branch main is up to date.");
+    });
+
+    it("starts an interactive rebase that waits for the editor", async () => {
+      await run("git restore README.md");
+      expect(await run("git rebase --interactive HEAD")).toMatchObject({
+        ok: true,
+        output: "hint: Waiting for your editor to close the file...",
+        gitCommand: "rebase",
+      });
+      expect((await run("git status")).ok).toBe(true);
+      expect((await run('git commit -m "x"')).errorCode).toBe("EDITOR_OPEN");
+      expect((await run("git rebase --abort")).ok).toBe(true);
+    });
+
+    it("tags commits: lightweight, annotated, listed and deleted", async () => {
+      expect(await run("git tag v1.0")).toMatchObject({ ok: true, output: "" });
+      expect((await run('git tag -a v1.1 -m "Second release"')).ok).toBe(true);
+      expect((await run("git tag")).output).toBe("v1.0\nv1.1");
+      expect((await run("git tag -l v1.1")).output).toBe("v1.1");
+      expect((await run("git tag -n")).output).toMatch(
+        /^v1\.0\s+Initial commit\nv1\.1\s+Second release$/,
+      );
+      expect((await run("git log --oneline")).output).toMatch(
+        /\(HEAD -> main, tag: v1\.0, tag: v1\.1\)/,
+      );
+      expect((await run("git tag -a v2")).errorCode).toBe("INVALID_ARGUMENT");
+      expect((await run("git tag -d v1.0")).output).toMatch(/^Deleted tag 'v1\.0'/);
+      expect((await run("git tag -d v1.0")).errorCode).toBe("TAG_NOT_FOUND");
+      expect((await run("git tag -d a b")).errorCode).toBe("INVALID_ARGUMENT");
+    });
+
+    it("works with the simulated remote", async () => {
+      await run("git restore README.md");
+      await context.git.setupRemote("origin", { branches: ["main"] });
+      expect((await run("git remote -v")).output).toContain(
+        "gitdojo://simulated/origin.git (push)",
+      );
+      expect((await run("git remote add upstream https://example.com/x.git")).output).toContain(
+        "no network",
+      );
+      expect(await run("git fetch")).toMatchObject({ ok: true, output: "", gitCommand: "fetch" });
+      expect((await run("git pull")).output).toBe("Already up to date.");
+      expect((await run("git pull --rebase --ff-only")).errorCode).toBe("INVALID_ARGUMENT");
+      await run("git switch -c feature");
+      expect((await run("git push")).errorCode).toBe("NO_UPSTREAM");
+      expect((await run("git push -u origin feature")).output).toContain(
+        "branch 'feature' set up to track 'origin/feature'.",
+      );
+      expect((await run("git branch -r")).output).toBe("  origin/feature\n  origin/main");
+      expect((await run("git branch -a")).output).toBe(
+        "* feature\n  main\n  remotes/origin/feature\n  remotes/origin/main",
+      );
+      expect((await run("git branch -vv")).output).toMatch(
+        /^\* feature [0-9a-f]{7} \[origin\/feature\] Initial commit/,
+      );
+      expect((await run("git branch -r new")).errorCode).toBe("INVALID_ARGUMENT");
+      expect((await run("git push --force")).errorCode).toBe("UNKNOWN_FLAG");
     });
 
     it("removes files with git rm", async () => {

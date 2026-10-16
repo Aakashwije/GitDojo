@@ -26,6 +26,7 @@ import {
   TerminalPanel,
 } from "@/features/terminal";
 import {
+  GitEditorDialog,
   HelpDialog,
   type MobileTab,
   MobileTabs,
@@ -208,6 +209,7 @@ export function PlaygroundWorkspace({ scenarios }: { scenarios: PlaygroundScenar
       )}
 
       <ConflictEditorDialog readFile={files.readFile} saveFile={files.saveFile} />
+      <GitEditorDialog />
       <MobileTabs active={tab} onChange={setTab} tabs={TABS} />
     </div>
   );

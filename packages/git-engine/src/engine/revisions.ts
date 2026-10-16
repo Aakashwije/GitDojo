@@ -2,6 +2,7 @@ import git from "isomorphic-git";
 import { hasErrorCode } from "../filesystem/fs-errors";
 import { type GitContext } from "./context";
 import { reflogEntry } from "./reflog";
+import { resolveCommitRef } from "./refs";
 import { resolveRefOrNull } from "./repository";
 
 const FULL_OID = /^[0-9a-f]{40}$/;
@@ -36,10 +37,13 @@ async function resolveBase(ctx: GitContext, base: string): Promise<string | null
   }
   if (base === "HEAD" || base === "@") return resolveRefOrNull(ctx, "HEAD");
   if (!base.startsWith("refs/")) {
-    const branch = await resolveRefOrNull(ctx, `refs/heads/${base}`);
-    if (branch !== null) return branch;
+    // Git's order: tags, then branches, then remote-tracking branches (`origin/main`).
+    for (const prefix of ["refs/tags/", "refs/heads/", "refs/remotes/"]) {
+      const ref = await resolveCommitRef(ctx, `${prefix}${base}`);
+      if (ref !== null) return ref;
+    }
   } else {
-    const ref = await resolveRefOrNull(ctx, base);
+    const ref = await resolveCommitRef(ctx, base);
     if (ref !== null) return ref;
   }
   if (FULL_OID.test(base)) return (await commitExists(ctx, base)) ? base : null;
@@ -60,7 +64,8 @@ async function resolveBase(ctx: GitContext, base: string): Promise<string | null
 /**
  * Resolves the revision syntax learners meet in tutorials to a commit oid:
  *
- * - `HEAD` / `@`, a branch name, a full or abbreviated (4+ characters) commit id;
+ * - `HEAD` / `@`, a tag, a branch or remote-tracking branch (`origin/main`) name, a full or
+ *   abbreviated (4+ characters) commit id;
  * - `~N` (Nth first-parent ancestor), `^` / `^N` (Nth parent), in any combination: `HEAD~2^2`;
  * - reflog positions: `HEAD@{1}`, `main@{2}`.
  *

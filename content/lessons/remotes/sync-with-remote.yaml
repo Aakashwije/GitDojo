@@ -1,0 +1,183 @@
+# Lesson: Sync with a Teammate's Push
+# Schema and authoring guide: docs/lesson-authoring.md
+id: sync-with-remote
+slug: sync-with-remote
+title: Sync with a Teammate's Push
+type: interactive
+
+goal: Fetch a teammate's work, integrate it with yours, and push the result.
+
+description: |
+  You committed `Add forecast panel` on `main`. While you worked, Sam pushed `Fix units in
+  header` to `origin`. Your repository has not heard about it yet: `git status` still says
+  you are simply one commit ahead.
+
+  Bring Sam's commit in, keep yours, and publish both. If you push first, `origin` will refuse,
+  and that is part of the lesson.
+
+difficulty: intermediate
+
+concepts:
+  - fetch
+  - pull
+  - push
+  - remotes
+
+commands:
+  - git fetch
+  - git status
+  - git pull --rebase
+  - git push
+
+content:
+  - type: example
+    title: A push that would lose work
+    command: git push
+    output: |
+      To gitdojo://simulated/origin.git
+       ! [rejected]        main -> main (fetch first)
+      error: failed to push some refs to 'gitdojo://simulated/origin.git'
+      hint: Updates were rejected because the remote contains work that you do not
+      hint: have locally.
+    explanation: >-
+      A push may only move a remote branch **forward**. `origin/main` has a commit your `main`
+      does not, so accepting your push would throw Sam's commit away. Nothing changed, on either
+      side.
+
+  - type: demo
+    title: Fetch, rebase, push
+    steps:
+      - caption: >-
+          After `git fetch`, `origin/main` moves to Sam's commit S. Your `main` and its files are
+          untouched: the two lines of work have diverged.
+        command: git fetch
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: F, parent: B, message: Add forecast panel }
+            - { id: S, parent: B, message: Fix units in header }
+          branches: { main: F, origin/main: S }
+          head: main
+      - caption: >-
+          Rebasing onto `origin/main` replays your commit on top of Sam's: a straight line,
+          ready to push. `git pull --rebase` does the fetch and the rebase in one go.
+        command: git rebase origin/main
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add homepage }
+            - { id: S, parent: B, message: Fix units in header }
+            - { id: F', parent: S, message: Add forecast panel }
+          branches: { main: F', origin/main: S }
+          head: main
+
+  - type: callout
+    tone: tip
+    body: >-
+      A plain `git pull` refuses when both sides have new commits, and asks you to choose:
+      `git pull --rebase` for a straight history, or `git pull --no-rebase` for a merge commit.
+      Either way the fetch has already happened.
+
+  - type: callout
+    tone: note
+    body: >-
+      Sam's push is simulated: GitDojo's `origin` lives inside your workspace and already has the
+      commit when the lesson starts. Only `git fetch`, `git pull` and `git push` move commits
+      between it and your branches.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather
+    - message: Add homepage
+      files:
+        index.html: |
+          <h1>Weather</h1>
+  remote:
+    branches:
+      - main
+    commits:
+      - message: Fix units in header
+        files:
+          header.js: |
+            export const units = "°C";
+  files:
+    forecast.js: |
+      export const forecast = (temperature) => `${Math.round(temperature)}°`;
+  commands:
+    - git add forecast.js
+    - git commit -m "Add forecast panel"
+
+objectives:
+  - id: fetched
+    description: "`origin/main` knows about Sam's commit."
+    validator:
+      type: remote_tracking_branch_points_to_commit
+      ref: origin/main
+      matchesRemote: true
+
+  - id: integrated
+    description: Your `main` contains `Fix units in header`.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Fix units in header
+
+  - id: kept
+    description: Your `main` still contains `Add forecast panel`.
+    validator:
+      type: branch_contains_commit
+      branch: main
+      message: Add forecast panel
+
+  - id: published
+    description: "`origin`'s `main` is where your `main` is."
+    validator:
+      type: remote_branch_points_to_commit
+      branch: main
+      sameAs: main
+
+hints:
+  fetched:
+    - Your repository only learns what `origin` has when it asks. Until then, `origin/main` is an old snapshot.
+    - "`git fetch` downloads new commits and moves `origin/main`, without touching your branch."
+    - Run `git fetch`.
+  integrated:
+    - "`origin/main` has Sam's commit and `main` has yours. Combine them by replaying yours on top, or with a merge."
+    - "`git rebase origin/main` replays your commit on top of Sam's; `git pull --rebase` fetches and rebases in one step."
+    - Run `git pull --rebase`.
+  kept:
+    - "`git log --oneline` should show both commits on `main`."
+  published:
+    - Now your `main` contains everything `origin/main` has, so the push is a fast-forward.
+    - Run `git push`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: fetched-not-integrated
+    objective: integrated
+    when:
+      - type: remote_tracking_branch_points_to_commit
+        ref: origin/main
+        matchesRemote: true
+    hints:
+      - "`origin/main` has Sam's commit now, but your `main` does not: `git status` says the two have diverged."
+      - Rebase your commit onto `origin/main`, or merge it, to bring Sam's commit into `main`.
+      - Run `git rebase origin/main`.
+
+  - id: integrated-not-pushed
+    objective: published
+    when:
+      - type: branch_contains_commit
+        branch: main
+        message: Fix units in header
+      - type: branch_contains_commit
+        branch: main
+        message: Add forecast panel
+    hints:
+      - "`main` has both commits, and `git status` says you are ahead of `origin/main`. `origin` itself has not changed yet."
+      - Run `git push`.

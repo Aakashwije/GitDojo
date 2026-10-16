@@ -119,7 +119,8 @@ content:
   - type: callout
     tone: note
     body: >-
-      GitDojo's sandbox has no network and no server to talk to, so this course walks through
-      remotes with diagrams and real command output rather than hands-on exercises. Every other
-      idea you have practised here — branches, merges, conflicts, `HEAD` — works exactly the same
-      way once a remote is involved.
+      GitDojo's sandbox has no network and no server to talk to. The hands-on lessons in this
+      course use a **simulated** `origin` that lives inside your workspace: `git remote -v`,
+      `git fetch`, `git pull`, `git push`, `git branch -vv` and `git status` behave as they do with
+      a real server, but nothing ever leaves your browser. `git remote add` and `git clone` are not
+      available.

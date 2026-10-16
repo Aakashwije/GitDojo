@@ -19,6 +19,21 @@ export interface AuthorRecord {
   timezoneOffset: number;
 }
 
+/** What an interactive rebase does with one commit. Drops are simply left out of the todo. */
+export type RebaseAction = "pick" | "reword" | "squash" | "fixup";
+
+export interface RebaseStep {
+  action: RebaseAction;
+  oid: string;
+}
+
+/** A squash/fixup chain folded into one commit so far: each message, and whether it is kept. */
+export interface SquashChain {
+  messages: { text: string; skip: boolean }[];
+  /** Some step was a `squash`, so Git asks for the combined message at the end of the chain. */
+  squash: boolean;
+}
+
 /** Where a `git rebase` is: the commits still to replay and how to go back. */
 export interface RebaseRecord {
   /** The branch being rebased; it moves only when the rebase finishes. */
@@ -27,10 +42,20 @@ export interface RebaseRecord {
   originalHead: string;
   /** The commit the branch is being replayed onto. */
   onto: string;
-  /** Commits still to replay, oldest first. */
-  todo: string[];
+  /** Still to replay, oldest first: a commit to pick, or (interactive) a step with its action. */
+  todo: (string | RebaseStep)[];
   /** The commit that stopped with conflicts, or `null` once it has been committed. */
   current: string | null;
+  /** `git rebase -i` */
+  interactive?: boolean;
+  /** Interactive rebases: what to do with `current` once its conflicts are resolved. */
+  currentAction?: RebaseAction;
+  /** Interactive rebases: the squash/fixup chain HEAD is part of, if any. */
+  chain?: SquashChain;
+}
+
+export function rebaseStep(step: string | RebaseStep): RebaseStep {
+  return typeof step === "string" ? { action: "pick", oid: step } : step;
 }
 
 /**

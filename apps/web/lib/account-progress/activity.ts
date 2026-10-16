@@ -9,8 +9,11 @@ import { type DeviceActivity, type StoredActivity } from "./ports";
  * endpoints, where the server computes XP from the content catalog.
  */
 
-/** Schema versions of `@gitdojo/progress` this server understands. */
-export const SUPPORTED_SYNC_VERSIONS: readonly number[] = [1, 2, 3];
+/**
+ * Schema versions of `@gitdojo/progress` this server understands. Version 4 adds practice
+ * completions, which have their own endpoint: its activity payload is the same as version 3's.
+ */
+export const SUPPORTED_SYNC_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 /** Generous but finite: a learner with years of history stays well inside these. */
 export const SYNC_LIMITS = {

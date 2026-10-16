@@ -5,6 +5,7 @@ import {
   type GitStatusEntry,
   type GitStatusResult,
 } from "../engine/git-engine";
+import { upstreamInfo } from "../engine/refs";
 import { currentBranch, isRepository, resolveRefOrNull, shortOid } from "../engine/repository";
 import { operationKind, readMergeState, unresolvedConflicts } from "../engine/merge-state";
 import { readStatusEntries } from "../engine/status-matrix";
@@ -17,7 +18,9 @@ export async function readStatusData(ctx: GitContext): Promise<GitStatusData> {
     readStatusEntries(ctx),
     readMergeState(ctx),
   ]);
+  const upstream = branch === null ? undefined : await upstreamInfo(ctx, branch, head);
   return {
+    ...(upstream ? { upstream } : {}),
     branch,
     head,
     hasCommits: head !== null,
@@ -29,9 +32,53 @@ export async function readStatusData(ctx: GitContext): Promise<GitStatusData> {
         path: conflict.path,
         kind: conflictKind(conflict),
       })),
-      ...(merge.rebase ? { rebase: { branch: merge.rebase.branch, onto: merge.rebase.onto } } : {}),
+      ...(merge.rebase
+        ? {
+            rebase: {
+              branch: merge.rebase.branch,
+              onto: merge.rebase.onto,
+              ...(merge.rebase.interactive ? { interactive: true } : {}),
+            },
+          }
+        : {}),
     },
   };
+}
+
+function commits(count: number): string {
+  return `${String(count)} commit${count === 1 ? "" : "s"}`;
+}
+
+/** How the branch compares with its upstream, as Git prints it under "On branch ...". */
+function upstreamNotice(upstream: NonNullable<GitStatusData["upstream"]>): string[] {
+  const name = `'${upstream.name}'`;
+  if (upstream.gone) {
+    return [
+      `Your branch is based on ${name}, but the upstream is gone.`,
+      '  (use "git branch --unset-upstream" to fixup)',
+    ];
+  }
+  const { ahead, behind } = upstream;
+  if (ahead > 0 && behind > 0) {
+    return [
+      `Your branch and ${name} have diverged,`,
+      `and have ${String(ahead)} and ${String(behind)} different commits each, respectively.`,
+      '  (use "git pull" if you want to integrate the remote branch with yours)',
+    ];
+  }
+  if (ahead > 0) {
+    return [
+      `Your branch is ahead of ${name} by ${commits(ahead)}.`,
+      '  (use "git push" to publish your local commits)',
+    ];
+  }
+  if (behind > 0) {
+    return [
+      `Your branch is behind ${name} by ${commits(behind)}, and can be fast-forwarded.`,
+      '  (use "git pull" to update your local branch)',
+    ];
+  }
+  return [`Your branch is up to date with ${name}.`];
 }
 
 /** The lines Git prints under "On branch ..." while an operation is stopped for conflicts. */
@@ -96,6 +143,7 @@ export function formatStatus({
   hasCommits,
   entries: allEntries,
   merge,
+  upstream,
 }: GitStatusData): string {
   // Unresolved conflicts are listed only under "Unmerged paths".
   const unmerged = merge?.unresolved ?? [];
@@ -158,11 +206,12 @@ export function formatStatus({
 
   const where =
     merge?.kind === "rebase"
-      ? `rebase in progress; onto ${shortOid(merge.rebase?.onto ?? merge.commit)}`
+      ? `${merge.rebase?.interactive ? "interactive rebase" : "rebase"} in progress; onto ${shortOid(merge.rebase?.onto ?? merge.commit)}`
       : branch === null && head !== null
         ? `HEAD detached at ${shortOid(head)}`
         : `On branch ${branch ?? "HEAD"}`;
-  const header = [where, ...mergeNotice].join("\n");
+  const tracking = upstream && merge === null ? upstreamNotice(upstream) : [];
+  const header = [where, ...tracking, ...mergeNotice].join("\n");
   const summary =
     unmerged.length > 0 && staged.length === 0
       ? 'no changes added to commit (use "git add" and/or "git commit -a")'
@@ -170,7 +219,8 @@ export function formatStatus({
         ? null
         : statusSummary(staged.length, unstaged.length, untracked.length, hasCommits);
 
-  if (sections.length === 0) return `${header}\n${summary}`;
+  // Git separates the upstream report from what follows with a blank line.
+  if (sections.length === 0) return `${header}${tracking.length > 0 ? "\n\n" : "\n"}${summary}`;
   const body = [header, ...sections].join("\n\n");
   return summary === null ? body : `${body}\n\n${summary}`;
 }

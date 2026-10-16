@@ -27,6 +27,14 @@ import {
   type LegacyStorage,
   type LocalProgress,
   type ProgressAction,
+  isSkillId,
+  normalizeConcept,
+  pickSurpriseTask,
+  recommendNextSteps,
+  skillForConcept,
+  skillProgress,
+  SKILLS,
+  skillsForConcepts,
   type ProgressCatalog,
   type ProgressChannel,
   type ProgressStorage,
@@ -70,6 +78,31 @@ const CATALOG: ProgressCatalog = {
     { id: "first-commit", title: "First Commit" },
     { id: "lost-commit", title: "Lost Commit" },
   ],
+  practice: [
+    {
+      id: "start-a-branch",
+      title: "Start a Feature Branch",
+      skill: "branches",
+      difficulty: "beginner",
+    },
+    {
+      id: "rescue-a-reset",
+      title: "Rescue a Reset",
+      skill: "recovery",
+      difficulty: "intermediate",
+    },
+  ],
+  concepts: {
+    "lesson:what-is-git": ["version-control"],
+    "lesson:git-init": ["git-init", "repositories"],
+    "lesson:first-repository-challenge": ["git-init", "staging", "commits"],
+    "lesson:git-branch": ["branches", "git-branch"],
+    "lesson:first-commit": ["git-init", "staging", "commits"],
+    "challenge:first-commit": ["staging", "commits"],
+    "challenge:lost-commit": ["reflog", "recovery"],
+    "practice:start-a-branch": ["branches", "commits"],
+    "practice:rescue-a-reset": ["reflog"],
+  },
 };
 
 const T0 = 1_700_000_000_000;
@@ -955,5 +988,247 @@ describe("seen releases", () => {
     // The other tab's next write starts from the stored record, so it cannot drop the release.
     const saved = await second.apply({ type: "command", command: "commit", ok: true });
     expect(saved.seenReleases["v0.1.12"]).toBeDefined();
+  });
+});
+
+describe("practice completions", () => {
+  it("show in recent activity as practice, with no XP", () => {
+    const progress = reduce([
+      lesson("git-init", "interactive", "git-basics"),
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+    ]);
+    expect(recentActivity(progress, CATALOG)[0]).toMatchObject({
+      kind: "practice",
+      id: "start-a-branch",
+      title: "Start a Feature Branch",
+      xp: 0,
+      available: true,
+    });
+  });
+
+  const practice = (id: string) =>
+    ({ type: "complete", content: { kind: "practice", id } }) as const;
+
+  it("are their own namespace and never earn XP", () => {
+    const progress = reduce([practice("first-commit"), lesson("first-commit", "interactive")]);
+    expect(progress.completedPractice).toEqual({
+      "first-commit": { completedAt: T0 + 1000, xp: 0 },
+    });
+    expect(progress.completedLessons["first-commit"]?.xp).toBe(50);
+    expect(progress.xp).toBe(50);
+  });
+
+  it("keep the first solve", () => {
+    const progress = reduce([practice("start-a-branch"), practice("start-a-branch")]);
+    expect(progress.completedPractice["start-a-branch"]?.completedAt).toBe(T0 + 1000);
+  });
+
+  it("upgrade from schema 3 as none solved, and never claim XP", () => {
+    const v3 = { ...emptyProgress(0), schemaVersion: 3 } as Record<string, unknown>;
+    delete v3.completedPractice;
+    const upgraded = parseProgress(v3, 0);
+    expect(upgraded.issues).toEqual([]);
+    expect(upgraded.progress.completedPractice).toEqual({});
+    const tampered = parseProgress(
+      { ...emptyProgress(0), completedPractice: { x: { completedAt: 5, xp: 999 }, bad: 3 } },
+      0,
+    );
+    expect(tampered.progress.completedPractice).toEqual({ x: { completedAt: 5, xp: 0 } });
+    expect(tampered.progress.xp).toBe(0);
+    expect(tampered.issues).toContain("completedPractice.bad was invalid");
+  });
+
+  it("are cleared by a reset and merged from the account", () => {
+    const solved = reduce([practice("start-a-branch")]);
+    expect(applyProgressAction(solved, { type: "reset" }, T0).completedPractice).toEqual({});
+    const merged = applyProgressAction(
+      emptyProgress(T0),
+      {
+        type: "account-lessons",
+        lessons: {},
+        practice: { "rescue-a-reset": { completedAt: 7, xp: 0 } },
+      },
+      T0,
+    );
+    expect(merged.completedPractice).toEqual({ "rescue-a-reset": { completedAt: 7, xp: 0 } });
+  });
+});
+
+describe("skills", () => {
+  it("normalize equivalent concept labels", () => {
+    expect(normalizeConcept(" Merge_Conflicts ")).toBe("merge-conflicts");
+    expect(skillForConcept("Remote Tracking Branches")).toBe("remotes");
+    expect(skillForConcept("git-add")).toBe("staging");
+    expect(skillForConcept("not-a-concept")).toBeNull();
+    expect(skillsForConcepts(["commits", "git-init", "staging", "commits"])).toEqual([
+      "repositories",
+      "staging",
+      "commits",
+    ]);
+  });
+
+  it("are untouched with no progress", () => {
+    const skills = skillProgress(emptyProgress(T0), CATALOG);
+    expect(skills.map((entry) => entry.skill.id)).toEqual(SKILLS.map((skill) => skill.id));
+    expect(skills.every((entry) => entry.status === "untouched")).toBe(true);
+    expect(skills.find((entry) => entry.skill.id === "branches")?.available).toBe(2);
+  });
+
+  it("count concept lessons as studied and one hands-on item as practiced, never mastered", () => {
+    const progress = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      lesson("git-init", "interactive", "git-basics"),
+    ]);
+    const byId = (id: string) =>
+      skillProgress(progress, CATALOG).find((entry) => entry.skill.id === id);
+    expect(byId("repositories")).toMatchObject({ status: "practiced", handsOn: 1, read: 1 });
+    expect(byId("staging")?.status).toBe("untouched");
+  });
+
+  it("need repeated, partly unguided work for mastery", () => {
+    const guided = reduce([
+      lesson("git-init", "interactive", "git-basics"),
+      lesson("first-commit", "interactive"),
+    ]);
+    const repositories = (p: LocalProgress) =>
+      skillProgress(p, CATALOG).find((entry) => entry.skill.id === "repositories");
+    expect(repositories(guided)?.status).toBe("practiced");
+    const withChallenge = applyProgressAction(
+      guided,
+      lesson("first-repository-challenge", "challenge", "git-basics"),
+      T0 + 9000,
+    );
+    expect(repositories(withChallenge)).toMatchObject({
+      status: "mastered",
+      handsOn: 3,
+      unguided: 1,
+    });
+  });
+
+  it("count practice towards its skill, and ignore removed content", () => {
+    const progress = reduce([
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+      { type: "complete", content: { kind: "practice", id: "removed-task" } },
+    ]);
+    const branches = skillProgress(progress, CATALOG).find(
+      (entry) => entry.skill.id === "branches",
+    );
+    expect(branches).toMatchObject({ status: "practiced", handsOn: 1, unguided: 1 });
+  });
+
+  it("cover every skill id a practice task can name", () => {
+    expect(CATALOG.practice.every((task) => isSkillId(task.skill))).toBe(true);
+    expect(isSkillId("juggling")).toBe(false);
+  });
+});
+
+describe("recommendNextSteps", () => {
+  const hrefs = (progress: LocalProgress) =>
+    recommendNextSteps(progress, CATALOG).map((r) => r.href);
+
+  it("starts at the beginning for a new learner", () => {
+    const [first, ...rest] = recommendNextSteps(emptyProgress(T0), CATALOG);
+    expect(first).toMatchObject({
+      href: "/learn/git-basics/what-is-git",
+      reason: "Start at the beginning",
+      kind: "lesson",
+    });
+    expect(rest.map((r) => r.reason)).toEqual([
+      "Try your first repository task",
+      "Try your first staging task",
+    ]);
+  });
+
+  it("continues a started course first, then unpracticed skills", () => {
+    const progress = reduce([lesson("what-is-git", "concept", "git-basics")]);
+    const steps = recommendNextSteps(progress, CATALOG);
+    expect(steps[0]).toMatchObject({
+      href: "/learn/git-basics/git-init",
+      reason: "Continue the course you started",
+    });
+    expect(steps.map((step) => step.id)).toEqual([...new Set(steps.map((step) => step.id))]);
+  });
+
+  it("resumes the last lesson visited when it is unfinished", () => {
+    const progress = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      { type: "visit-lesson", courseId: "branching", lessonId: "git-branch" },
+    ]);
+    expect(recommendNextSteps(progress, CATALOG)[0]).toMatchObject({
+      href: "/learn/branching/git-branch",
+      reason: "Pick up where you left off",
+    });
+  });
+
+  it("never recommends completed content, and suggests practice once lessons are done", () => {
+    const progress = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      lesson("git-init", "interactive", "git-basics"),
+      lesson("first-repository-challenge", "challenge", "git-basics"),
+      lesson("git-branch", "interactive", "branching"),
+    ]);
+    const steps = recommendNextSteps(progress, CATALOG);
+    expect(steps.every((step) => step.kind === "practice")).toBe(true);
+    expect(steps.map((step) => step.href)).toEqual([
+      "/practice/rescue-a-reset",
+      "/practice/start-a-branch",
+    ]);
+    expect(steps[0]?.reason).toBe("Try your first recovery task");
+    expect(steps[1]?.reason).toBe("More branching practice, without step-by-step help");
+  });
+
+  it("is empty when everything is done, and stable for the same progress", () => {
+    const all = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      lesson("git-init", "interactive", "git-basics"),
+      lesson("first-repository-challenge", "challenge", "git-basics"),
+      lesson("git-branch", "interactive", "branching"),
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+      { type: "complete", content: { kind: "practice", id: "rescue-a-reset" } },
+    ]);
+    expect(recommendNextSteps(all, CATALOG)).toEqual([]);
+    const some = reduce([lesson("git-init", "interactive", "git-basics")]);
+    expect(hrefs(some)).toEqual(hrefs(structuredClone(some)));
+    expect(recommendNextSteps(some, CATALOG, { limit: 1 })).toHaveLength(1);
+  });
+});
+
+describe("pickSurpriseTask", () => {
+  const tasks = ["a", "b", "c", "d"].map((id) => ({ id, missingCommands: [] as string[] }));
+
+  it("is deterministic for a seed and covers the pool as the seed grows", () => {
+    expect(pickSurpriseTask(tasks, { solved: {}, seed: 5 })).toEqual(
+      pickSurpriseTask(tasks, { solved: {}, seed: 5 }),
+    );
+    const picked = [0, 1, 2, 3].map((seed) => pickSurpriseTask(tasks, { solved: {}, seed })?.id);
+    expect(new Set(picked)).toEqual(new Set(["a", "b", "c", "d"]));
+    expect(pickSurpriseTask(tasks, { solved: {}, seed: -3 })).not.toBeNull();
+  });
+
+  it("prefers unsolved tasks and never repeats the current or last solved one", () => {
+    const solved = { a: { completedAt: 1 }, b: { completedAt: 2 } };
+    for (let seed = 0; seed < 10; seed += 1) {
+      expect(pickSurpriseTask(tasks, { solved, current: "c", seed })?.id).toBe("d");
+    }
+    const allSolved = {
+      a: { completedAt: 1 },
+      b: { completedAt: 4 },
+      c: { completedAt: 2 },
+      d: { completedAt: 3 },
+    };
+    for (let seed = 0; seed < 10; seed += 1) {
+      expect(pickSurpriseTask(tasks, { solved: allSolved, seed })?.id).not.toBe("b");
+    }
+  });
+
+  it("falls back to what is left, skips locked tasks, and returns null for nothing", () => {
+    const one = [{ id: "a", missingCommands: [] as string[] }];
+    expect(
+      pickSurpriseTask(one, { solved: { a: { completedAt: 1 } }, current: "a", seed: 3 })?.id,
+    ).toBe("a");
+    expect(
+      pickSurpriseTask([{ id: "x", missingCommands: ["teleport"] }], { solved: {}, seed: 0 }),
+    ).toBeNull();
+    expect(pickSurpriseTask([], { solved: {}, seed: 0 })).toBeNull();
   });
 });

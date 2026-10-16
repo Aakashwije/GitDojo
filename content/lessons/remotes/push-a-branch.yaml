@@ -1,0 +1,151 @@
+# Lesson: Push a Branch to origin
+# Schema and authoring guide: docs/lesson-authoring.md
+id: push-a-branch
+slug: push-a-branch
+title: Push a Branch to origin
+type: interactive
+
+goal: Publish a new branch with `git push -u`, so later pushes and pulls know where to go.
+
+description: |
+  Your weather alerts feature lives on `feature/alerts`, which exists only on your machine so
+  far. Your team's repository, `origin`, has never seen it.
+
+  Push the branch, make `origin/feature/alerts` its upstream, then commit the styles waiting in
+  `alerts.css` and push again, this time with a plain `git push`.
+
+difficulty: intermediate
+
+concepts:
+  - push
+  - remotes
+  - upstream
+
+commands:
+  - git remote -v
+  - git push -u
+  - git branch -vv
+  - git status
+
+content:
+  - type: example
+    title: What does this repository know about?
+    command: git remote -v
+    output: |
+      origin	gitdojo://simulated/origin.git (fetch)
+      origin	gitdojo://simulated/origin.git (push)
+    explanation: >-
+      One remote, `origin`. The `gitdojo://simulated` URL is GitDojo's simulated server: it lives
+      inside your browser workspace and is the only remote you can reach here.
+
+  - type: example
+    title: The first push of a branch
+    command: git push -u origin feature/alerts
+    output: |
+      To gitdojo://simulated/origin.git
+       * [new branch]      feature/alerts -> feature/alerts
+      branch 'feature/alerts' set up to track 'origin/feature/alerts'.
+    explanation: >-
+      `-u` (`--set-upstream`) remembers `origin/feature/alerts` as the branch's **upstream**.
+      From then on, a bare `git push` or `git pull` on this branch knows where to go, and
+      `git status` reports how far ahead or behind you are.
+
+  - type: callout
+    tone: tip
+    body: >-
+      `git branch -vv` shows every branch with its upstream in brackets, for example
+      `[origin/feature/alerts: ahead 1]`. A branch with nothing in brackets has none yet.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather
+    - message: Add forecast panel
+      files:
+        forecast.js: |
+          export const forecast = (temperature) => `${temperature}°`;
+    - message: Add weather alerts
+      branch: feature/alerts
+      files:
+        alerts.js: |
+          export const alert = (text) => `⚠ ${text}`;
+  currentBranch: feature/alerts
+  remote:
+    branches:
+      - main
+  files:
+    alerts.css: |
+      .alert {
+        color: darkred;
+      }
+
+objectives:
+  - id: pushed
+    description: "`origin` has `feature/alerts`, at the same commit as yours."
+    validator:
+      type: remote_branch_points_to_commit
+      branch: feature/alerts
+      sameAs: feature/alerts
+
+  - id: upstream
+    description: "`feature/alerts` tracks `origin/feature/alerts`."
+    validator:
+      type: branch_upstream
+      branch: feature/alerts
+      upstream: origin/feature/alerts
+
+  - id: styled
+    description: "`alerts.css` is committed as `Style weather alerts`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/alerts
+      message: Style weather alerts
+
+  - id: pushed-again
+    description: "`origin` has `Style weather alerts` too."
+    validator:
+      type: remote_branch_points_to_commit
+      branch: feature/alerts
+      message: Style weather alerts
+
+hints:
+  pushed:
+    - A new branch exists only in your repository until you push it. `git push` needs to know the remote and the branch the first time.
+    - "`git push -u origin <branch>` pushes a branch and remembers where it went."
+    - Run `git push -u origin feature/alerts`.
+  upstream:
+    - "`-u` records the remote branch as the upstream. `git branch -vv` shows it in brackets."
+    - Run `git push -u origin feature/alerts`.
+  styled:
+    - "`alerts.css` is untracked. Stage it and commit it like any other change."
+    - Run `git add alerts.css`, then `git commit -m "Style weather alerts"`.
+  pushed-again:
+    - With an upstream, `git status` says you are one commit ahead, and a push needs no arguments.
+    - Run `git push`.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: pushed-without-upstream
+    objective: upstream
+    when:
+      - type: remote_branch_points_to_commit
+        branch: feature/alerts
+        sameAs: feature/alerts
+    hints:
+      - "`origin` has the branch, but `feature/alerts` does not track it: the push had no `-u`. `git branch -vv` shows nothing in brackets."
+      - Pushing again with `-u` changes nothing on `origin`, and records the upstream.
+      - Run `git push -u origin feature/alerts`.
+
+  - id: styled-not-pushed
+    objective: pushed-again
+    when:
+      - type: branch_contains_commit
+        branch: feature/alerts
+        message: Style weather alerts
+    hints:
+      - The commit is on your `feature/alerts`, and `git status` says you are ahead of `origin/feature/alerts`.
+      - The upstream is set, so a plain push is enough.
+      - Run `git push`.

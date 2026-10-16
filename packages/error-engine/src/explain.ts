@@ -46,7 +46,16 @@ export type EducationalCode =
   | "UNSUPPORTED_OPTION"
   | "MISSING_VALUE"
   | "TOO_MANY_ARGUMENTS"
-  | "UNCLOSED_QUOTE";
+  | "UNCLOSED_QUOTE"
+  | "TAG_ALREADY_EXISTS"
+  | "UNKNOWN_TAG"
+  | "INVALID_TAG_NAME"
+  | "UNKNOWN_REMOTE"
+  | "NO_UPSTREAM"
+  | "PUSH_REJECTED"
+  | "DIVERGENT_BRANCHES"
+  | "EDITOR_OPEN"
+  | "INVALID_REBASE_TODO";
 
 interface Context {
   input: ExplainInput;
@@ -99,6 +108,19 @@ const LEARN = {
     title: "Copy a Commit with git cherry-pick",
   },
   rebase: { course: "recovery", lesson: "git-rebase", title: "Replay Work with git rebase" },
+  interactiveRebase: {
+    course: "recovery",
+    lesson: "git-rebase-interactive",
+    title: "Rewrite History with Interactive Rebase",
+  },
+  tags: { course: "everyday-git", lesson: "git-tag", title: "Mark Releases with git tag" },
+  remotes: {
+    course: "remotes",
+    lesson: "remote-branches",
+    title: "Work with Remote Branches",
+  },
+  push: { course: "remotes", lesson: "push-a-branch", title: "Push a Branch to origin" },
+  sync: { course: "remotes", lesson: "sync-with-remote", title: "Sync with a Teammate's Push" },
 } as const;
 
 /** The first `'quoted'` name in Git's message, e.g. the branch in `branch 'x' not found`. */
@@ -283,6 +305,131 @@ const EXPLANATIONS: Record<EducationalCode, (ctx: Context) => Explanation> = {
       learnMore: LEARN.reflog,
     };
   },
+
+  TAG_ALREADY_EXISTS: ({ input }) => ({
+    title: "That tag already exists",
+    explanation: `Tags are meant to stay put: \`${quoted(input.output) ?? "this tag"}\` already names a commit, and Git will not move it silently.`,
+    concept: "tags",
+    possibleCauses: [
+      "The release was tagged already.",
+      "The name has a typo and matches another tag.",
+    ],
+    hints: [
+      "List the tags with `git tag` to see what exists.",
+      "Delete the old tag with `git tag -d <name>` first if it really is wrong.",
+    ],
+    learnMore: LEARN.tags,
+  }),
+
+  UNKNOWN_TAG: ({ input, repository }) => {
+    const typed = quoted(input.output);
+    const tags = (repository?.tags ?? []).map((tag) => tag.name);
+    return {
+      title: "There is no tag with that name",
+      explanation: "Git could not find the tag you named, so nothing was deleted.",
+      concept: "tags",
+      possibleCauses: [
+        ...didYouMean(typed, tags),
+        tags.length > 0
+          ? `This repository's tags are ${list(tags)}.`
+          : "This repository has no tags yet.",
+      ],
+      hints: ["`git tag` lists every tag."],
+      learnMore: LEARN.tags,
+    };
+  },
+
+  INVALID_TAG_NAME: () => ({
+    title: "That is not a valid tag name",
+    explanation:
+      "Tag names follow the same rules as branch names: no spaces, no `..`, and no characters such as `~ ^ : ? * [`.",
+    concept: "tags",
+    hints: ["Release tags usually look like `v1.0` or `v2.3.1`."],
+    learnMore: LEARN.tags,
+  }),
+
+  UNKNOWN_REMOTE: ({ input, repository }) => {
+    const typed = quoted(input.output);
+    const remotes = (repository?.remotes ?? []).map((remote) => remote.name);
+    return {
+      title: "There is no remote with that name",
+      explanation:
+        "A remote is a name for another copy of the repository. GitDojo has no network: the only remotes are the simulated ones a lesson sets up.",
+      concept: "remotes",
+      possibleCauses: [
+        ...didYouMean(typed, remotes),
+        remotes.length > 0
+          ? `This repository's remotes are ${list(remotes)}.`
+          : "This repository has no remotes.",
+      ],
+      hints: ["`git remote -v` lists the remotes and their URLs."],
+      learnMore: LEARN.remotes,
+    };
+  },
+
+  NO_UPSTREAM: ({ repository }) => ({
+    title: "This branch has no upstream yet",
+    explanation:
+      "Without arguments, `git push` and `git pull` work with the branch's upstream: the remote branch it is paired with. This branch has not been paired with one.",
+    concept: "remotes",
+    possibleCauses: [
+      repository?.currentBranch
+        ? `\`${repository.currentBranch}\` has never been pushed, so the remote does not know it yet.`
+        : "HEAD is not on a branch.",
+    ],
+    hints: [
+      "Push it once with `-u` (`--set-upstream`) to create the remote branch and remember it.",
+      "Or name the remote and branch explicitly.",
+    ],
+    learnMore: LEARN.push,
+  }),
+
+  PUSH_REJECTED: () => ({
+    title: "The remote has commits you do not have",
+    explanation:
+      "A push may only move a remote branch forward. Somebody else pushed commits your branch does not contain, so accepting your push would throw their work away.",
+    concept: "remotes",
+    possibleCauses: ["A teammate pushed to the same branch since you last fetched."],
+    hints: [
+      "Fetch first, and look at what they added.",
+      "Integrate their commits (pull with a merge or a rebase), then push again.",
+    ],
+    learnMore: LEARN.sync,
+  }),
+
+  DIVERGENT_BRANCHES: () => ({
+    title: "Your branch and the remote have both moved on",
+    explanation:
+      "`git pull` fetched the remote's new commits, but your branch has commits of its own too. Git will not choose between merging and rebasing for you. Nothing but `origin/*` has changed.",
+    concept: "remotes",
+    hints: [
+      "`git pull --rebase` replays your commits on top of theirs, for a straight history.",
+      "`git pull --no-rebase` merges them with a merge commit.",
+    ],
+    learnMore: LEARN.sync,
+  }),
+
+  EDITOR_OPEN: () => ({
+    title: "Git is waiting for the editor",
+    explanation:
+      "An interactive rebase opened a file for you to edit. Until you save and close it, Git is busy, just like a terminal would be.",
+    concept: "rebase",
+    hints: ["Save and close the editor to go on, or cancel with `git rebase --abort`."],
+    learnMore: LEARN.interactiveRebase,
+  }),
+
+  INVALID_REBASE_TODO: () => ({
+    title: "Git could not read the rebase plan",
+    explanation:
+      "Each line of the todo list must start with a command (`pick`, `reword`, `squash`, `fixup` or `drop`) followed by a commit id. The editor stays open with your text so you can fix it.",
+    concept: "rebase",
+    possibleCauses: [
+      "A line starts with a word Git does not know, or a command GitDojo does not support yet.",
+      "The first commit is `squash` or `fixup`: there is no earlier commit to fold it into.",
+    ],
+    hints: ["Fix the line and save again, or cancel with `git rebase --abort`."],
+    learnMore: LEARN.interactiveRebase,
+  }),
 
   NON_FAST_FORWARD: () => ({
     title: "This is not a fast-forward",
@@ -606,6 +753,15 @@ const ERROR_CODE_EXPLANATIONS: Record<CommandErrorCode, ErrorMapping> = {
   EMPTY_COMMIT: "EMPTY_COMMIT",
   UNMERGED_PATH: "UNMERGED_PATH",
   NOT_ON_BRANCH: "NOT_ON_BRANCH",
+  TAG_EXISTS: "TAG_ALREADY_EXISTS",
+  TAG_NOT_FOUND: "UNKNOWN_TAG",
+  INVALID_TAG_NAME: "INVALID_TAG_NAME",
+  REMOTE_NOT_FOUND: "UNKNOWN_REMOTE",
+  NO_UPSTREAM: "NO_UPSTREAM",
+  PUSH_REJECTED: "PUSH_REJECTED",
+  DIVERGENT_BRANCHES: "DIVERGENT_BRANCHES",
+  EDITOR_OPEN: "EDITOR_OPEN",
+  INVALID_TODO: "INVALID_REBASE_TODO",
   // One engine code for many argument problems: the output says which.
   INVALID_ARGUMENT: (output) => {
     if (output.includes("commit message is required")) return "COMMIT_MESSAGE_REQUIRED";

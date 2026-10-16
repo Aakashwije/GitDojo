@@ -28,6 +28,7 @@ const PAGES = [
   { name: "course overview", path: "/learn/git-basics" },
   { name: "concept lesson", path: "/learn/git-basics/what-is-git" },
   { name: "challenge browser", path: "/challenges" },
+  { name: "practice browser", path: "/practice" },
   { name: "dashboard", path: "/dashboard" },
   { name: "sign in", path: "/sign-in" },
   { name: "what's new", path: "/whats-new" },
@@ -74,6 +75,33 @@ for (const theme of THEMES) {
       await suggestion.getByRole("button", { name: "Show a hint based on your progress" }).click();
       await expect(suggestion.getByTestId("adaptive-hint-step")).toHaveCount(1);
       await expectNoViolations(page, THIRD_PARTY);
+    });
+
+    test("practice workspace has no detectable accessibility violations", async ({
+      page,
+      isMobile,
+    }) => {
+      await page.goto("/practice/tag-a-release");
+      await waitForTerminal(page, isMobile);
+      await show(page, "Task", isMobile);
+      await page.getByTestId("practice-check").click();
+      await expect(page.getByTestId("practice-feedback")).toBeVisible();
+      await expectNoViolations(page, THIRD_PARTY);
+    });
+
+    test("git editor dialog keeps focus and is accessible", async ({ page, isMobile }) => {
+      await page.goto("/learn/recovery/git-rebase-interactive");
+      await waitForTerminal(page, isMobile);
+      await run(page, "git rebase -i main");
+      const dialog = page.getByTestId("git-editor");
+      await expect(dialog.getByLabel("Rebase todo list")).toBeFocused();
+      for (let i = 0; i < 4; i += 1) {
+        await page.keyboard.press("Tab");
+        expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+      }
+      await expectNoViolations(page, THIRD_PARTY);
+      await dialog.getByTestId("git-editor-abort").click();
+      await expect(dialog).toBeHidden();
     });
 
     test("playground has no detectable accessibility violations", async ({ page, isMobile }) => {

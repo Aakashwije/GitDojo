@@ -38,6 +38,10 @@ export const CATALOG: ProgressCatalog = {
   ],
   lessons: [{ id: "first-commit", title: "Your first commit", type: "interactive" }],
   challenges: [{ id: "detached-head", title: "Detached HEAD" }],
+  practice: [
+    { id: "tag-a-release", title: "Tag a Release", skill: "tags", difficulty: "beginner" },
+  ],
+  concepts: {},
 };
 
 export const ADA: VerifiedIdentity = {

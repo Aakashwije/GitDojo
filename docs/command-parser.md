@@ -25,15 +25,15 @@ error, not a prompt for more input.
 `parseCommand(raw)` never throws. It returns `{ ok: true, command }` or `{ ok: false, error }`
 with a Git-like message and a `ParseErrorCode`:
 
-| Code                      | Example                | Message                                                 |
-| ------------------------- | ---------------------- | ------------------------------------------------------- |
-| `UNSUPPORTED_PROGRAM`     | `ls`                   | `ls: command not found` (+ a pointer to `help`)         |
-| `MISSING_GIT_COMMAND`     | `git`                  | The list of supported commands                          |
-| `UNSUPPORTED_GIT_COMMAND` | `git push`, `git frob` | `not available in GitDojo yet` / `is not a git command` |
-| `UNKNOWN_FLAG`            | `git status --short`   | `error: unknown option '--short'` + usage               |
-| `MISSING_FLAG_VALUE`      | `git commit -m`        | `error: switch 'm' requires a value`                    |
-| `UNEXPECTED_ARGUMENT`     | `git branch a b c`     | `error: unexpected argument 'c'` + usage                |
-| `MALFORMED_QUOTES`        | `git commit -m "oops`  | `error: unterminated double quote`                      |
+| Code                      | Example                 | Message                                                 |
+| ------------------------- | ----------------------- | ------------------------------------------------------- |
+| `UNSUPPORTED_PROGRAM`     | `ls`                    | `ls: command not found` (+ a pointer to `help`)         |
+| `MISSING_GIT_COMMAND`     | `git`                   | The list of supported commands                          |
+| `UNSUPPORTED_GIT_COMMAND` | `git clone`, `git frob` | `not available in GitDojo yet` / `is not a git command` |
+| `UNKNOWN_FLAG`            | `git status --short`    | `error: unknown option '--short'` + usage               |
+| `MISSING_FLAG_VALUE`      | `git commit -m`         | `error: switch 'm' requires a value`                    |
+| `UNEXPECTED_ARGUMENT`     | `git branch a b c`      | `error: unexpected argument 'c'` + usage                |
+| `MALFORMED_QUOTES`        | `git commit -m "oops`   | `error: unterminated double quote`                      |
 
 Commands are declared in `GIT_COMMAND_SPECS` (`src/commands.ts`): name, summary, usage, flags and
 how many positional arguments are allowed. Flags support:
@@ -68,9 +68,18 @@ rather than a pattern match on the typed text.
 
 ## Supported commands
 
-`init`, `status`, `add`, `commit`, `log`, `branch`, `switch`, `checkout`, `merge`, `diff`,
-`restore`, `rm`, `reset`, `revert`, `stash`, `cherry-pick`, `reflog`, `rebase`. `help` in the
-terminal lists them with their usage; see [git-engine.md](./git-engine.md) for behaviour.
+`init`, `status`, `add`, `commit`, `log`, `branch` (with `-r`, `-a`, `-v`), `switch`, `checkout`,
+`merge`, `diff`, `restore`, `rm`, `reset`, `revert`, `stash`, `cherry-pick`, `reflog`, `rebase`
+(with `-i`), `tag`, `remote`, `fetch`, `pull` and `push`. `help` in the terminal lists them with
+their usage; see [git-engine.md](./git-engine.md) for behaviour, including what the simulated
+remotes can and cannot do. `clone`, `config`, `mv` and `show` are planned: they get a "not
+available in GitDojo yet" message.
+
+The router's `remote` handler accepts only listing (`git remote`, `git remote -v`); `add`,
+`remove`, `rename` and `set-url` are refused, because the sandbox has no network. `git pull`
+maps `--rebase` / `-r`, `--no-rebase` and `--ff-only` to the engine's pull modes and refuses
+more than one; `git tag` routes `-d` to deletion, `-l` / `-n` (or no name) to listing, and
+anything else to creation.
 
 ## Adding a command
 

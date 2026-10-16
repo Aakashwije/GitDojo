@@ -11,7 +11,16 @@ import { runDiff } from "../commands/diff";
 import { runInit } from "../commands/init";
 import { runLog } from "../commands/log";
 import { runPick, runSequencer } from "../commands/pick";
-import { runRebase, runRebaseControl } from "../commands/rebase";
+import { runCloseEditor, runRebase, runRebaseControl } from "../commands/rebase";
+import {
+  runFetch,
+  runListRemotes,
+  runPull,
+  runPush,
+  runSetupRemote,
+  runSetupRemoteCommit,
+} from "../commands/remote";
+import { runCreateTag, runDeleteTag, runListTags } from "../commands/tag";
 import { runReflog } from "../commands/reflog";
 import { runReset } from "../commands/reset";
 import { runRestore } from "../commands/restore";
@@ -30,7 +39,8 @@ import { runDetach, runSwitch } from "../commands/switch";
 import { type GitDojoFs } from "../filesystem/types";
 import { workspaceRoot } from "../filesystem/paths";
 import { type GitContext } from "./context";
-import { unexpected } from "./errors";
+import { editorOpenMessage, readEditorRecord } from "./editor-state";
+import { failure, gitError, unexpected } from "./errors";
 import {
   type GitAbortMergeResult,
   type GitAddResult,
@@ -63,6 +73,19 @@ import {
   type GitRepositorySnapshot,
   type GitStatusResult,
   type GitSwitchResult,
+  type GitFetchResult,
+  type GitPullOptions,
+  type GitPullResult,
+  type GitPushOptions,
+  type GitPushResult,
+  type GitRebaseOptions,
+  type GitRemoteResult,
+  type GitSetupRemoteCommitInput,
+  type GitSetupRemoteOptions,
+  type GitShowBranchesOptions,
+  type GitTagCreateOptions,
+  type GitTagListOptions,
+  type GitTagResult,
 } from "./git-engine";
 
 export interface GitEngineOptions {
@@ -82,6 +105,21 @@ async function guard<T>(
   }
 }
 
+/**
+ * Like {@link guard}, for commands that change the repository: while Git waits for an editor
+ * (`git rebase -i`), they are refused, as a real terminal would be busy until the editor closes.
+ */
+async function mutating<T>(
+  ctx: GitContext,
+  operation: () => Promise<GitCommandResult<T>>,
+): Promise<GitCommandResult<T>> {
+  return guard(async () => {
+    const editor = await readEditorRecord(ctx).catch(() => null);
+    if (editor) return failure(gitError("EDITOR_OPEN", editorOpenMessage(editor)));
+    return operation();
+  });
+}
+
 /** {@link GitEngine} backed by isomorphic-git. This is the only module family that imports it. */
 export class IsomorphicGitEngine implements GitEngine {
   readonly workspaceId: string;
@@ -93,7 +131,7 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   init(): Promise<GitInitResult> {
-    return guard(() => runInit(this.ctx));
+    return mutating(this.ctx, () => runInit(this.ctx));
   }
 
   status(): Promise<GitStatusResult> {
@@ -101,47 +139,47 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   add(paths: string[]): Promise<GitAddResult> {
-    return guard(() => runAdd(this.ctx, paths));
+    return mutating(this.ctx, () => runAdd(this.ctx, paths));
   }
 
   commit(input: GitCommitInput): Promise<GitCommitResult> {
-    return guard(() => runCommit(this.ctx, input));
+    return mutating(this.ctx, () => runCommit(this.ctx, input));
   }
 
   log(options?: GitLogOptions): Promise<GitLogResult> {
     return guard(() => runLog(this.ctx, options));
   }
 
-  showBranches(): Promise<GitBranchListResult> {
-    return guard(() => runShowBranches(this.ctx));
+  showBranches(options?: GitShowBranchesOptions): Promise<GitBranchListResult> {
+    return guard(() => runShowBranches(this.ctx, options));
   }
 
   createBranch(name: string, startPoint?: string): Promise<GitBranchCreateResult> {
-    return guard(() => runCreateBranch(this.ctx, name, startPoint));
+    return mutating(this.ctx, () => runCreateBranch(this.ctx, name, startPoint));
   }
 
   deleteBranch(name: string, options?: { force?: boolean }): Promise<GitBranchDeleteResult> {
-    return guard(() => runDeleteBranch(this.ctx, name, options));
+    return mutating(this.ctx, () => runDeleteBranch(this.ctx, name, options));
   }
 
   switchBranch(name: string): Promise<GitSwitchResult> {
-    return guard(() => runSwitch(this.ctx, name, { create: false }));
+    return mutating(this.ctx, () => runSwitch(this.ctx, name, { create: false }));
   }
 
   createAndSwitchBranch(name: string, startPoint?: string): Promise<GitSwitchResult> {
-    return guard(() => runSwitch(this.ctx, name, { create: true, startPoint }));
+    return mutating(this.ctx, () => runSwitch(this.ctx, name, { create: true, startPoint }));
   }
 
   detachHead(revision: string, options?: GitDetachOptions): Promise<GitSwitchResult> {
-    return guard(() => runDetach(this.ctx, revision, options));
+    return mutating(this.ctx, () => runDetach(this.ctx, revision, options));
   }
 
   merge(branch: string, options?: GitMergeOptions): Promise<GitMergeResult> {
-    return guard(() => runMerge(this.ctx, branch, options));
+    return mutating(this.ctx, () => runMerge(this.ctx, branch, options));
   }
 
   abortMerge(): Promise<GitAbortMergeResult> {
-    return guard(() => runAbortMerge(this.ctx));
+    return mutating(this.ctx, () => runAbortMerge(this.ctx));
   }
 
   diff(options?: GitDiffOptions): Promise<GitDiffResult> {
@@ -149,26 +187,26 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   restore(paths: string[], options?: GitRestoreOptions): Promise<GitRestoreResult> {
-    return guard(() => runRestore(this.ctx, paths, options));
+    return mutating(this.ctx, () => runRestore(this.ctx, paths, options));
   }
 
   reset(options?: GitResetOptions): Promise<GitResetResult> {
-    return guard(() => runReset(this.ctx, options));
+    return mutating(this.ctx, () => runReset(this.ctx, options));
   }
 
   revert(commit: string): Promise<GitPickResult> {
-    return guard(() => runPick(this.ctx, "revert", commit));
+    return mutating(this.ctx, () => runPick(this.ctx, "revert", commit));
   }
 
   cherryPick(commit: string): Promise<GitPickResult> {
-    return guard(() => runPick(this.ctx, "cherry-pick", commit));
+    return mutating(this.ctx, () => runPick(this.ctx, "cherry-pick", commit));
   }
 
   sequencer(
     operation: "revert" | "cherry-pick",
     action: GitSequencerAction,
   ): Promise<GitPickResult> {
-    return guard(() =>
+    return mutating(this.ctx, () =>
       runSequencer(this.ctx, operation, action, async (ctx) => {
         const result = await runCommit(ctx, { message: "" });
         return { ...result, data: result.data ? { oid: result.data.oid } : {} };
@@ -177,7 +215,7 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   stashPush(options?: GitStashPushOptions): Promise<GitStashResult> {
-    return guard(() => runStashPush(this.ctx, options));
+    return mutating(this.ctx, () => runStashPush(this.ctx, options));
   }
 
   stashList(): Promise<GitStashResult> {
@@ -185,11 +223,11 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   stashApply(stash?: string, options?: { pop?: boolean }): Promise<GitStashResult> {
-    return guard(() => runStashApply(this.ctx, stash, options));
+    return mutating(this.ctx, () => runStashApply(this.ctx, stash, options));
   }
 
   stashDrop(stash?: string): Promise<GitStashResult> {
-    return guard(() => runStashDrop(this.ctx, stash));
+    return mutating(this.ctx, () => runStashDrop(this.ctx, stash));
   }
 
   stashShow(stash?: string): Promise<GitStashResult> {
@@ -200,8 +238,48 @@ export class IsomorphicGitEngine implements GitEngine {
     return guard(() => runReflog(this.ctx, ref));
   }
 
-  rebase(upstream: string): Promise<GitRebaseResult> {
-    return guard(() => runRebase(this.ctx, upstream));
+  rebase(upstream: string, options?: GitRebaseOptions): Promise<GitRebaseResult> {
+    return mutating(this.ctx, () => runRebase(this.ctx, upstream, options));
+  }
+
+  closeEditor(content: string): Promise<GitRebaseResult> {
+    return guard(() => runCloseEditor(this.ctx, content));
+  }
+
+  listTags(options?: GitTagListOptions): Promise<GitTagResult> {
+    return guard(() => runListTags(this.ctx, options));
+  }
+
+  createTag(name: string, options?: GitTagCreateOptions): Promise<GitTagResult> {
+    return mutating(this.ctx, () => runCreateTag(this.ctx, name, options));
+  }
+
+  deleteTag(name: string): Promise<GitTagResult> {
+    return mutating(this.ctx, () => runDeleteTag(this.ctx, name));
+  }
+
+  listRemotes(options?: { verbose?: boolean }): Promise<GitRemoteResult> {
+    return guard(() => runListRemotes(this.ctx, options));
+  }
+
+  fetch(remote?: string): Promise<GitFetchResult> {
+    return mutating(this.ctx, () => runFetch(this.ctx, remote));
+  }
+
+  push(options?: GitPushOptions): Promise<GitPushResult> {
+    return mutating(this.ctx, () => runPush(this.ctx, options));
+  }
+
+  pull(options?: GitPullOptions): Promise<GitPullResult> {
+    return mutating(this.ctx, () => runPull(this.ctx, options));
+  }
+
+  setupRemote(name: string, options: GitSetupRemoteOptions): Promise<GitCommandResult> {
+    return guard(() => runSetupRemote(this.ctx, name, options));
+  }
+
+  setupRemoteCommit(name: string, input: GitSetupRemoteCommitInput): Promise<GitCommandResult> {
+    return guard(() => runSetupRemoteCommit(this.ctx, name, input));
   }
 
   rebaseControl(action: GitSequencerAction): Promise<GitRebaseResult> {
@@ -209,7 +287,7 @@ export class IsomorphicGitEngine implements GitEngine {
   }
 
   rm(paths: string[], options?: GitRmOptions): Promise<GitRmResult> {
-    return guard(() => runRm(this.ctx, paths, options));
+    return mutating(this.ctx, () => runRm(this.ctx, paths, options));
   }
 
   listBranches(): Promise<BranchState[]> {

@@ -53,6 +53,34 @@ export abstract class WorkspaceSession<S> {
     });
   }
 
+  /**
+   * The learner saved the file Git was waiting for (`git rebase -i`). Git carries on, and the
+   * workspace is re-read and re-evaluated as after a command.
+   */
+  closeEditor(content: string): Promise<CommandOutcome<S>> {
+    return this.enqueue(async () => {
+      const git = this.env.gitFor(this.workspaceId);
+      const outcome = await git.closeEditor(content);
+      await this.persist();
+      const result: CommandExecutionResult = outcome.ok
+        ? { ok: true, output: outcome.output }
+        : { ok: false, output: outcome.output, errorCode: outcome.error?.code ?? "UNKNOWN" };
+      return { result, snapshot: await this.evaluate(await this.readState()) };
+    });
+  }
+
+  /** The learner closed Git's editor without saving: the rebase is aborted, as Git does. */
+  abortEditor(): Promise<CommandOutcome<S>> {
+    return this.enqueue(async () => {
+      const result = await runCommandLine("git rebase --abort", {
+        workspaceId: this.workspaceId,
+        git: this.env.gitFor(this.workspaceId),
+      });
+      await this.persist();
+      return { result, snapshot: await this.evaluate(await this.readState()) };
+    });
+  }
+
   /** Reads a working-tree file, e.g. to open it in the editor. */
   readFile(path: string): Promise<string> {
     return this.enqueue(() => this.env.files.readFile(this.workspaceId, path));

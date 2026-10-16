@@ -94,4 +94,29 @@ describe("buildCommitGraph", () => {
     expect(new Set(nodes.map((node) => node.data.railWidth)).size).toBe(1);
     expect(edges.map((edge) => edge.id)).toEqual([`${c.oid}->${b.oid}`, `${b.oid}->${a.oid}`]);
   });
+
+  it("labels tags and remote-tracking branches, and gives origin/* commits a lane", () => {
+    const history = [
+      commit("cccccccccc", ["aaaaaaaaaa"]),
+      commit("bbbbbbbbbb", ["aaaaaaaaaa"]),
+      commit("aaaaaaaaaa"),
+    ];
+    const state: RepositoryState = {
+      ...EMPTY_REPOSITORY_STATE,
+      initialized: true,
+      currentBranch: "main",
+      head: "bbbbbbbbbb",
+      branches: [{ name: "main", oid: "bbbbbbbbbb", current: true }],
+      tags: [{ name: "v1.0", oid: "aaaaaaaaaa", annotated: false }],
+      remoteBranches: [
+        { name: "origin/main", remote: "origin", branch: "main", oid: "cccccccccc" },
+      ],
+      allCommits: history,
+    };
+    const { nodes, laneCount } = buildCommitGraph(state, null);
+    const byOid = (oid: string) => nodes.find((node) => node.id === oid)?.data;
+    expect(byOid("aaaaaaaaaa")).toMatchObject({ tags: ["v1.0"], remoteBranches: [] });
+    expect(byOid("cccccccccc")).toMatchObject({ remoteBranches: ["origin/main"], branches: [] });
+    expect(laneCount).toBe(2);
+  });
 });

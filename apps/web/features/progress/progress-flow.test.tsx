@@ -55,6 +55,8 @@ const CATALOG: ProgressCatalog = {
   courses: [],
   lessons: [{ id: "first-commit", title: "Your First Commit", type: "interactive" }],
   challenges: [{ id: "first-commit", title: "First Commit" }],
+  practice: [],
+  concepts: {},
 };
 
 function useLessonFlow(options: { challenge?: boolean; courseId?: string } = {}) {

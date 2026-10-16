@@ -1,4 +1,10 @@
-import { MERGE_USAGE, REBASE_USAGE, type GitSequencerAction } from "@gitdojo/git-engine";
+import {
+  MERGE_USAGE,
+  REBASE_USAGE,
+  TAG_USAGE,
+  type GitPullMode,
+  type GitSequencerAction,
+} from "@gitdojo/git-engine";
 import { type GitCommandResult } from "@gitdojo/shared-types";
 import {
   GIT_COMMAND_SPECS,
@@ -69,6 +75,19 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
   branch: (parsed, { git }) => {
     const [name, startPoint] = parsed.args;
     const remove = parsed.flags.d === true || parsed.flags.D === true;
+    const listing = parsed.flags.r === true || parsed.flags.a === true || parsed.flags.v === true;
+    if (listing) {
+      if (name !== undefined || remove) {
+        return invalidArgument(
+          "fatal: GitDojo lists branches with -r, -a and -v; create or delete them separately",
+        );
+      }
+      return git.showBranches({
+        remotes: parsed.flags.r === true,
+        all: parsed.flags.a === true,
+        verbose: parsed.flags.v === true,
+      });
+    }
     if (remove) {
       if (startPoint !== undefined) {
         return invalidArgument("fatal: GitDojo deletes one branch at a time");
@@ -173,18 +192,71 @@ const gitHandlers: Record<SupportedGitCommand, GitHandler> = {
     );
   },
   rebase: (parsed, { git }) => {
-    if (parsed.flags.i === true) {
-      return invalidArgument(
-        "fatal: GitDojo does not support interactive rebase yet.\nhint: To squash commits, try 'git reset --soft <commit>' and commit again.",
-      );
-    }
     const action = sequencerAction(parsed);
     if (action === "conflict")
       return invalidArgument("fatal: choose one of --continue, --abort and --skip");
     if (action) return git.rebaseControl(action);
     return parsed.args[0] === undefined
       ? invalidArgument(REBASE_USAGE)
-      : git.rebase(parsed.args[0]);
+      : git.rebase(parsed.args[0], { interactive: parsed.flags.i === true });
+  },
+  tag: (parsed, { git }) => {
+    const [name, target] = parsed.args;
+    const message = typeof parsed.flags.m === "string" ? parsed.flags.m : undefined;
+    if (parsed.flags.d === true) {
+      if (target !== undefined) return invalidArgument("fatal: GitDojo deletes one tag at a time");
+      return git.deleteTag(name ?? "");
+    }
+    if (parsed.flags.l === true || parsed.flags.n === true || name === undefined) {
+      if (parsed.flags.a === true || message !== undefined) {
+        return invalidArgument(`fatal: -a and -m create a tag; they need a tag name\n${TAG_USAGE}`);
+      }
+      if (target !== undefined) return invalidArgument(TAG_USAGE);
+      return git.listTags({
+        ...(name === undefined ? {} : { pattern: name }),
+        annotations: parsed.flags.n === true,
+      });
+    }
+    return git.createTag(name, {
+      ...(target === undefined ? {} : { target }),
+      ...(message === undefined ? {} : { message }),
+      annotated: parsed.flags.a === true,
+    });
+  },
+  remote: (parsed, { git }) => {
+    const [subcommand] = parsed.args;
+    if (subcommand === undefined) return git.listRemotes({ verbose: parsed.flags.v === true });
+    if (["add", "remove", "rm", "rename", "set-url"].includes(subcommand)) {
+      return invalidArgument(
+        `fatal: GitDojo cannot change remotes: its sandbox has no network.\nhint: Lessons come with a simulated remote; see it with 'git remote -v'.`,
+      );
+    }
+    return invalidArgument(`error: unknown subcommand: \`${subcommand}'\nusage: git remote [-v]`);
+  },
+  fetch: (parsed, { git }) => git.fetch(parsed.args[0]),
+  pull: (parsed, { git }) => {
+    const modes = (["rebase", "no-rebase", "ff-only"] as const).filter(
+      (flag) => parsed.flags[flag] === true,
+    );
+    if (modes.length > 1) {
+      return invalidArgument("fatal: choose one of --rebase, --no-rebase and --ff-only");
+    }
+    const mode: GitPullMode | undefined =
+      modes[0] === "rebase" ? "rebase" : modes[0] === "no-rebase" ? "merge" : modes[0];
+    const [remote, branch] = parsed.args;
+    return git.pull({
+      ...(remote === undefined ? {} : { remote }),
+      ...(branch === undefined ? {} : { branch }),
+      ...(mode === undefined ? {} : { mode }),
+    });
+  },
+  push: (parsed, { git }) => {
+    const [remote, branch] = parsed.args;
+    return git.push({
+      ...(remote === undefined ? {} : { remote }),
+      ...(branch === undefined ? {} : { branch }),
+      setUpstream: parsed.flags.u === true,
+    });
   },
   // Kept for comparison with older tutorials: switching branches and visiting commits.
   checkout: async (parsed, { git }) => {

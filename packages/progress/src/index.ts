@@ -3,6 +3,7 @@ export {
   indexLessons,
   type CatalogLesson,
   type ChallengeInfo,
+  type PracticeInfo,
   type ProgressCatalog,
   type StandaloneLessonInfo,
 } from "./catalog";
@@ -23,6 +24,7 @@ export {
 } from "./migration";
 export {
   ANONYMOUS,
+  COMPLETION_FIELDS,
   completionXp,
   contentKey,
   emptyProgress,
@@ -58,6 +60,7 @@ export {
   hintsUsed,
   nextLessonToStudy,
   recentActivity,
+  solvedPracticeIds,
   totalHintsUsed,
   type ActivityItem,
   type CommandSummary,
@@ -71,3 +74,17 @@ export {
   PROGRESS_DATABASE,
   type ProgressStorage,
 } from "./storage";
+export {
+  isSkillId,
+  MASTERY_RULE,
+  normalizeConcept,
+  skillForConcept,
+  skillProgress,
+  SKILLS,
+  skillsForConcepts,
+  type SkillDefinition,
+  type SkillProgress,
+  type SkillStatus,
+} from "./skills";
+export { recommendNextSteps, type Recommendation } from "./recommendations";
+export { pickSurpriseTask, type SurpriseCandidate, type SurpriseOptions } from "./practice";

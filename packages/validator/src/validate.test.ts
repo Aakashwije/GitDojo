@@ -10,7 +10,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { validatorRegistry } from "./registry";
 import { validatorDefinitionSchema } from "./schema";
-import { type ValidatorRegistry } from "./types";
+import { type ValidatorOfType, type ValidatorRegistry } from "./types";
 import { evaluateAdaptiveHints, evaluateTips, validateLesson, validateObjective } from "./validate";
 
 function commit(message: string, oid = "a".repeat(40)): CommitState {
@@ -875,3 +875,162 @@ describe("evaluateAdaptiveHints", () => {
     ).toBeNull();
   });
 });
+
+describe("history, tag and remote validators", () => {
+  const [a, b, c] = ["a", "b", "c"].map((letter) => letter.repeat(40)) as [string, string, string];
+  const commits = [
+    { ...commit("Highlight matches", c), parents: [b] },
+    { ...commit("Add search", b), parents: [a] },
+    commit("Initial commit", a),
+  ];
+  const repo = state({
+    head: c,
+    branches: [
+      {
+        name: "main",
+        oid: c,
+        current: true,
+        upstream: { name: "origin/main", ahead: 0, behind: 0, gone: false },
+      },
+      { name: "old", oid: b, current: false },
+    ],
+    commits,
+    allCommits: commits,
+    tags: [
+      { name: "v1.0", oid: c, annotated: true, message: "First release" },
+      { name: "nightly", oid: b, annotated: false },
+    ],
+    remotes: [
+      {
+        name: "origin",
+        url: "gitdojo://simulated/origin.git",
+        branches: [{ name: "main", oid: c }],
+      },
+    ],
+    remoteBranches: [{ name: "origin/main", remote: "origin", branch: "main", oid: b }],
+  });
+
+  it("branch_history compares first-parent subjects, newest first", async () => {
+    const recent: ValidatorOfType<"branch_history"> = {
+      type: "branch_history",
+      branch: "main",
+      messages: ["Highlight matches", "Add search"],
+    };
+    expect(await check(recent, repo)).toEqual({ passed: true });
+    expect((await check({ ...recent, complete: true }, repo)).passed).toBe(false);
+    expect(
+      await check(
+        {
+          ...recent,
+          messages: ["Highlight matches", "Add search", "Initial commit"],
+          complete: true,
+        },
+        repo,
+      ),
+    ).toEqual({ passed: true });
+    const wrong = await check({ ...recent, messages: ["Add search", "Highlight matches"] }, repo);
+    expect(wrong).toEqual({
+      passed: false,
+      reason: `main's history is "Highlight matches", "Add search" (newest first).`,
+    });
+    expect((await check({ ...recent, branch: "nope" }, repo)).reason).toMatch(/no branch/);
+  });
+
+  it("tag_exists checks the name, the kind and the commit", async () => {
+    expect(await check({ type: "tag_exists", tag: "v1.0" }, repo)).toEqual({ passed: true });
+    expect(
+      await check(
+        { type: "tag_exists", tag: "v1.0", annotated: true, message: "Highlight matches" },
+        repo,
+      ),
+    ).toEqual({ passed: true });
+    expect(
+      (await check({ type: "tag_exists", tag: "nightly", annotated: true }, repo)).reason,
+    ).toBe("nightly is a lightweight tag.");
+    expect(
+      (await check({ type: "tag_exists", tag: "v1.0", message: "Add search" }, repo)).reason,
+    ).toBe(`v1.0 names "Highlight matches", not "Add search".`);
+    expect((await check({ type: "tag_exists", tag: "v2" }, repo)).passed).toBe(false);
+    expect((await check({ type: "tag_not_exists", tag: "v2" }, repo)).passed).toBe(true);
+    expect((await check({ type: "tag_not_exists", tag: "v1.0" }, repo)).passed).toBe(false);
+  });
+
+  it("remote_branch_points_to_commit reads the simulated server", async () => {
+    const check2 = (extra: Partial<ValidatorOfTypeForTest>) =>
+      check({ type: "remote_branch_points_to_commit", branch: "main", ...extra }, repo);
+    expect(await check2({ sameAs: "main" })).toEqual({ passed: true });
+    expect((await check2({ sameAs: "old" })).passed).toBe(false);
+    expect(await check2({ message: "Highlight matches" })).toEqual({ passed: true });
+    expect((await check2({ branch: "feature", sameAs: "main" })).reason).toBe(
+      "origin has no branch feature yet.",
+    );
+    expect((await check2({ remote: "upstream", sameAs: "main" })).reason).toBe(
+      "There is no remote named upstream.",
+    );
+  });
+
+  it("remote_tracking_branch_points_to_commit tells a stale origin/main from a fetched one", async () => {
+    expect(
+      await check(
+        {
+          type: "remote_tracking_branch_points_to_commit",
+          ref: "origin/main",
+          message: "Add search",
+        },
+        repo,
+      ),
+    ).toEqual({ passed: true });
+    expect(
+      (
+        await check(
+          {
+            type: "remote_tracking_branch_points_to_commit",
+            ref: "origin/main",
+            matchesRemote: true,
+          },
+          repo,
+        )
+      ).reason,
+    ).toBe("origin/main is not where main on origin is now.");
+    expect(
+      (
+        await check(
+          { type: "remote_tracking_branch_points_to_commit", ref: "origin/x", matchesRemote: true },
+          repo,
+        )
+      ).passed,
+    ).toBe(false);
+  });
+
+  it("branch_upstream checks the configured upstream", async () => {
+    expect(
+      await check({ type: "branch_upstream", branch: "main", upstream: "origin/main" }, repo),
+    ).toEqual({ passed: true });
+    expect(
+      (await check({ type: "branch_upstream", branch: "old", upstream: "origin/old" }, repo))
+        .reason,
+    ).toBe("old has no upstream yet.");
+  });
+
+  it("are checked by the schema", () => {
+    const ok = (value: unknown) => validatorDefinitionSchema.safeParse(value).success;
+    expect(ok({ type: "branch_history", branch: "main", messages: [] })).toBe(false);
+    expect(ok({ type: "remote_branch_points_to_commit", branch: "main" })).toBe(false);
+    expect(ok({ type: "remote_branch_points_to_commit", branch: "main", sameAs: "main" })).toBe(
+      true,
+    );
+    expect(
+      ok({ type: "remote_tracking_branch_points_to_commit", ref: "main", matchesRemote: true }),
+    ).toBe(false);
+    expect(ok({ type: "remote_tracking_branch_points_to_commit", ref: "origin/main" })).toBe(false);
+    expect(ok({ type: "branch_upstream", branch: "main", upstream: "origin/main" })).toBe(true);
+    expect(ok({ type: "tag_exists", tag: "v1", annotated: true })).toBe(true);
+  });
+});
+
+type ValidatorOfTypeForTest = {
+  branch: string;
+  remote: string;
+  message: string;
+  sameAs: string;
+};

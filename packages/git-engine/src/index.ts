@@ -8,6 +8,7 @@ export { isValidBranchName } from "./commands/branch";
 export { MISSING_BRANCH_ARGUMENT } from "./commands/switch";
 export { MERGE_USAGE } from "./commands/merge";
 export { REBASE_USAGE } from "./commands/rebase";
+export { TAG_USAGE, isValidTagName } from "./commands/tag";
 export { RESTORE_USAGE } from "./commands/restore";
 export { RM_USAGE } from "./commands/rm";
 export { formatFileDiff, diffHunks } from "./engine/diff";

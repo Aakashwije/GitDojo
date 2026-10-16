@@ -27,6 +27,30 @@ commands:
   - git log --oneline
 
 content:
+  - type: demo
+    title: What a hard reset leaves behind
+    steps:
+      - caption: "`main` has four commits. The last two are the payment work."
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add cart }
+            - { id: P, parent: B, message: Add payment form }
+            - { id: V, parent: P, message: Validate card numbers }
+          branches: { main: V }
+          head: main
+      - caption: >-
+          `git reset --hard HEAD~2` moves `main` back to **Add cart**. P and V still exist, but no
+          branch reaches them, so `git log` and the graph no longer show them: they are
+          **unreachable**. Only the reflog remembers where HEAD was.
+        command: git reset --hard HEAD~2
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: B, parent: A, message: Add cart }
+          branches: { main: B }
+          head: main
+
   - type: example
     title: Where HEAD has been
     command: git reflog
@@ -39,11 +63,23 @@ content:
       Newest first. Every commit, switch, merge and reset is listed with where HEAD pointed
       afterwards. `HEAD@{1}` is where HEAD was one move ago, right before the reset.
 
+  - type: text
+    title: Two ways back
+    body: |
+      Any reflog entry can be used wherever Git expects a commit: `HEAD@{1}`, or the short id
+      shown on the left.
+
+      - **Move the branch back**: `git reset --hard HEAD@{1}` puts `main` (and your files) where
+        they were just before the reset. Right when nothing else has happened since.
+      - **Rescue onto a new branch**: `git branch rescue HEAD@{1}` gives the lost commits a name
+        without moving `main` at all. Safer when `main` has new commits you want to keep; merge or
+        cherry-pick from `rescue` afterwards.
+
   - type: callout
     tone: tip
     body: >-
-      You can use any reflog entry as a commit: `git reset --hard HEAD@{1}`,
-      `git branch rescue HEAD@{1}`, or the short id shown on the left.
+      Read the reflog before you act: the message tells you what each move was
+      (`commit:`, `reset:`, `checkout:`), so you can pick the entry from just before the mistake.
 
   - type: callout
     tone: note

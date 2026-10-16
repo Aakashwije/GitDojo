@@ -38,8 +38,19 @@ function handleStyle(x: number) {
  * Selection is handled by the graph's `onNodeClick`; the button provides focus and keyboard access.
  */
 export function CommitNode({ data }: NodeProps<CommitFlowNode>) {
-  const { commit, isHead, currentBranch, branches, selected, latest, lane, railWidth, isMerge } =
-    data;
+  const {
+    commit,
+    isHead,
+    currentBranch,
+    branches,
+    tags,
+    remoteBranches,
+    selected,
+    latest,
+    lane,
+    railWidth,
+    isMerge,
+  } = data;
   const dotX = laneCenterX(lane);
 
   return (
@@ -61,7 +72,13 @@ export function CommitNode({ data }: NodeProps<CommitFlowNode>) {
         className="absolute flex items-end pb-1"
         style={{ left: railWidth, height: LABEL_ROW_HEIGHT }}
       >
-        <RefLabels branches={branches} isHead={isHead} currentBranch={currentBranch} />
+        <RefLabels
+          branches={branches}
+          tags={tags}
+          remoteBranches={remoteBranches}
+          isHead={isHead}
+          currentBranch={currentBranch}
+        />
       </div>
       <span
         aria-hidden="true"

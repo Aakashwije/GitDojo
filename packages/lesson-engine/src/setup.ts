@@ -79,6 +79,23 @@ export async function applySetup(
   for (const branch of setup.branches ?? []) check(await git.createBranch(branch));
   if (setup.currentBranch !== undefined) await moveTo(setup.currentBranch);
 
+  // A simulated remote "cloned" from the history above, then a teammate's pushes on top of it.
+  if (setup.remote) {
+    const name = setup.remote.name ?? "origin";
+    check(await git.setupRemote(name, { branches: setup.remote.branches ?? [DEFAULT_BRANCH] }));
+    for (const [index, commit] of (setup.remote.commits ?? []).entries()) {
+      check(
+        await git.setupRemoteCommit(name, {
+          branch: commit.branch ?? DEFAULT_BRANCH,
+          message: commit.message,
+          files: commit.files,
+          // After every local setup commit, a few seconds apart.
+          timestamp: now - 30 + index,
+        }),
+      );
+    }
+  }
+
   // Written after the history, so with setup commits these are the learner's uncommitted changes.
   for (const [path, content] of Object.entries(setup.files ?? {})) {
     await env.files.writeFile(workspaceId, path, content);

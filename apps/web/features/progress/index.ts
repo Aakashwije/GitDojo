@@ -14,4 +14,5 @@ export {
   useCompletedLessons,
   useProgressStore,
   useReleaseSeenInProgress,
+  useSolvedPractice,
 } from "./state/use-progress-store";

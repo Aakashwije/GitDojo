@@ -153,6 +153,49 @@ setup:
 Only Git commands are allowed; anything else (or a command that does not parse) is rejected by
 the schema.
 
+### Setup with a simulated remote
+
+GitDojo has no network, so remote lessons use a **simulated** remote that lives in the learner's
+workspace (see [git-engine.md](./git-engine.md#simulated-remotes)). `remote` sets one up after
+the commits, branches and `currentBranch`, and before `files` and `commands`:
+
+```yaml
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files: { README.md: "# Weather\n" }
+  remote:
+    name: origin # optional, default origin
+    branches: [main] # optional, default [main]: "cloned" here, each tracking origin/<branch>
+    commits: # optional: a teammate's pushes, on the remote only, oldest first
+      - message: Fix units in header
+        files: { header.js: "export const units = 'C';\n" }
+  files:
+    forecast.js: "export {};\n"
+  commands: # after the remote, so this commit is local only: main is ahead of origin/main
+    - git add forecast.js
+    - git commit -m "Add forecast panel"
+```
+
+The listed branches must exist in the setup. A remote commit goes on `branch` (default `main`)
+of the remote, on top of what the remote already has, without touching the learner's branches,
+index or files: `git status` keeps saying "up to date" until the learner fetches. Say in the
+lesson that the remote is simulated (a `note` callout works well); `git remote -v` shows its
+`gitdojo://simulated/...` URL. Check the result with the
+[remote validators](./validators.md#history-tag-and-remote-validators), and avoid teaching what
+the simulation cannot do: `git clone`, `git remote add`, force pushes and pushing tags.
+
+### Interactive rebase lessons
+
+`git rebase -i` opens its todo list (and any reworded or squashed message) in GitDojo's editor
+dialog; the lesson panel never sees the commands, only the result. Check the rewritten history
+with `branch_history` (subjects, newest first), `commit_not_on_branch` for dropped or folded
+commits, and `file_content` where a change must survive a fold. In
+`src/content.test.ts`, a solution step `{ editor: (text) => newText }` stands for the learner
+saving the editor; `rewriteTodo({ "<subject>": "fixup" | "drop" | "reword" | null })` edits the
+todo list Git actually wrote, since commit ids differ on every run.
+
 ### Hints
 
 Hints are a ladder per objective, from vague to explicit, and GitDojo reveals them one at a time.

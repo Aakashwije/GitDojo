@@ -33,6 +33,8 @@ export type AccountProgressResult =
       accountId: string;
       lessons: AccountLessons;
       challenges?: AccountLessons;
+      /** Practice task id → first solve. */
+      practice?: AccountLessons;
       activity: AccountActivity;
     }
   /** No valid session (never signed in, signed out, or the session ended). */
@@ -54,6 +56,20 @@ interface ApiChallenge {
   xp?: unknown;
   completedAt?: unknown;
 }
+
+interface ApiPractice {
+  taskId?: unknown;
+  completedAt?: unknown;
+}
+
+/** What can be uploaded as a completion, and where to. */
+export type CompletionUploadKind = "lesson" | "challenge" | "practice";
+
+const UPLOAD_ENDPOINTS: Record<CompletionUploadKind, { url: string; field: string }> = {
+  lesson: { url: "/api/progress/lessons", field: "lessonId" },
+  challenge: { url: "/api/progress/challenges", field: "challengeId" },
+  practice: { url: "/api/progress/practice", field: "taskId" },
+};
 
 interface ApiLesson {
   lessonId?: unknown;
@@ -85,6 +101,17 @@ function toRecord(lesson: ApiLesson): [string, CompletionRecord] | null {
       ...(typeof course?.id === "string" ? { courseId: course.id } : {}),
     },
   ];
+}
+
+const CONTENT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** A solved practice task from the server. Practice never earns XP, whatever the reply says. */
+function toPracticeRecord(task: ApiPractice): [string, CompletionRecord] | null {
+  const completedAt =
+    typeof task.completedAt === "string" ? Date.parse(task.completedAt) : Number.NaN;
+  if (typeof task.taskId !== "string" || !CONTENT_ID.test(task.taskId)) return null;
+  if (!Number.isFinite(completedAt)) return null;
+  return [task.taskId, { completedAt, xp: 0 }];
 }
 
 /** Mirrors the server's validation, so one malformed local entry cannot block a whole upload. */
@@ -229,6 +256,7 @@ export async function fetchAccountProgress(
       account?: { id?: unknown };
       completedLessons?: unknown;
       completedChallenges?: ApiChallenge[];
+      completedPractice?: ApiPractice[];
       activity?: unknown;
     };
     const accountId = body.account?.id;
@@ -245,7 +273,20 @@ export async function fetchAccountProgress(
       const entry = toRecord({ ...challenge, lessonId: challenge.challengeId, type: "challenge" });
       if (entry) challenges[entry[0]] = entry[1];
     }
-    return { status: "ok", accountId, lessons, challenges, activity: parseActivity(body.activity) };
+    // Practice is never worth XP, whatever the reply says.
+    const practice: AccountLessons = {};
+    for (const task of Array.isArray(body.completedPractice) ? body.completedPractice : []) {
+      const entry = toPracticeRecord(task);
+      if (entry) practice[entry[0]] = entry[1];
+    }
+    return {
+      status: "ok",
+      accountId,
+      lessons,
+      challenges,
+      practice,
+      activity: parseActivity(body.activity),
+    };
   } catch {
     return { status: "unavailable" };
   }
@@ -258,22 +299,30 @@ export async function fetchAccountProgress(
 export async function uploadLessonCompletion(
   lessonId: string,
   fetcher: typeof fetch = fetch,
-  kind: "lesson" | "challenge" = "lesson",
+  kind: CompletionUploadKind = "lesson",
 ): Promise<LessonUploadResult> {
   try {
-    const response = await fetcher(
-      kind === "challenge" ? "/api/progress/challenges" : "/api/progress/lessons",
-      {
-        ...REQUEST,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(kind === "challenge" ? { challengeId: lessonId } : { lessonId }),
-      },
-    );
+    const endpoint = UPLOAD_ENDPOINTS[kind];
+    const response = await fetcher(endpoint.url, {
+      ...REQUEST,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [endpoint.field]: lessonId }),
+    });
     if (response.status === 401) return { status: "signed-out" };
     if (response.status >= 500 || response.status === 429) return { status: "unavailable" };
     if (!response.ok) return { status: "rejected" };
-    const body = (await response.json()) as { lesson?: ApiLesson; challenge?: ApiChallenge };
+    const body = (await response.json()) as {
+      lesson?: ApiLesson;
+      challenge?: ApiChallenge;
+      practice?: ApiPractice;
+    };
+    if (kind === "practice") {
+      const entry = body.practice ? toPracticeRecord(body.practice) : null;
+      return entry
+        ? { status: "ok", lessonId: entry[0], record: entry[1] }
+        : { status: "rejected" };
+    }
     const record =
       kind === "challenge" && body.challenge
         ? { ...body.challenge, lessonId: body.challenge.challengeId, type: "challenge" }

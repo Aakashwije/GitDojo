@@ -1,0 +1,50 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: catch-up-with-origin
+title: Catch Up with origin
+skill: remotes
+difficulty: intermediate
+order: 5
+
+scenario: |
+  You have been away for a day. While you were gone, a teammate pushed `Add rain warnings` to
+  `origin`'s `main`. Your `main` has nothing new of its own. The `origin` here is GitDojo's
+  simulated remote.
+
+mission: >
+  Bring your `main` up to date with `origin`'s `main`, so it contains `Add rain warnings`.
+
+concepts:
+  - fetch
+  - pull
+  - remotes
+
+requires:
+  - fetch
+  - pull
+
+related:
+  course: remotes
+  lesson: git-fetch
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather
+  remote:
+    commits:
+      - message: Add rain warnings
+        files:
+          warnings.js: |
+            export const rain = (mm) => mm > 10;
+checks:
+  - type: branch_points_to_commit
+    branch: main
+    message: Add rain warnings
+  - type: remote_tracking_branch_points_to_commit
+    ref: origin/main
+    matchesRemote: true
+  - type: clean_worktree

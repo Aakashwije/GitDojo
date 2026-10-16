@@ -6,8 +6,8 @@ title: Everyday Git
 
 description: >
   The housekeeping commands you reach for every week: keeping generated files and secrets out of
-  the repository, renaming files, reading what a commit changed, and fixing the commit you just
-  made.
+  the repository, renaming files, reading what a commit changed, fixing the commit you just
+  made, and tagging releases.
 
 difficulty: beginner
 order: 6
@@ -17,3 +17,4 @@ lessons:
   - git-mv
   - git-show
   - git-commit-amend
+  - git-tag

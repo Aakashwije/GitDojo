@@ -65,7 +65,19 @@ await git.stashDrop(); // `git stash drop`
 await git.stashShow(); // `git stash show`
 await git.reflog("HEAD"); // `git reflog [show] [<branch>]`
 await git.rebase("main"); // `git rebase main`
+await git.rebase("main", { interactive: true }); // `git rebase -i main`: waits for the editor
+await git.closeEditor(editedText); // the learner saved the file Git opened (see below)
 await git.rebaseControl("continue"); // `git rebase --continue | --skip | --abort`
+await git.listTags({ pattern: "v1.*", annotations: true }); // `git tag -l "v1.*" -n`
+await git.createTag("v1.0", { annotated: true, message: "First release" }); // `git tag -a v1.0 -m ...`
+await git.deleteTag("v1.0"); // `git tag -d v1.0`
+await git.showBranches({ remotes: true, verbose: true }); // `git branch -r -vv`
+await git.listRemotes({ verbose: true }); // `git remote -v`
+await git.fetch("origin"); // `git fetch [origin]`
+await git.pull({ mode: "rebase" }); // `git pull [--rebase | --no-rebase | --ff-only]`
+await git.push({ remote: "origin", branch: "feature", setUpstream: true }); // `git push -u origin feature`
+await git.setupRemote("origin", { branches: ["main"] }); // lesson setup only: a simulated clone
+await git.setupRemoteCommit("origin", { branch: "main", message, files }); // setup: a teammate's push
 
 await git.snapshot(); // read-only view used by @gitdojo/repository-state
 ```
@@ -86,33 +98,42 @@ kept in `cause` for debugging and is never rendered.
 
 ### Error codes
 
-| Code                    | When                                                     | Output                                                                 |
-| ----------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `NOT_A_REPOSITORY`      | Any command except `init` before `git init`              | `fatal: not a git repository (or any of the parent directories): .git` |
-| `NOTHING_TO_COMMIT`     | `commit` with nothing staged                             | The `git status` report, e.g. `nothing to commit, working tree clean`  |
-| `NO_COMMITS`            | `log` on an unborn branch                                | `fatal: your current branch 'main' does not have any commits yet`      |
-| `FILE_NOT_FOUND`        | `add` with a pathspec that matches nothing               | `fatal: pathspec 'x' did not match any files`                          |
-| `INVALID_ARGUMENT`      | Empty commit message, no pathspec, path outside repo     | e.g. `error: commit message is required`                               |
-| `INVALID_BRANCH_NAME`   | A name Git's `check-ref-format` rules reject             | `fatal: 'a..b' is not a valid branch name`                             |
-| `BRANCH_EXISTS`         | Creating a branch that exists (or clashes with `x/y`)    | `fatal: a branch named 'main' already exists`                          |
-| `BRANCH_NOT_FOUND`      | Switching to a branch that does not exist                | `fatal: invalid reference: x`                                          |
-| `CHECKOUT_CONFLICT`     | Switching or merging would overwrite uncommitted work    | Git's `Your local changes ... would be overwritten by ...` report      |
-| `MERGE_CONFLICT`        | `merge` stopped with conflicts (`data.type: "conflict"`) | `CONFLICT (content): Merge conflict in x` and the failure summary      |
-| `MERGE_IN_PROGRESS`     | `merge` or `switch` while a merge is unfinished          | `fatal: You have not concluded your merge (MERGE_HEAD exists).`        |
-| `UNRESOLVED_CONFLICTS`  | `commit` while conflicts remain                          | `error: Committing is not possible because you have unmerged files.`   |
-| `NO_MERGE`              | `merge --abort` with no merge in progress                | `fatal: There is no merge to abort (MERGE_HEAD missing).`              |
-| `NOT_FAST_FORWARD`      | `merge --ff-only` when the branches have diverged        | `fatal: Not possible to fast-forward, aborting.`                       |
-| `INVALID_REVISION`      | A commit-ish that names no commit                        | e.g. `fatal: bad revision 'x'`, `fatal: invalid reference: x`          |
-| `BRANCH_CHECKED_OUT`    | `branch -d` on the current branch                        | `error: cannot delete branch 'main' used by worktree at ...`           |
-| `BRANCH_NOT_MERGED`     | `branch -d` on a branch with unmerged commits            | `error: the branch 'x' is not fully merged.`                           |
-| `OPERATION_IN_PROGRESS` | Starting a revert, cherry-pick, rebase... mid-operation  | e.g. `error: a cherry-pick is already in progress`                     |
-| `NO_OPERATION`          | `--continue` / `--abort` with nothing in progress        | e.g. `fatal: No rebase in progress?`                                   |
-| `LOCAL_CHANGES`         | Uncommitted work in the way (pick, stash apply, rebase)  | e.g. `error: your local changes would be overwritten by revert.`       |
-| `UNMERGED_PATH`         | `restore` on a file that is still in conflict            | `error: path 'x' is unmerged`                                          |
-| `NO_STASH`              | `stash apply/pop/drop/show` with no or a bad entry       | `No stash entries found.`                                              |
-| `NOT_ON_BRANCH`         | `rebase` on a detached HEAD                              | `fatal: You are not currently on a branch.`                            |
-| `EMPTY_COMMIT`          | A cherry-pick or revert that would change nothing        | `nothing to commit, working tree clean` and why                        |
-| `UNKNOWN`               | Unexpected internal failure                              | Generic message                                                        |
+| Code                    | When                                                                | Output                                                                 |
+| ----------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `NOT_A_REPOSITORY`      | Any command except `init` before `git init`                         | `fatal: not a git repository (or any of the parent directories): .git` |
+| `NOTHING_TO_COMMIT`     | `commit` with nothing staged                                        | The `git status` report, e.g. `nothing to commit, working tree clean`  |
+| `NO_COMMITS`            | `log` on an unborn branch                                           | `fatal: your current branch 'main' does not have any commits yet`      |
+| `FILE_NOT_FOUND`        | `add` with a pathspec that matches nothing                          | `fatal: pathspec 'x' did not match any files`                          |
+| `INVALID_ARGUMENT`      | Empty commit message, no pathspec, path outside repo                | e.g. `error: commit message is required`                               |
+| `INVALID_BRANCH_NAME`   | A name Git's `check-ref-format` rules reject                        | `fatal: 'a..b' is not a valid branch name`                             |
+| `BRANCH_EXISTS`         | Creating a branch that exists (or clashes with `x/y`)               | `fatal: a branch named 'main' already exists`                          |
+| `BRANCH_NOT_FOUND`      | Switching to a branch that does not exist                           | `fatal: invalid reference: x`                                          |
+| `CHECKOUT_CONFLICT`     | Switching or merging would overwrite uncommitted work               | Git's `Your local changes ... would be overwritten by ...` report      |
+| `MERGE_CONFLICT`        | `merge` stopped with conflicts (`data.type: "conflict"`)            | `CONFLICT (content): Merge conflict in x` and the failure summary      |
+| `MERGE_IN_PROGRESS`     | `merge` or `switch` while a merge is unfinished                     | `fatal: You have not concluded your merge (MERGE_HEAD exists).`        |
+| `UNRESOLVED_CONFLICTS`  | `commit` while conflicts remain                                     | `error: Committing is not possible because you have unmerged files.`   |
+| `NO_MERGE`              | `merge --abort` with no merge in progress                           | `fatal: There is no merge to abort (MERGE_HEAD missing).`              |
+| `NOT_FAST_FORWARD`      | `merge --ff-only` when the branches have diverged                   | `fatal: Not possible to fast-forward, aborting.`                       |
+| `INVALID_REVISION`      | A commit-ish that names no commit                                   | e.g. `fatal: bad revision 'x'`, `fatal: invalid reference: x`          |
+| `BRANCH_CHECKED_OUT`    | `branch -d` on the current branch                                   | `error: cannot delete branch 'main' used by worktree at ...`           |
+| `BRANCH_NOT_MERGED`     | `branch -d` on a branch with unmerged commits                       | `error: the branch 'x' is not fully merged.`                           |
+| `OPERATION_IN_PROGRESS` | Starting a revert, cherry-pick, rebase... mid-operation             | e.g. `error: a cherry-pick is already in progress`                     |
+| `NO_OPERATION`          | `--continue` / `--abort` with nothing in progress                   | e.g. `fatal: No rebase in progress?`                                   |
+| `LOCAL_CHANGES`         | Uncommitted work in the way (pick, stash apply, rebase)             | e.g. `error: your local changes would be overwritten by revert.`       |
+| `UNMERGED_PATH`         | `restore` on a file that is still in conflict                       | `error: path 'x' is unmerged`                                          |
+| `NO_STASH`              | `stash apply/pop/drop/show` with no or a bad entry                  | `No stash entries found.`                                              |
+| `NOT_ON_BRANCH`         | `rebase` on a detached HEAD                                         | `fatal: You are not currently on a branch.`                            |
+| `EMPTY_COMMIT`          | A cherry-pick or revert that would change nothing                   | `nothing to commit, working tree clean` and why                        |
+| `TAG_EXISTS`            | `tag <name>` when the tag exists                                    | `fatal: tag 'v1.0' already exists`                                     |
+| `TAG_NOT_FOUND`         | `tag -d` on an unknown tag                                          | `error: tag 'v1.0' not found.`                                         |
+| `INVALID_TAG_NAME`      | A tag name `check-ref-format` rejects                               | `fatal: 'a..b' is not a valid tag name.`                               |
+| `REMOTE_NOT_FOUND`      | `fetch` / `pull` / `push` to a remote that does not exist           | `fatal: 'x' does not appear to be a git repository`                    |
+| `NO_UPSTREAM`           | `push` / `pull` with no arguments on a branch with no upstream      | `fatal: The current branch x has no upstream branch.`                  |
+| `PUSH_REJECTED`         | A push that is not a fast-forward of the remote branch              | ` ! [rejected] main -> main (fetch first)` and Git's hints             |
+| `DIVERGENT_BRANCHES`    | `pull` with no `--rebase` / `--no-rebase` when both moved on        | `fatal: Need to specify how to reconcile divergent branches.`          |
+| `EDITOR_OPEN`           | Anything that changes the repository while Git waits for the editor | `error: Git is waiting for you to close the editor (...)`              |
+| `INVALID_TODO`          | An interactive rebase todo list Git cannot run                      | e.g. `error: invalid line 2: frob abc1234`                             |
+| `UNKNOWN`               | Unexpected internal failure                                         | Generic message                                                        |
 
 ### Behavior notes
 
@@ -171,7 +192,8 @@ merging`. `git commit` refuses while conflicts remain, then creates the merge co
 ### Revisions
 
 Every command that takes a commit uses `resolveRevision` (`src/engine/revisions.ts`), which
-understands what tutorials use: `HEAD` / `@`, branch names, full or abbreviated (4+) commit ids,
+understands what tutorials use: `HEAD` / `@`, tags (annotated tags are peeled to their commit),
+branch names, remote-tracking branches (`origin/main`), full or abbreviated (4+) commit ids,
 `~N` and `^` / `^N` suffixes in any combination (`HEAD~2^2`), and reflog positions
 (`HEAD@{1}`, `main@{2}`). An unknown revision is reported with each command's own Git wording.
 
@@ -227,7 +249,7 @@ All three apply a commit's changes with the same three-way machinery as merges
   merges dropped, already-applied changes skipped), then moves the branch and reattaches HEAD:
   `Successfully rebased and updated refs/heads/x.`. A branch with nothing of its own is
   fast-forwarded; one already on top prints `Current branch x is up to date.` It refuses with
-  local changes or a detached HEAD. `git rebase -i` is not supported.
+  local changes or a detached HEAD. Interactive rebases: see below.
 
 Merge commits are refused (`is a merge but no -m option was given`). Conflicts stop the
 operation exactly like a merge: markers are labelled `HEAD` and `abc1234 (subject)` (revert:
@@ -235,6 +257,93 @@ operation exactly like a merge: markers are labelled `HEAD` and `abc1234 (subjec
 `.git/GITDOJO_MERGE.json` has a `kind` (`merge`, `revert`, `cherry-pick`, `rebase`; records
 without one are merges). `--continue` (or `git commit`) records the commit; `--abort` puts
 everything back; `rebase --skip` drops the stopped commit and goes on.
+
+### Interactive rebase and the editor
+
+Real Git starts an editor and waits for it to exit. GitDojo's editor is part of the page, so the
+wait is **state**: `.git/GITDOJO_EDITOR.json` records which file Git opened, its text, and what
+happens once it is saved (Git's own `git-rebase-todo` is written next to it). The snapshot exposes
+it as `editor` (`{ file, purpose: "todo" | "message", content, error? }`) and the web app shows it
+in a dialog; the terminal command stays busy until the learner closes it.
+
+- `git rebase -i <upstream>` checks the same preconditions as a rebase, then writes the todo list
+  (`pick <id> <subject>` per commit not on `upstream`, oldest first, with Git's help comments) and
+  returns `data.status: "editing"`. **Nothing has changed yet**: HEAD is still on the branch.
+- `closeEditor(text)` parses the saved todo list. `pick`, `reword`, `squash`, `fixup` and `drop`
+  (and `p`, `r`, `s`, `f`, `d`) are supported; lines can be reordered, deleted lines drop their
+  commit, `#` lines are ignored, and an empty list is `Nothing to do`. `edit`, `exec`, `break`,
+  `label`, `reset`, `merge` and `fixup -C` are refused with a "not supported yet" message, as are
+  unknown words, unknown commits and a first `squash`/`fixup` (Git's
+  `cannot 'squash' without a previous commit`). A refused list keeps the editor open with the
+  learner's text and the reason in `error`.
+- Steps then run with the same three-way machinery as `git rebase`. A `pick` whose parent is
+  already HEAD keeps the original commit, as Git does, so an unchanged plan changes nothing.
+  `squash`/`fixup` fold their changes into the previous commit (keeping its author); at the end
+  of a chain with a `squash`, Git asks for the combined message (`# This is a combination of N
+commits.`). `reword` asks for a new message. An empty message is refused and asked for again.
+- Conflicts stop exactly like a regular rebase (`interactive rebase in progress` in `status`);
+  `--continue` finishes the stopped step the way its action says (a new commit, a fold, or a
+  reword that then asks for the message).
+- `git rebase --abort` works at every point, including while the todo list or a message is open.
+  While Git waits, every other command that changes the repository is refused with
+  `EDITOR_OPEN`; `status`, `log`, `diff`, `reflog` and listing commands still work.
+- Reflog entries use Git's wording: `rebase (start)`, `rebase (pick)`, `rebase (squash)`,
+  `rebase (fixup)`, `rebase (reword)`, `rebase (finish)`.
+
+### Tags
+
+- `git tag` lists tags by name; `-l <pattern>` filters with `*` / `?` globs; `-n` adds each
+  annotated tag's message (or the commit subject for a lightweight tag).
+- `git tag <name> [<commit>]` creates a lightweight tag (a ref to the commit);
+  `git tag -a <name> -m <message> [<commit>]` an annotated tag object, tagged by the learner.
+  `-m` alone also makes an annotated tag, as in Git. GitDojo opens no editor for tag messages, so
+  `-a` without `-m` is refused with a hint.
+- `git tag -d <name>` deletes a tag (`Deleted tag 'v1.0' (was abc1234)`); the commit stays.
+- Tag names follow branch-name rules. Tags decorate `git log` (`tag: v1.0`), resolve as revisions,
+  keep their commits in `allCommits` (and the graph), and appear in the snapshot's `tags`, peeled
+  to their commit. `git switch v1.0` says `a branch is expected, got tag 'v1.0'`.
+- Pushing tags to a remote is not supported.
+
+### Simulated remotes
+
+GitDojo has no network, so every remote is **simulated** inside the workspace
+(`src/engine/remote-store.ts`):
+
+- A remote is a normal `[remote "<name>"]` entry in `.git/config`, with a
+  `gitdojo://simulated/<name>.git` URL that cannot be mistaken for a real one, plus the branches
+  its pretend server has, in `.git/GITDOJO_REMOTES.json`.
+- The server shares the workspace's object database. A commit "only on the server" is stored, but
+  no local ref reaches it, so `git log --all`, the graph and every validator ignore it until a
+  fetch moves `origin/*` onto it. Commits only ever cross the boundary through `fetch`, `pull` and
+  `push`.
+- Remotes are created by lesson setup only (`setupRemote`, `setupRemoteCommit`): a "clone" that
+  gives each listed branch a remote-tracking branch and an upstream, and commits somebody else
+  pushed. `git remote add`, `remove`, `rename` and `set-url` are refused, and `git clone` is not
+  available.
+
+Behaviour:
+
+- `git remote [-v]` lists remotes. `git fetch [<remote>]` copies the server's branches into
+  `refs/remotes/<remote>/*` and prints Git's `From <url>` report (`a..b`, `[new branch]`,
+  `(forced update)`); nothing when nothing changed. Branches, the index and files never move.
+- `git push [-u] [<remote> [<branch>]]` follows `push.default=simple`: without arguments it needs
+  an upstream (`--set-upstream` hint otherwise); `-u` records one. A push that is not a
+  fast-forward is rejected: `(fetch first)` when the server's commit is unknown locally,
+  `(non-fast-forward)` once it has been fetched. Force pushes and `src:dst` refspecs are not
+  supported.
+- `git pull [--rebase | --no-rebase | --ff-only] [<remote> [<branch>]]` fetches, then
+  fast-forwards when it can. When both sides have new commits and no mode is given it refuses
+  with Git's `Need to specify how to reconcile divergent branches` (the fetch has already
+  happened); `--rebase` rebases onto the upstream, `--no-rebase` merges
+  (`Merge branch 'main' of <url>`), `--ff-only` refuses.
+- `git status` reports `ahead` / `behind` / `diverged` / `up to date` against the upstream, and
+  `git branch -vv` shows `[origin/main: ahead 1, behind 2]`. `git branch -r` and `-a` list
+  remote-tracking branches. `-v` and `-vv` both show the upstream.
+- `git switch <name>` with no such branch but exactly one `origin/<name>` creates a tracking
+  branch (`branch 'x' set up to track 'origin/x'.`), as do `git switch -c x origin/x` and
+  `git branch x origin/x`. `git merge` and `git rebase` accept `origin/main`, tags and commit ids.
+- The snapshot exposes `remotes` (with the server's branches, for validators and the labelled
+  "Simulated remote" panel), `remoteBranches` and each branch's `upstream`.
 
 ### Stash
 

@@ -1,4 +1,4 @@
-import { type CourseOutline, type LessonType } from "@gitdojo/shared-types";
+import { type CourseOutline, type LessonDifficulty, type LessonType } from "@gitdojo/shared-types";
 
 /** A lesson outside any course, such as the five-minute demo. */
 export interface StandaloneLessonInfo {
@@ -12,6 +12,15 @@ export interface ChallengeInfo {
   title: string;
 }
 
+/** A Practice mode task. */
+export interface PracticeInfo {
+  id: string;
+  title: string;
+  /** Its main skill, from the skill taxonomy. */
+  skill: string;
+  difficulty: LessonDifficulty;
+}
+
 /**
  * The content the learner can make progress on, built from the YAML content at build time.
  * Progress stores only ids; titles, types and course structure always come from here, so
@@ -21,6 +30,12 @@ export interface ProgressCatalog {
   courses: CourseOutline[];
   lessons: StandaloneLessonInfo[];
   challenges: ChallengeInfo[];
+  practice: PracticeInfo[];
+  /**
+   * Content key (`lesson:<id>`, `challenge:<id>`, `practice:<id>`) → the content's `concepts`,
+   * as authored. The dashboard maps them onto skills.
+   */
+  concepts: Record<string, string[]>;
 }
 
 export interface CatalogLesson {

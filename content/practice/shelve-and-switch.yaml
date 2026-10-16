@@ -1,0 +1,65 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: shelve-and-switch
+title: Shelve Work for a Hotfix
+skill: stashing
+difficulty: intermediate
+order: 4
+
+scenario: |
+  You are halfway through editing `profile.js` on `feature/profile` when a bug report comes in:
+  the footer link on `main` is broken. Your profile edits are not ready to commit.
+
+mission: >
+  Commit the footer fix as `Fix footer link` on `main` (the link should point to `/about`), then
+  be back on `feature/profile` with your unfinished `profile.js` edits in the working tree,
+  still uncommitted, and nothing left on the shelf.
+
+concepts:
+  - stash
+  - branches
+
+requires:
+  - stash
+  - switch
+  - commit
+
+related:
+  course: recovery
+  lesson: git-stash
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        footer.html: |
+          <a href="/abuot">About</a>
+        profile.js: |
+          export const profile = {};
+    - message: Start profile page
+      branch: feature/profile
+      files:
+        profile.js: |
+          export const profile = { name: "" };
+  currentBranch: feature/profile
+  files:
+    profile.js: |
+      export const profile = { name: "", avatar: null };
+checks:
+  - type: commit_changes
+    branch: main
+    message: Fix footer link
+    files:
+      - footer.html
+  - type: current_branch
+    branch: feature/profile
+  - type: file_content
+    file: profile.js
+    content: |
+      export const profile = { name: "", avatar: null };
+  - type: file_status
+    file: profile.js
+    status: modified
+  - type: stash_count
+    count: 0

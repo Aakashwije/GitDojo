@@ -93,6 +93,25 @@ branch, or that a cherry-pick did not bring unwanted commits along. Because prog
 put checks that are already true at the start (like "history has two commits") after a check
 that only passes at the end, so they are judged on the final state.
 
+### History, tag and remote validators
+
+| Type                                      | Fields                                        | Passes when                                                                                                                     |
+| ----------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `branch_history`                          | `branch`, `messages`, `complete?`             | Following first parents, the branch's newest commits have exactly these subjects (newest first); `complete`: the whole history. |
+| `tag_exists`                              | `tag`, `message?`, `annotated?`               | The tag exists; with `message`, it names that commit; with `annotated`, it is (or is not) an annotated tag.                     |
+| `tag_not_exists`                          | `tag`                                         | No tag with that name exists.                                                                                                   |
+| `remote_branch_points_to_commit`          | `branch`, `remote?`, `message` or `sameAs`    | The simulated remote's (default `origin`) branch points at the commit with `message`, or where the local `sameAs` does.         |
+| `remote_tracking_branch_points_to_commit` | `ref`, `message` and/or `matchesRemote: true` | The remote-tracking branch (`origin/main`) exists and points at `message`'s commit, or where the remote's branch is now.        |
+| `branch_upstream`                         | `branch`, `upstream`                          | The branch tracks `upstream` (`origin/feature`), as `git push -u` or `git switch <remote branch>` sets it.                      |
+
+`branch_history` compares subjects only, so a squashed commit whose message keeps the original
+subject still matches, and a merge commit in the way does not: it is how interactive-rebase
+lessons check the rewritten history without caring which todo actions produced it.
+`remote_tracking_branch_points_to_commit` with `matchesRemote` is "has fetched": `origin/main`
+is where the simulated server's `main` is right now. Remote validators read the simulated
+server's state from `RepositoryState.remotes`, which only GitDojo can see; a learner's
+repository learns about it through `git fetch`.
+
 File paths may be written as `README.md` or `./README.md`.
 
 ```yaml

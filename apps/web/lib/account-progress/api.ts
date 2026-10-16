@@ -39,6 +39,8 @@ export interface ProgressResponse {
   account: { id: string };
   completedLessons: CompletedLesson[];
   completedChallenges: CompletedChallenge[];
+  /** Practice mode tasks solved. Never worth XP, so there is no `xp` here. */
+  completedPractice: CompletedPractice[];
   /** Counters, hints and the last lesson. Counters exclude the asking device. */
   activity: ActivityResponse;
   totalXp: number;
@@ -50,6 +52,20 @@ export interface CompletedChallenge {
   title: string | null;
   xp: number;
   completedAt: string;
+}
+
+export interface CompletedPractice {
+  taskId: string;
+  /** Null when the task no longer exists in the content. */
+  title: string | null;
+  completedAt: string;
+}
+
+export interface RecordPracticeResponse {
+  practice: CompletedPractice;
+  /** True when the task had been solved before: nothing changed. */
+  alreadyCompleted: boolean;
+  totalXp: number;
 }
 
 export interface RecordLessonResponse {
@@ -144,6 +160,36 @@ function presentChallenge(
   };
 }
 
+function presentPractice(
+  completion: StoredCompletion,
+  catalog: ProgressCatalog,
+): CompletedPractice {
+  return {
+    taskId: completion.lessonId,
+    title: catalog.practice.find((item) => item.id === completion.lessonId)?.title ?? null,
+    completedAt: completion.completedAt.toISOString(),
+  };
+}
+
+/** The completions part of a progress response: lessons, challenges and practice apart. */
+function presentCompletions(
+  completions: readonly StoredCompletion[],
+  catalog: ProgressCatalog,
+): Pick<ProgressResponse, "completedLessons" | "completedChallenges" | "completedPractice"> {
+  const lessons = indexLessons(catalog);
+  return {
+    completedLessons: completions
+      .filter((c) => c.kind === undefined)
+      .map((c) => present(c, lessons)),
+    completedChallenges: completions
+      .filter((c) => c.kind === "challenge")
+      .map((c) => presentChallenge(c, catalog)),
+    completedPractice: completions
+      .filter((c) => c.kind === "practice")
+      .map((c) => presentPractice(c, catalog)),
+  };
+}
+
 /** The verified identity, or the response that refuses the request. */
 async function verify(
   deps: ProgressApiDeps,
@@ -168,15 +214,9 @@ export async function getProgress(deps: ProgressApiDeps, request?: Request): Pro
       verified.identity,
       deviceParam(request),
     );
-    const lessons = indexLessons(catalog);
     const body: ProgressResponse = {
       account: { id: accountId },
-      completedLessons: completions
-        .filter((c) => c.kind !== "challenge")
-        .map((c) => present(c, lessons)),
-      completedChallenges: completions
-        .filter((c) => c.kind === "challenge")
-        .map((c) => presentChallenge(c, catalog)),
+      ...presentCompletions(completions, catalog),
       activity: presentActivity(activity),
       totalXp,
     };
@@ -210,10 +250,15 @@ async function readBody(request: Request, limit: number): Promise<string | null>
 type ParsedBody = { ok: true; id: string } | { ok: false; response: Response };
 
 /** The content id from a record request's body: exactly `{ [field]: "<content-id>" }`. */
-async function parseRecordBody(
-  request: Request,
-  field: "lessonId" | "challengeId",
-): Promise<ParsedBody> {
+type RecordField = "lessonId" | "challengeId" | "taskId";
+
+const INVALID_ID_CODES: Record<RecordField, string> = {
+  lessonId: "invalid_lesson_id",
+  challengeId: "invalid_challenge_id",
+  taskId: "invalid_task_id",
+};
+
+async function parseRecordBody(request: Request, field: RecordField): Promise<ParsedBody> {
   const invalid = (status: number, code: string, message: string): ParsedBody => ({
     ok: false,
     response: error(status, code, message),
@@ -245,11 +290,7 @@ async function parseRecordBody(
   }
   const id = (body as Record<string, unknown>)[field];
   if (typeof id !== "string" || id.length > MAX_LESSON_ID_LENGTH || !LESSON_ID.test(id)) {
-    return invalid(
-      400,
-      `invalid_${field === "challengeId" ? "challenge" : "lesson"}_id`,
-      `${field} must be a content id such as git-init.`,
-    );
+    return invalid(400, INVALID_ID_CODES[field], `${field} must be a content id such as git-init.`);
   }
   return { ok: true, id };
 }
@@ -260,7 +301,7 @@ type Recorded = Extract<RecordOutcome, { status: "recorded" }>;
 const RECORD_ENDPOINTS: Record<
   CompletionKind,
   {
-    field: "lessonId" | "challengeId";
+    field: RecordField;
     unknown: { code: string; message: string };
     present: (outcome: Recorded) => object;
   }
@@ -279,6 +320,15 @@ const RECORD_ENDPOINTS: Record<
     unknown: { code: "unknown_challenge", message: "There is no challenge with that id." },
     present: (outcome): RecordChallengeResponse => ({
       challenge: presentChallenge(outcome.completion, outcome.catalog),
+      alreadyCompleted: !outcome.created,
+      totalXp: outcome.totalXp,
+    }),
+  },
+  practice: {
+    field: "taskId",
+    unknown: { code: "unknown_practice_task", message: "There is no practice task with that id." },
+    present: (outcome): RecordPracticeResponse => ({
+      practice: presentPractice(outcome.completion, outcome.catalog),
       alreadyCompleted: !outcome.created,
       totalXp: outcome.totalXp,
     }),
@@ -337,6 +387,17 @@ export function recordChallengeCompletion(
 }
 
 /**
+ * `POST /api/progress/practice` with `{"taskId": "..."}`: records a solved Practice mode task.
+ * Idempotent like the others, and never worth XP.
+ */
+export function recordPracticeCompletion(
+  request: Request,
+  deps: ProgressApiDeps,
+): Promise<Response> {
+  return recordCompletionRequest("practice", request, deps);
+}
+
+/**
  * `POST /api/progress/sync`: merges this device's command statistics, revealed hints, last
  * lesson and playground session count into the account, and answers with the account's merged
  * view (counters excluding this device, which keeps its own).
@@ -379,15 +440,9 @@ export async function syncProgress(request: Request, deps: ProgressApiDeps): Pro
       verified.identity,
       parsed.activity,
     );
-    const lessons = indexLessons(catalog);
     const response: ProgressResponse = {
       account: { id: accountId },
-      completedLessons: completions
-        .filter((c) => c.kind !== "challenge")
-        .map((c) => present(c, lessons)),
-      completedChallenges: completions
-        .filter((c) => c.kind === "challenge")
-        .map((c) => presentChallenge(c, catalog)),
+      ...presentCompletions(completions, catalog),
       activity: presentActivity(activity),
       totalXp,
     };

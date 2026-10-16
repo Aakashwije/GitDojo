@@ -24,6 +24,22 @@ export interface LessonSetupCommit {
   branch?: string;
 }
 
+/**
+ * A simulated remote for the lesson. GitDojo has no network: the remote lives inside the
+ * learner's workspace, and only `git fetch`, `git pull` and `git push` move commits across.
+ */
+export interface LessonSetupRemote {
+  /** Default `origin`. */
+  name?: string;
+  /**
+   * Local branches the remote has, at their setup tips, as if the repository had been cloned:
+   * each gets a remote-tracking branch and is set to track it. Default `["main"]`.
+   */
+  branches?: string[];
+  /** Commits that only the remote has yet: a teammate's pushes, oldest first. */
+  commits?: LessonSetupCommit[];
+}
+
 export interface LessonSetup {
   /** Workspace-relative path → file content. Written after the history, as uncommitted changes. */
   files?: Record<string, string>;
@@ -36,6 +52,8 @@ export interface LessonSetup {
   branches?: string[];
   /** Branch the learner starts on (default: `main`). */
   currentBranch?: string;
+  /** A simulated remote, set up after the branches and before the uncommitted files. */
+  remote?: LessonSetupRemote;
   /**
    * Git commands run last (after the commits, branches and files), exactly as if typed in the
    * terminal, e.g. `git reset --hard HEAD~1` to leave a commit only the reflog remembers,
@@ -324,4 +342,48 @@ export interface ChallengeSummary {
   number: number;
   /** Commands from `requires` that GitDojo cannot run yet; empty when playable. */
   missingCommands: string[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Practice mode
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A short Practice mode task, as authored in `content/practice/<id>.yaml`: one main skill, a
+ * scenario and an end state to reach. Unlike a lesson there are no ordered objectives and no
+ * hints; unlike a challenge the checks are never listed. All checks must hold at the same time.
+ */
+export interface PracticeTaskDefinition {
+  /** Also the URL slug and file name. */
+  id: string;
+  title: string;
+  /** The skill it practises: an id from GitDojo's skill taxonomy (`branches`, `remotes`...). */
+  skill: string;
+  difficulty: LessonDifficulty;
+  /** Position among tasks of the same difficulty; lower comes first. */
+  order?: number;
+  /** What happened, in a few sentences. Never names the commands to use. */
+  scenario: string;
+  /** The end state to reach, without saying how. */
+  mission: string;
+  concepts: string[];
+  /** Git commands (e.g. `tag`, `rebase`) the task needs. It stays locked until all exist. */
+  requires?: string[];
+  /** A lesson that teaches the skill, offered after the task. */
+  related?: { course: string; lesson: string };
+  setup: LessonSetup;
+  /** The end state, checked against repository state after every step. Never shown. */
+  checks: ValidatorDefinition[];
+}
+
+/** What the Practice browser needs, without setup or checks. */
+export interface PracticeTaskSummary {
+  id: string;
+  title: string;
+  skill: string;
+  difficulty: LessonDifficulty;
+  mission: string;
+  /** Commands from `requires` that GitDojo cannot run yet; empty when playable. */
+  missingCommands: string[];
+  related?: { course: string; lesson: string };
 }

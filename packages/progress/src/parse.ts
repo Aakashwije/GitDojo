@@ -118,8 +118,9 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
   if (typeof version === "number" && version > PROGRESS_SCHEMA_VERSION) {
     throw new NewerProgressVersionError(version);
   }
-  // Older records upgrade in place: version 1 simply has no synced counters yet and version 2 no
-  // seen releases, which is also what a fresh record looks like. Nothing is dropped or re-counted.
+  // Older records upgrade in place: version 1 simply has no synced counters yet, version 2 no
+  // seen releases and version 3 no practice, which is also what a fresh record looks like.
+  // Nothing is dropped or re-counted.
   if (typeof version !== "number" || version < 1 || version > PROGRESS_SCHEMA_VERSION) {
     issues.push("schemaVersion was missing or invalid");
   }
@@ -142,6 +143,13 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
     "completedChallenges",
     parseCompletion,
     issues,
+  );
+  // Version 3 and older have no practice; that reads as "nothing solved yet". Practice never
+  // earns XP, whatever a stored record claims.
+  const completedPractice = Object.fromEntries(
+    Object.entries(
+      parseMap(raw.completedPractice, "completedPractice", parseCompletion, issues),
+    ).map(([id, record]) => [id, { completedAt: record.completedAt, xp: 0 }]),
   );
   const commandStats = parseMap(raw.commandStats, "commandStats", parseCommandStat, issues);
   const revealedHints = parseMap(raw.revealedHints, "revealedHints", parseHints, issues);
@@ -197,6 +205,7 @@ export function parseProgress(raw: unknown, now: number): ParsedProgress {
     ...base,
     completedLessons,
     completedChallenges,
+    completedPractice,
     xp: totalXp({ completedLessons, completedChallenges }),
     commandStats,
     revealedHints,
