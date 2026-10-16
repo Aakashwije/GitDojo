@@ -6,14 +6,25 @@ import {
   type GitBranchCreateResult,
   type GitBranchDeleteResult,
   type GitBranchListResult,
+  type GitShowBranchesOptions,
+  type GitUpstreamInfo,
 } from "../engine/git-engine";
+import {
+  clearUpstreamConfig,
+  readRemoteTrackingBranches,
+  resolveCommitRef,
+  upstreamInfo,
+  writeUpstreamConfig,
+} from "../engine/refs";
 import { deleteReflog, logBranchMove } from "../engine/reflog";
 import {
+  createCommitCache,
   currentBranch,
   isAncestor,
   isRepository,
   resolveRefOrNull,
   shortOid,
+  subject,
 } from "../engine/repository";
 import { resolveRevision } from "../engine/revisions";
 
@@ -51,12 +62,13 @@ export async function readBranches(ctx: GitContext): Promise<BranchState[]> {
     currentBranch(ctx),
     git.listBranches({ fs: ctx.fs, dir: ctx.dir }),
   ]);
+  const cache = createCommitCache();
   const branches: BranchState[] = await Promise.all(
-    names.map(async (name) => ({
-      name,
-      oid: await resolveRefOrNull(ctx, `refs/heads/${name}`),
-      current: name === current,
-    })),
+    names.map(async (name) => {
+      const oid = await resolveRefOrNull(ctx, `refs/heads/${name}`);
+      const upstream = await upstreamInfo(ctx, name, oid, cache);
+      return { name, oid, current: name === current, ...(upstream ? { upstream } : {}) };
+    }),
   );
   if (current !== null && !names.includes(current)) {
     branches.push({ name: current, oid: null, current: true });
@@ -64,17 +76,59 @@ export async function readBranches(ctx: GitContext): Promise<BranchState[]> {
   return branches.sort(byName);
 }
 
-export async function runShowBranches(ctx: GitContext): Promise<GitBranchListResult> {
+/** `[origin/main: ahead 1, behind 2]`, as `git branch -vv` prints it. */
+function upstreamLabel(upstream: GitUpstreamInfo): string {
+  if (upstream.gone) return `[${upstream.name}: gone]`;
+  const parts = [
+    ...(upstream.ahead > 0 ? [`ahead ${String(upstream.ahead)}`] : []),
+    ...(upstream.behind > 0 ? [`behind ${String(upstream.behind)}`] : []),
+  ];
+  return parts.length === 0 ? `[${upstream.name}]` : `[${upstream.name}: ${parts.join(", ")}]`;
+}
+
+async function commitSubject(ctx: GitContext, oid: string): Promise<string> {
+  return subject((await git.readCommit({ fs: ctx.fs, dir: ctx.dir, oid })).commit.message);
+}
+
+export async function runShowBranches(
+  ctx: GitContext,
+  { remotes = false, all = false, verbose = false }: GitShowBranchesOptions = {},
+): Promise<GitBranchListResult> {
   if (!(await isRepository(ctx))) return notARepository();
   const branches = await readBranches(ctx);
-  // Like Git, an unborn branch is not listed: it does not exist until its first commit.
-  const lines = branches
-    .filter((branch) => branch.oid !== null)
-    .map((branch) => `${branch.current ? "*" : " "} ${branch.name}`);
   const head = await resolveRefOrNull(ctx, "HEAD");
-  if (head !== null && !branches.some((branch) => branch.current)) {
-    lines.unshift(`* (HEAD detached at ${shortOid(head)})`);
+  // Like Git, an unborn branch is not listed: it does not exist until its first commit.
+  const rows: { marker: string; name: string; oid: string; upstream?: GitUpstreamInfo }[] = [];
+  if (!remotes) {
+    if (head !== null && !branches.some((branch) => branch.current)) {
+      rows.push({ marker: "*", name: `(HEAD detached at ${shortOid(head)})`, oid: head });
+    }
+    for (const branch of branches) {
+      if (branch.oid === null) continue;
+      rows.push({
+        marker: branch.current ? "*" : " ",
+        name: branch.name,
+        oid: branch.oid,
+        ...(branch.upstream ? { upstream: branch.upstream } : {}),
+      });
+    }
   }
+  if (remotes || all) {
+    for (const ref of await readRemoteTrackingBranches(ctx)) {
+      rows.push({ marker: " ", name: all ? `remotes/${ref.name}` : ref.name, oid: ref.oid });
+    }
+  }
+  if (!verbose) {
+    return success(rows.map((row) => `${row.marker} ${row.name}`).join("\n"), { branches });
+  }
+  const width = Math.max(0, ...rows.map((row) => row.name.length));
+  const lines = await Promise.all(
+    rows.map(async (row) => {
+      const tracking = row.upstream ? `${upstreamLabel(row.upstream)} ` : "";
+      const text = await commitSubject(ctx, row.oid);
+      return `${row.marker} ${row.name.padEnd(width)} ${shortOid(row.oid)} ${tracking}${text}`;
+    }),
+  );
   return success(lines.join("\n"), { branches });
 }
 
@@ -133,6 +187,17 @@ export async function runCreateBranch(
     to: start,
     message: `branch: Created from ${startPoint ?? "HEAD"}`,
   });
+  // Started from `origin/x`: the new branch tracks it, as with Git's default autoSetupMerge.
+  const tracking =
+    startPoint !== undefined &&
+    (await resolveRefOrNull(ctx, `refs/heads/${startPoint}`)) === null &&
+    (await resolveCommitRef(ctx, `refs/tags/${startPoint}`)) === null
+      ? (await readRemoteTrackingBranches(ctx)).find((ref) => ref.name === startPoint)
+      : undefined;
+  if (tracking) {
+    await writeUpstreamConfig(ctx, name, tracking.remote, tracking.branch);
+    return success(`branch '${name}' set up to track '${tracking.name}'.`, { name, oid: start });
+  }
   // Real `git branch <name>` is silent on success.
   return success("", { name, oid: start });
 }
@@ -169,5 +234,6 @@ export async function runDeleteBranch(
   }
   await git.deleteBranch({ fs: ctx.fs, dir: ctx.dir, ref: name });
   await deleteReflog(ctx, name);
+  await clearUpstreamConfig(ctx, name);
   return success(`Deleted branch ${name} (was ${shortOid(oid)}).`, { name, oid });
 }

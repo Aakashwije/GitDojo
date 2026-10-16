@@ -1,0 +1,53 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: commit-one-change
+title: Commit One Change
+skill: commits
+difficulty: beginner
+order: 1
+
+scenario: |
+  You fixed a typo in `README.md`. You also have `scratch.txt` with notes to yourself, which
+  must not end up in the project's history.
+
+mission: >
+  Make a commit called `Fix typo in README` that contains only the README fix, and leave
+  `scratch.txt` untracked.
+
+concepts:
+  - commits
+  - staging
+
+requires:
+  - add
+  - commit
+
+related:
+  course: git-basics
+  lesson: git-commit
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Recipes
+
+          A colection of family recipes.
+  files:
+    README.md: |
+      # Recipes
+
+      A collection of family recipes.
+    scratch.txt: |
+      TODO: ask grandma about the soup
+checks:
+  - type: commit_changes
+    branch: main
+    message: Fix typo in README
+    files:
+      - README.md
+  - type: file_status
+    file: scratch.txt
+    status: untracked

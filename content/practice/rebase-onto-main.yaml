@@ -1,0 +1,59 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: rebase-onto-main
+title: Straighten a Branch
+skill: rebasing
+difficulty: advanced
+order: 2
+
+scenario: |
+  `feature/export` branched off a while ago. Since then `main` gained a security fix. The team
+  wants a straight history: no merge commits on feature branches. You are on `feature/export`.
+
+mission: >
+  Make `feature/export` start from the latest `main`, in a straight line, keeping both of its
+  commits.
+
+concepts:
+  - rebase
+  - history
+
+requires:
+  - rebase
+
+related:
+  course: recovery
+  lesson: git-rebase
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        app.js: |
+          export const app = {};
+    - message: Add CSV export
+      branch: feature/export
+      files:
+        export.js: |
+          export const csv = (rows) => rows.join("\n");
+    - message: Add JSON export
+      branch: feature/export
+      files:
+        json.js: |
+          export const json = (rows) => JSON.stringify(rows);
+    - message: Escape user input
+      files:
+        escape.js: |
+          export const escape = (text) => text.replace(/</g, "&lt;");
+  currentBranch: feature/export
+checks:
+  - type: branch_rebased
+    branch: feature/export
+    onto: main
+  - type: branch_contains_commit
+    branch: feature/export
+    message: Add CSV export
+  - type: branch_contains_commit
+    branch: feature/export
+    message: Add JSON export

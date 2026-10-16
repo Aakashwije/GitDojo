@@ -59,6 +59,8 @@ const CATALOG: ProgressCatalog = {
     { id: "lost-commit", title: "Lost Commit" },
     { id: "wrong-branch", title: "Wrong Branch" },
   ],
+  practice: [],
+  concepts: {},
 };
 
 function progressAfter(actions: ProgressAction[]): LocalProgress {
@@ -224,5 +226,107 @@ describe("progress store", () => {
     expect(useProgressStore.getState().persistence).toMatchObject({ mode: "memory" });
     render(<Dashboard catalog={CATALOG} />);
     expect(screen.getByText(/not letting GitDojo save it/)).toBeInTheDocument();
+  });
+});
+
+describe("Dashboard skills and next steps", () => {
+  const SKILLED: ProgressCatalog = {
+    ...CATALOG,
+    practice: [
+      {
+        id: "start-a-branch",
+        title: "Start a Feature Branch",
+        skill: "branches",
+        difficulty: "beginner",
+      },
+    ],
+    concepts: {
+      "lesson:what-is-git": ["version-control"],
+      "lesson:git-init": ["git-init"],
+      "lesson:git-branch": ["branches"],
+      "challenge:lost-commit": ["reflog"],
+      "practice:start-a-branch": ["branches"],
+    },
+  };
+  const showSkilled = (progress: LocalProgress) => {
+    useProgressStore.setState({ progress, status: "ready", persistence: { mode: "saved" } });
+    render(<Dashboard catalog={SKILLED} />);
+  };
+  const skill = (id: string) =>
+    screen.getAllByTestId("skill").find((element) => element.dataset.skill === id);
+
+  it("explains how skills are counted, and starts with none practiced", () => {
+    showSkilled(emptyProgress(Date.now()));
+    expect(screen.getByTestId("skills-explanation")).toHaveTextContent(
+      /practiced.*hands-on lesson, challenge or practice task.*Mastered takes 3 hands-on completions/,
+    );
+    expect(screen.getByTestId("skills-summary")).toHaveTextContent("0 / 16 practiced");
+    expect(skill("branches")).toHaveAttribute("data-status", "untouched");
+    expect(skill("branches")).toHaveTextContent("Not started");
+  });
+
+  it("counts a concept lesson as read and one hands-on item as practiced, not mastered", () => {
+    showSkilled(
+      progressAfter([
+        { type: "complete", content: { kind: "lesson", id: "what-is-git", type: "concept" } },
+        { type: "complete", content: { kind: "lesson", id: "git-branch", type: "interactive" } },
+      ]),
+    );
+    expect(skill("repositories")).toHaveAttribute("data-status", "studied");
+    expect(skill("branches")).toHaveAttribute("data-status", "practiced");
+    expect(skill("branches")).toHaveTextContent("1 of 2 hands-on done");
+    // One completion is never mastery.
+    expect(
+      screen.getAllByTestId("skill").filter((element) => element.dataset.status === "mastered"),
+    ).toEqual([]);
+  });
+
+  it("labels practice clearly, with no XP", () => {
+    showSkilled(
+      progressAfter([{ type: "complete", content: { kind: "practice", id: "start-a-branch" } }]),
+    );
+    expect(screen.getByTestId("stat-practice")).toHaveTextContent("1");
+    expect(screen.getByText("of 1 tasks · no XP")).toBeInTheDocument();
+    expect(screen.getByTestId("stat-xp")).toHaveTextContent("0");
+    const activity = within(screen.getByTestId("recent-activity"));
+    expect(activity.getByRole("link", { name: "Start a Feature Branch" })).toHaveAttribute(
+      "href",
+      "/practice/start-a-branch",
+    );
+    expect(activity.getByText("Practice · no XP")).toBeInTheDocument();
+    expect(skill("branches")).toHaveTextContent("1 unguided");
+  });
+
+  it("recommends next steps with a reason, never completed content or the continue target", () => {
+    showSkilled(
+      progressAfter([
+        { type: "complete", content: { kind: "lesson", id: "what-is-git", type: "concept" } },
+      ]),
+    );
+    const continueHref = screen.getByTestId("continue-learning").getAttribute("href");
+    const steps = screen.getAllByTestId("next-step");
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps.length).toBeLessThanOrEqual(3);
+    for (const step of steps) {
+      expect(step).not.toHaveAttribute("href", continueHref ?? "");
+      expect(step).not.toHaveAttribute("href", "/learn/git-basics/what-is-git");
+    }
+    expect(steps[0]).toHaveTextContent(/Try your first \w+ task/);
+  });
+
+  it("suggests practising again once nothing is left to recommend", () => {
+    showSkilled(
+      progressAfter([
+        { type: "complete", content: { kind: "lesson", id: "what-is-git", type: "concept" } },
+        { type: "complete", content: { kind: "lesson", id: "git-init", type: "interactive" } },
+        { type: "complete", content: { kind: "lesson", id: "git-branch", type: "interactive" } },
+        { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+      ]),
+    );
+    expect(screen.getByTestId("next-steps-empty")).toHaveTextContent("Practice again");
+    expect(screen.getByRole("link", { name: "Practice again" })).toHaveAttribute(
+      "href",
+      "/practice",
+    );
   });
 });

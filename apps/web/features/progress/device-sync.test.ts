@@ -41,6 +41,8 @@ const CATALOG: ProgressCatalog = {
   ],
   lessons: [],
   challenges: [],
+  practice: [],
+  concepts: {},
 };
 
 const requestUrl = (input: RequestInfo | URL) =>
@@ -490,12 +492,13 @@ describe("the upload payload", () => {
 function emptyish() {
   const now = Date.UTC(2026, 0, 1);
   return {
-    schemaVersion: 3 as const,
+    schemaVersion: 4 as const,
     seenReleases: {},
     owner: { kind: "account" as const, accountId: "ada" },
     deviceId: "laptop",
     completedLessons: {},
     completedChallenges: {},
+    completedPractice: {},
     xp: 0,
     commandStats: {},
     revealedHints: {},

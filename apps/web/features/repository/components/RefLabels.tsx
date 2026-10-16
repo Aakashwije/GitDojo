@@ -1,5 +1,5 @@
 import { Badge, cn, Tooltip } from "@gitdojo/ui";
-import { ArrowRight, GitBranch } from "lucide-react";
+import { ArrowRight, Cloud, GitBranch, Tag } from "lucide-react";
 
 export const HEAD_EXPLANATION =
   "HEAD points to the branch you are on, and so to the commit your files are based on.";
@@ -7,6 +7,10 @@ export const HEAD_EXPLANATION =
 export interface RefLabelsProps {
   /** Branches pointing at this commit. */
   branches: readonly string[];
+  /** Tags naming this commit. */
+  tags?: readonly string[];
+  /** Remote-tracking branches (`origin/main`) at this commit. */
+  remoteBranches?: readonly string[];
   /** HEAD points at this commit. */
   isHead: boolean;
   /** HEAD's branch, when HEAD is attached to one. */
@@ -22,12 +26,16 @@ export interface RefLabelsProps {
  */
 export function RefLabels({
   branches,
+  tags = [],
+  remoteBranches = [],
   isHead,
   currentBranch,
   withTooltip = true,
   className,
 }: RefLabelsProps) {
-  if (branches.length === 0 && !isHead) return null;
+  if (branches.length === 0 && tags.length === 0 && remoteBranches.length === 0 && !isHead) {
+    return null;
+  }
   const attachedTo =
     isHead && currentBranch !== null && branches.includes(currentBranch) ? currentBranch : null;
   const others = branches.filter((branch) => branch !== attachedTo);
@@ -65,6 +73,27 @@ export function RefLabels({
       ) : null}
       {others.map((branch) => (
         <BranchLabel key={branch} name={branch} current={false} />
+      ))}
+      {tags.map((tag) => (
+        <Badge key={tag} tone="warning" mono data-testid="tag-label" data-tag={tag}>
+          <Tag aria-hidden="true" />
+          <span className="sr-only">tag </span>
+          {tag}
+        </Badge>
+      ))}
+      {remoteBranches.map((ref) => (
+        <Badge
+          key={ref}
+          tone="neutral"
+          mono
+          data-testid="remote-branch-label"
+          data-ref={ref}
+          className="border-dashed"
+        >
+          <Cloud aria-hidden="true" />
+          <span className="sr-only">remote-tracking branch </span>
+          {ref}
+        </Badge>
       ))}
     </span>
   );

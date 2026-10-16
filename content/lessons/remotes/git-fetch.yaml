@@ -110,5 +110,8 @@ content:
   - type: callout
     tone: note
     body: >-
-      GitDojo's sandbox has no network, so `git fetch` is not available in the terminal. The
-      diagrams above show exactly which arrow moves, which is the part most people get wrong.
+      GitDojo's sandbox has no network, so its remotes are simulated inside your workspace, with
+      a `gitdojo://simulated/...` URL. `git fetch` behaves as described here: it moves
+      `origin/*` and nothing else. You fetch for real in **Sync with a Teammate's Push**. GitDojo's
+      terminal does not support `--all`, `--prune` or `main..origin/main` ranges yet; use
+      `git log --oneline --all` and `git status` to compare instead.

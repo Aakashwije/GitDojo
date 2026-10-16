@@ -94,6 +94,7 @@ for (const path of [
   "/learn",
   "/learn/git-basics/what-is-git",
   "/challenges",
+  "/practice",
   "/playground",
   "/dashboard",
   "/whats-new",

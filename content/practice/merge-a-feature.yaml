@@ -1,0 +1,54 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: merge-a-feature
+title: Merge a Finished Feature
+skill: merging
+difficulty: intermediate
+order: 1
+
+scenario: |
+  `feature/search` is reviewed and approved. Meanwhile `main` gained a footer, so the two
+  branches have each moved on since they split. You are on `feature/search`.
+
+mission: >
+  Bring all of `feature/search` into `main`, keeping `main`'s footer, and end up on `main`.
+
+concepts:
+  - merging
+  - merge-commits
+
+requires:
+  - switch
+  - merge
+
+related:
+  course: merging
+  lesson: merge-feature-into-main
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        index.html: |
+          <h1>Bookshop</h1>
+    - message: Add search box
+      branch: feature/search
+      files:
+        search.js: |
+          export const search = (books, term) => books.filter((b) => b.includes(term));
+    - message: Add footer
+      files:
+        footer.html: |
+          <footer>© Bookshop</footer>
+  currentBranch: feature/search
+checks:
+  - type: branches_merged
+    branch: feature/search
+    into: main
+  - type: branch_contains_commit
+    branch: main
+    message: Add footer
+  - type: current_branch
+    branch: main
+  - type: clean_worktree

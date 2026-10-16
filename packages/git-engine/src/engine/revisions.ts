@@ -2,14 +2,62 @@ import git from "isomorphic-git";
 import { hasErrorCode } from "../filesystem/fs-errors";
 import { type GitContext } from "./context";
 import { reflogEntry } from "./reflog";
+import { resolveCommitRef } from "./refs";
 import { resolveRefOrNull } from "./repository";
 
 const FULL_OID = /^[0-9a-f]{40}$/;
 const SHORT_OID = /^[0-9a-f]{4,39}$/;
-// <base>, then any number of ~N / ^N suffixes.
-const REVISION = /^(.+?)((?:[~^]\d*)*)$/;
-// HEAD@{2}, main@{1}, @{1}
-const REFLOG = /^(.*)@\{(\d+)\}$/;
+const DIGITS = /^\d+$/;
+
+function isDigit(char: string | undefined): boolean {
+  return char !== undefined && char >= "0" && char <= "9";
+}
+
+/** One `~N` or `^N` step after the base; `count` is 1 when no number is given. */
+export interface RevisionStep {
+  operator: "~" | "^";
+  count: number;
+}
+
+/**
+ * Splits `HEAD~2^2` into its base (`HEAD`) and steps (`~2`, `^2`), or `null` without a base.
+ *
+ * Hand-written and linear on purpose: a regular expression such as `^(.+?)((?:[~^]\d*)*)$`
+ * backtracks quadratically on input like `a^9^9^9^...!`, and revisions are typed by the learner.
+ * The steps are the longest tail made only of `~`, `^` and digits that starts with `~` or `^`,
+ * so digits that end a commit id (`abc1234~2`) stay part of the base.
+ */
+export function parseRevision(revision: string): { base: string; steps: RevisionStep[] } | null {
+  let start = revision.length;
+  while (start > 0) {
+    const char = revision[start - 1];
+    if (char !== "~" && char !== "^" && !isDigit(char)) break;
+    start -= 1;
+  }
+  while (start < revision.length && isDigit(revision[start])) start += 1;
+  const base = revision.slice(0, start);
+  if (base === "") return null;
+
+  const steps: RevisionStep[] = [];
+  for (let index = start; index < revision.length;) {
+    const operator = revision[index] === "~" ? "~" : "^";
+    let end = index + 1;
+    while (isDigit(revision[end])) end += 1;
+    const digits = revision.slice(index + 1, end);
+    steps.push({ operator, count: digits === "" ? 1 : Number(digits) });
+    index = end;
+  }
+  return { base, steps };
+}
+
+/** `HEAD@{2}`, `main@{1}`, `@{1}`: the ref (`""` for `@{n}`) and the position, or `null`. */
+export function parseReflogSelector(base: string): { ref: string; index: number } | null {
+  if (!base.endsWith("}")) return null;
+  const open = base.lastIndexOf("@{");
+  if (open === -1) return null;
+  const digits = base.slice(open + 2, -1);
+  return DIGITS.test(digits) ? { ref: base.slice(0, open), index: Number(digits) } : null;
+}
 
 async function commitExists(ctx: GitContext, oid: string): Promise<boolean> {
   try {
@@ -29,17 +77,20 @@ async function parentsOf(ctx: GitContext, oid: string): Promise<string[]> {
 }
 
 async function resolveBase(ctx: GitContext, base: string): Promise<string | null> {
-  const reflog = REFLOG.exec(base);
+  const reflog = parseReflogSelector(base);
   if (reflog) {
-    const [, ref = "", index = "0"] = reflog;
-    return reflogEntry(ctx, ref === "" || ref === "@" ? "HEAD" : ref, Number(index));
+    const { ref, index } = reflog;
+    return reflogEntry(ctx, ref === "" || ref === "@" ? "HEAD" : ref, index);
   }
   if (base === "HEAD" || base === "@") return resolveRefOrNull(ctx, "HEAD");
   if (!base.startsWith("refs/")) {
-    const branch = await resolveRefOrNull(ctx, `refs/heads/${base}`);
-    if (branch !== null) return branch;
+    // Git's order: tags, then branches, then remote-tracking branches (`origin/main`).
+    for (const prefix of ["refs/tags/", "refs/heads/", "refs/remotes/"]) {
+      const ref = await resolveCommitRef(ctx, `${prefix}${base}`);
+      if (ref !== null) return ref;
+    }
   } else {
-    const ref = await resolveRefOrNull(ctx, base);
+    const ref = await resolveCommitRef(ctx, base);
     if (ref !== null) return ref;
   }
   if (FULL_OID.test(base)) return (await commitExists(ctx, base)) ? base : null;
@@ -60,7 +111,8 @@ async function resolveBase(ctx: GitContext, base: string): Promise<string | null
 /**
  * Resolves the revision syntax learners meet in tutorials to a commit oid:
  *
- * - `HEAD` / `@`, a branch name, a full or abbreviated (4+ characters) commit id;
+ * - `HEAD` / `@`, a tag, a branch or remote-tracking branch (`origin/main`) name, a full or
+ *   abbreviated (4+ characters) commit id;
  * - `~N` (Nth first-parent ancestor), `^` / `^N` (Nth parent), in any combination: `HEAD~2^2`;
  * - reflog positions: `HEAD@{1}`, `main@{2}`.
  *
@@ -68,14 +120,12 @@ async function resolveBase(ctx: GitContext, base: string): Promise<string | null
  * Git's own wording for that command.
  */
 export async function resolveRevision(ctx: GitContext, revision: string): Promise<string | null> {
-  const match = REVISION.exec(revision.trim());
-  if (!match) return null;
-  const [, base = "", suffixes = ""] = match;
-  let oid = await resolveBase(ctx, base);
+  const parsed = parseRevision(revision.trim());
+  if (!parsed) return null;
+  let oid = await resolveBase(ctx, parsed.base);
 
-  for (const [, operator, digits] of suffixes.matchAll(/([~^])(\d*)/g)) {
+  for (const { operator, count } of parsed.steps) {
     if (oid === null) return null;
-    const count = digits === "" || digits === undefined ? 1 : Number(digits);
     if (operator === "^") {
       if (count === 0) continue;
       oid = (await parentsOf(ctx, oid))[count - 1] ?? null;

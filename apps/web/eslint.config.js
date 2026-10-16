@@ -16,7 +16,7 @@ const LAYERS = [
   ["course", "challenges", "editor", "conflicts", "releases"],
   ["lesson", "errors"],
   ["workspace", "dashboard"],
-  ["playground"],
+  ["playground", "practice"],
 ];
 
 /**

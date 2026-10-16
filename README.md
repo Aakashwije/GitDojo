@@ -47,22 +47,33 @@ Or pick a course at `/learn`:
   workflow, and a merge challenge.
 - **Merge Conflicts** (5 lessons): why conflicts happen, reading conflict markers, and resolving
   them by hand in a built-in editor, across one file or several.
-- **Undo and Recover** (10 lessons): `git diff`, `git restore`, the three trees and
+- **Undo and Recover** (11 lessons): `git diff`, `git restore`, the three trees and
   `git reset`, `git revert`, `git stash`, `git cherry-pick`, recovering lost commits with
-  `git reflog`, and `git rebase`.
+  `git reflog`, `git rebase`, and tidying history with an interactive rebase (`git rebase -i`:
+  reorder, squash, fixup, reword and drop, edited in a Git editor dialog).
+- **Everyday Git** (5 lessons): `.gitignore`, `git mv`, `git show`, amending a commit, and
+  marking releases with lightweight and annotated tags (`git tag`).
+- **Remotes and Collaboration** (6 lessons): remote-tracking branches, fetch, pull and push, then
+  hands-on against a **simulated** `origin` that lives in your browser: publish a branch with
+  `git push -u`, and sync with a teammate's push after a rejected push.
 
 Then:
 
 - **Challenges** (`/challenges`): ten real-world problems ("you committed to the wrong
   branch...") with a scenario, a mission and success conditions, but no step-by-step
   instructions.
+- **Practice** (`/practice`): short tasks, one skill each, with a mission and no objectives or
+  hints. Pick a topic or difficulty, or press **Surprise me**; GitDojo checks the end state,
+  whichever way you get there. Practice is recorded separately and never earns XP.
 - **Playground** (`/playground`): no lesson at all. Edit files, run anything, load ready-made
   scenarios (a merge conflict, a detached HEAD, a repository to recover...), and come back later:
   it survives a refresh.
 
 Your progress is saved in the browser, no account needed. The **dashboard** (`/dashboard`) shows
-where to continue, lessons and challenges completed, XP, the Git commands you have used, course
-progress and recent activity, and lets you export your progress as JSON or reset it.
+where to continue, recommended next steps, the skills you have practiced (and which you have
+mastered: three hands-on completions, one of them unguided), lessons, challenges and practice
+tasks completed, XP, the Git commands you have used, course progress and recent activity, and
+lets you export your progress as JSON or reset it.
 
 Accounts are optional. When a site configures [WSO2 Identity Platform](docs/authentication.md),
 learners can **sign up and sign in** on its secure hosted pages (GitDojo never handles
@@ -78,8 +89,10 @@ files and branches. **Hints** climb from a concept to the exact command, which o
 request.
 
 Supported commands: `init`, `status`, `add`, `rm`, `commit`, `log`, `diff`, `restore`, `branch`,
-`switch`, `checkout`, `merge`, `reset`, `revert`, `stash`, `cherry-pick`, `reflog` and `rebase`
-(type `help` in any terminal).
+`switch`, `checkout`, `merge`, `reset`, `revert`, `stash`, `cherry-pick`, `reflog`, `rebase`
+(including `-i`), `tag`, and `remote`, `fetch`, `pull` and `push` against simulated remotes
+(type `help` in any terminal). There is no network: `git clone` and `git remote add` are not
+available.
 
 Everything runs locally in the browser: Git is [isomorphic-git](https://isomorphic-git.org), files
 live in IndexedDB via [LightningFS](https://github.com/isomorphic-git/lightning-fs), the editor is

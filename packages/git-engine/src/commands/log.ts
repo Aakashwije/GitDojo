@@ -9,6 +9,7 @@ import {
   readCommitsFromHead,
   resolveRefOrNull,
 } from "../engine/repository";
+import { readRemoteTrackingBranches, readTags } from "../engine/refs";
 import { resolveRevision, unknownRevisionMessage } from "../engine/revisions";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -27,20 +28,37 @@ export function formatGitDate(timestamp: number, timezoneOffset: number): string
 
 export async function branchDecorations(ctx: GitContext): Promise<Map<string, string[]>> {
   const decorations = new Map<string, string[]>();
+  const add = (oid: string, label: string) => {
+    decorations.set(oid, [...(decorations.get(oid) ?? []), label]);
+  };
   const head = await currentBranch(ctx);
   const branches = await git.listBranches({ fs: ctx.fs, dir: ctx.dir });
   // A detached HEAD is its own label, listed before any branch at the same commit.
   const detached = head === null ? await resolveRefOrNull(ctx, "HEAD") : null;
   if (detached !== null) decorations.set(detached, ["HEAD"]);
-  // HEAD's branch is listed first, as Git does.
-  const ordered = head ? [head, ...branches.filter((name) => name !== head)] : branches;
-  for (const name of ordered) {
-    const oid = await resolveRefOrNull(ctx, name);
-    if (oid === null) continue;
-    const label = name === head ? `HEAD -> ${name}` : name;
-    decorations.set(oid, [...(decorations.get(oid) ?? []), label]);
+  const headOid = head === null ? null : await resolveRefOrNull(ctx, `refs/heads/${head}`);
+  if (head !== null && headOid !== null) add(headOid, `HEAD -> ${head}`);
+  // Then tags, other local branches and remote-tracking branches, as Git lists them.
+  for (const tag of await readTags(ctx)) add(tag.oid, `tag: ${tag.name}`);
+  for (const name of branches.filter((branch) => branch !== head)) {
+    const oid = await resolveRefOrNull(ctx, `refs/heads/${name}`);
+    if (oid !== null) add(oid, name);
   }
+  for (const ref of await readRemoteTrackingBranches(ctx)) add(ref.oid, ref.name);
   return decorations;
+}
+
+/** Every ref `git log --all` starts from: HEAD, branches, tags and remote-tracking branches. */
+export async function allRefTips(ctx: GitContext): Promise<string[]> {
+  const branches = await Promise.all(
+    (await git.listBranches({ fs: ctx.fs, dir: ctx.dir })).map((name) =>
+      resolveRefOrNull(ctx, `refs/heads/${name}`),
+    ),
+  );
+  const head = await resolveRefOrNull(ctx, "HEAD");
+  const tags = (await readTags(ctx)).map((tag) => tag.oid);
+  const remotes = (await readRemoteTrackingBranches(ctx)).map((ref) => ref.oid);
+  return [head, ...branches, ...tags, ...remotes].filter((oid) => oid !== null);
 }
 
 function formatCommit(commit: GitCommitInfo, decoration: string, oneline: boolean): string {
@@ -75,16 +93,7 @@ export async function runLog(ctx: GitContext, options: GitLogOptions = {}): Prom
 
   let commits: GitCommitInfo[];
   if (options.all) {
-    const tips = await Promise.all(
-      (await git.listBranches({ fs: ctx.fs, dir: ctx.dir })).map((name) =>
-        resolveRefOrNull(ctx, `refs/heads/${name}`),
-      ),
-    );
-    const head = await resolveRefOrNull(ctx, "HEAD");
-    commits = await readCommitsFrom(
-      ctx,
-      [head, ...tips].filter((oid) => oid !== null),
-    );
+    commits = await readCommitsFrom(ctx, await allRefTips(ctx));
   } else if (options.revision !== undefined) {
     const start = await resolveRevision(ctx, options.revision);
     if (start === null) {

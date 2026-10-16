@@ -41,26 +41,34 @@ const branchName = z
   .string()
   .refine(isValidBranchName, { message: "must be a valid Git branch name" });
 
+const setupCommitSchema = z.strictObject({
+  message: z.string().trim().min(1),
+  files: z
+    .record(z.string(), z.string().nullable())
+    .refine((files) => Object.keys(files).length > 0, {
+      message: "a setup commit needs at least one file",
+    }),
+  branch: branchName.optional(),
+});
+
 export const setupSchema = z.strictObject({
   // Keys are checked below: Zod reports record-key failures only as "Invalid key in record".
   files: fileMap.optional(),
   directories: z.array(workspacePath).optional(),
   initializeGit: z.boolean().optional(),
-  commits: z
-    .array(
-      z.strictObject({
-        message: z.string().trim().min(1),
-        files: z
-          .record(z.string(), z.string().nullable())
-          .refine((files) => Object.keys(files).length > 0, {
-            message: "a setup commit needs at least one file",
-          }),
-        branch: branchName.optional(),
-      }),
-    )
-    .optional(),
+  commits: z.array(setupCommitSchema).optional(),
   branches: z.array(branchName).optional(),
   currentBranch: branchName.optional(),
+  remote: z
+    .strictObject({
+      name: z
+        .string()
+        .regex(SLUG_PATTERN, "must be a simple remote name such as origin")
+        .optional(),
+      branches: z.array(branchName).min(1).optional(),
+      commits: z.array(setupCommitSchema).optional(),
+    })
+    .optional(),
   commands: z
     .array(
       z.string().superRefine((command, ctx) => {
@@ -162,6 +170,27 @@ export function checkSetup(setup: Setup, ctx: z.RefinementCtx): void {
       path: ["setup", "commands"],
       message: "setup commands require `initializeGit: true`",
     });
+  }
+  if (setup.remote) {
+    if (commits.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["setup", "remote"],
+        message: "a setup remote needs at least one setup commit to start from",
+      });
+    }
+    for (const [index, branch] of (setup.remote.branches ?? ["main"]).entries()) {
+      if (!seen.has(branch)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["setup", "remote", "branches", index],
+          message: `"${branch}" is not created by this setup`,
+        });
+      }
+    }
+    for (const [index, commit] of (setup.remote.commits ?? []).entries()) {
+      checkPaths(commit.files, ["setup", "remote", "commits", index, "files"]);
+    }
   }
   if (setup.currentBranch !== undefined && !seen.has(setup.currentBranch)) {
     ctx.addIssue({

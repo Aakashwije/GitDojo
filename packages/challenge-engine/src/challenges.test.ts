@@ -390,6 +390,21 @@ describe("challenge content", async () => {
       'git commit -m "Add search"',
     ]);
     expect(mixed.progress.completed).toBe(true);
+    // An interactive rebase squashes too: the challenge checks the result, not the command.
+    const interactive = await play(byId("clean-up-history"), [
+      "git rebase -i main",
+      {
+        editor: (todo) =>
+          todo
+            .split("\n")
+            .map((line, index) => (index > 0 ? line.replace(/^pick /, "fixup ") : line))
+            .join("\n"),
+      },
+      "git rebase -i main",
+      { editor: (todo) => todo.replace(/^pick /, "reword ") },
+      { editor: () => "Add search\n" },
+    ]);
+    expect(interactive.progress.completed).toBe(true);
   });
 });
 

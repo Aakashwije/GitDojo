@@ -6,7 +6,8 @@ title: Undo and Recover
 
 description: >
   See exactly what changed, undo it at every level, shelve unfinished work, copy commits
-  between branches, find "lost" commits and replay a branch onto a new base.
+  between branches, find "lost" commits, replay a branch onto a new base and tidy its history
+  with an interactive rebase.
 
 difficulty: intermediate
 order: 5
@@ -21,4 +22,5 @@ lessons:
   - git-cherry-pick
   - git-reflog
   - git-rebase
+  - git-rebase-interactive
   - recovery-challenge

@@ -1,0 +1,237 @@
+# Lesson: Rewrite History with Interactive Rebase
+# Schema and authoring guide: docs/lesson-authoring.md
+id: git-rebase-interactive
+slug: git-rebase-interactive
+title: Rewrite History with Interactive Rebase
+type: interactive
+
+goal: Tidy a branch's commits with `git rebase -i` before anyone else sees them.
+
+description: |
+  `feature/search` works, but its history tells the story of a messy afternoon: a typo fixed in
+  its own commit, a debug commit that should never be shared, and a commit called `wip`.
+
+  Nobody else has this branch yet, so you can rewrite it. Fold the typo fix into the commit it
+  fixes, drop the debug commit, and give `wip` a real message.
+
+difficulty: advanced
+
+concepts:
+  - rebase
+  - interactive-rebase
+  - history
+
+commands:
+  - git rebase -i
+  - git log --oneline
+  - git rebase --abort
+
+content:
+  - type: text
+    title: A todo list for your commits
+    body: |
+      `git rebase -i main` takes the commits that are on your branch but not on `main` and opens
+      them in your editor as a **todo list**, oldest first:
+
+      ```text
+      pick 3f1c2a9 Add search box
+      pick 8b0d4e1 Fix typo in search box
+      pick c27a915 Add debug logging
+      pick 51e9f03 wip
+      ```
+
+      You edit the list, save and close the editor, and Git replays the commits from top to
+      bottom, doing what each line says. Change the word at the start of a line to change what
+      happens to that commit:
+
+      - `pick` — keep the commit as it is
+      - `reword` — keep it, but write a new message (Git opens the editor again for it)
+      - `squash` — meld it into the commit above, and combine both messages
+      - `fixup` — meld it into the commit above, and keep only that commit's message
+      - `drop` — leave it out (deleting the line does the same)
+
+      Lines can also be moved up or down to reorder commits.
+
+  - type: demo
+    title: Folding, dropping and rewording
+    steps:
+      - caption: "`feature/search` has four commits of its own on top of `main`."
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: S, parent: A, message: Add search box }
+            - { id: T, parent: S, message: Fix typo in search box }
+            - { id: D, parent: T, message: Add debug logging }
+            - { id: W, parent: D, message: wip }
+          branches: { main: A, feature/search: W }
+          head: feature/search
+      - caption: >-
+          With `fixup` on the typo fix, `drop` on the debug commit and `reword` on `wip`, Git
+          writes two new commits. The branch moves to them; the old ones are left behind, and the
+          reflog still remembers them.
+        command: git rebase -i main
+        graph:
+          commits:
+            - { id: A, message: Initial commit }
+            - { id: S', parent: A, message: Add search box }
+            - { id: H', parent: S', message: Highlight search matches }
+          branches: { main: A, feature/search: H' }
+          head: feature/search
+
+  - type: callout
+    tone: warning
+    title: Never rewrite history someone else has
+    body: >-
+      Every rewritten commit gets a new id. If you have already pushed the branch and a teammate
+      has built on it, their commits still point at the old ones, and the next pull turns into a
+      tangle of duplicates. Rewrite only commits nobody else has: your local work, before the
+      first push. To undo something on a shared branch, add a commit, for example with
+      `git revert`.
+
+  - type: callout
+    tone: tip
+    title: Changed your mind?
+    body: >-
+      While Git is waiting for the editor, or stopped for a conflict, `git rebase --abort` puts
+      everything back exactly as it was. After a rebase has finished, `git reflog` still lists
+      where the branch was before it, so even a finished rebase can be undone with
+      `git reset --hard` to that entry.
+
+  - type: callout
+    tone: note
+    body: >-
+      In GitDojo the todo list, and any message Git asks for, open in a GitDojo editor window.
+      **Save and close** carries the rebase on; **Abort rebase** is the same as
+      `git rebase --abort`. GitDojo supports `pick`, `reword`, `squash`, `fixup` and `drop`;
+      `edit`, `exec` and `break` are not available yet.
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Library
+        index.html: |
+          <h1>Library</h1>
+    - message: Add search box
+      branch: feature/search
+      files:
+        search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.includs(term));
+          }
+    - message: Fix typo in search box
+      branch: feature/search
+      files:
+        search.js: |
+          export function search(books, term) {
+            return books.filter((book) => book.includes(term));
+          }
+    - message: Add debug logging
+      branch: feature/search
+      files:
+        debug.js: |
+          console.log("search loaded");
+    - message: wip
+      branch: feature/search
+      files:
+        highlight.js: |
+          export function highlight(text, term) {
+            return text.replaceAll(term, `<mark>${term}</mark>`);
+          }
+  currentBranch: feature/search
+
+objectives:
+  - id: typo-folded
+    description: "`Fix typo in search box` is no longer a commit of its own."
+    validator:
+      type: commit_not_on_branch
+      branch: feature/search
+      message: Fix typo in search box
+
+  - id: fix-kept
+    description: The typo fix is still in `search.js`.
+    validator:
+      type: file_content
+      file: search.js
+      content: |
+        export function search(books, term) {
+          return books.filter((book) => book.includes(term));
+        }
+
+  - id: debug-dropped
+    description: "`Add debug logging` is gone from `feature/search`."
+    validator:
+      type: commit_not_on_branch
+      branch: feature/search
+      message: Add debug logging
+
+  - id: reworded
+    description: "`wip` is now called `Highlight search matches`."
+    validator:
+      type: branch_contains_commit
+      branch: feature/search
+      message: Highlight search matches
+
+  - id: tidy
+    description: "`feature/search` reads `Highlight search matches`, `Add search box`, `Initial commit`."
+    validator:
+      type: branch_history
+      branch: feature/search
+      complete: true
+      messages:
+        - Highlight search matches
+        - Add search box
+        - Initial commit
+
+hints:
+  typo-folded:
+    - Commits nobody else has can be rewritten. An interactive rebase opens your branch's commits as a list you can edit.
+    - "`git rebase -i main` lists the commits that are only on `feature/search`. Changing a line's `pick` to `fixup` melds that commit into the one above it."
+    - Run `git rebase -i main`, change `pick` to `fixup` on the `Fix typo in search box` line, and save.
+  fix-kept:
+    - "`fixup` keeps a commit's changes and drops only its message. `drop` throws the changes away too."
+  debug-dropped:
+    - A commit's line in the todo list decides what happens to it. Removing the line, or marking it `drop`, leaves the commit out.
+    - In the same todo list, change `pick` to `drop` on the `Add debug logging` line.
+    - Run `git rebase -i main` and mark `Add debug logging` as `drop`.
+  reworded:
+    - "`reword` keeps a commit's changes but lets you write a new message. Git asks for it in the editor after the todo list."
+    - Mark the `wip` line as `reword`, save, then replace `wip` with `Highlight search matches` when the message opens.
+    - Run `git rebase -i main`, change `pick` to `reword` on the `wip` line, save, and write `Highlight search matches`.
+  tidy:
+    - Check the result with `git log --oneline`. Every change can be made in one rebase, or in several.
+
+# Offered while the learner is in one of these states; see docs/lesson-authoring.md#adaptive-hints.
+adaptiveHints:
+  - id: fix-dropped
+    objective: fix-kept
+    when:
+      - type: commit_not_on_branch
+        branch: feature/search
+        message: Fix typo in search box
+      - type: file_content
+        file: search.js
+        content: |
+          export function search(books, term) {
+            return books.filter((book) => book.includs(term));
+          }
+    hints:
+      - "The typo commit is gone, and so is its fix: `search.js` says `includs` again. `drop` removes a commit's changes; `fixup` and `squash` keep them."
+      - Nothing is lost. `git reflog` lists where `feature/search` was before the rebase, at the `rebase (start)` entry's previous line.
+      - Use Reset to start over, or run `git reflog` and `git reset --hard` to the entry just before `rebase (start)`.
+
+  - id: debug-still-there
+    objective: debug-dropped
+    when:
+      - type: commit_not_on_branch
+        branch: feature/search
+        message: Fix typo in search box
+      - type: branch_contains_commit
+        branch: feature/search
+        message: Add debug logging
+    hints:
+      - The typo fix is folded in, but `Add debug logging` is still on the branch.
+      - You can rebase again. The new todo list has one line fewer.
+      - Run `git rebase -i main` again and mark `Add debug logging` as `drop`.

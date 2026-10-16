@@ -1,0 +1,65 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: squash-before-review
+title: Squash Before Review
+skill: rewriting-history
+difficulty: advanced
+order: 1
+
+scenario: |
+  `feature/charts` is ready for review, but its history has three commits for one small
+  feature: `Add charts`, `fix` and `fix again`. Nobody else has the branch yet. You are on it.
+
+mission: >
+  Leave `feature/charts` with a single commit, `Add charts`, on top of `Initial commit`, with
+  the final chart code exactly as it is now.
+
+concepts:
+  - interactive-rebase
+  - squash
+  - history
+
+requires:
+  - rebase
+
+related:
+  course: recovery
+  lesson: git-rebase-interactive
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        index.html: |
+          <h1>Dashboard</h1>
+    - message: Add charts
+      branch: feature/charts
+      files:
+        charts.js: |
+          export const bar = (values) => values.map((v) => "#".repat(v));
+    - message: fix
+      branch: feature/charts
+      files:
+        charts.js: |
+          export const bar = (values) => values.map((v) => "#".repeat(v));
+    - message: fix again
+      branch: feature/charts
+      files:
+        charts.js: |
+          export const bar = (values) => values.map((v) => "#".repeat(v)).join("\n");
+  currentBranch: feature/charts
+checks:
+  - type: branch_history
+    branch: feature/charts
+    complete: true
+    messages:
+      - Add charts
+      - Initial commit
+  - type: file_content
+    file: charts.js
+    content: |
+      export const bar = (values) => values.map((v) => "#".repeat(v)).join("\n");
+  - type: current_branch
+    branch: feature/charts
+  - type: clean_worktree

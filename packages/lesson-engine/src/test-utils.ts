@@ -24,11 +24,25 @@ export function createTestEnvironment(): LessonEnvironment {
   };
 }
 
-/** A command typed in the terminal, or a file edited in the UI (e.g. resolving a conflict). */
-export type PlayStep = string | { write: string; content: string } | { delete: string };
+/**
+ * A command typed in the terminal, a file edited in the UI (e.g. resolving a conflict), or the
+ * learner saving the file Git opened in the editor (`git rebase -i`): `editor` gets what Git put
+ * there and returns what the learner saves.
+ */
+export type PlayStep =
+  | string
+  | { write: string; content: string }
+  | { delete: string }
+  | { editor: (content: string) => string };
 
 /** Error codes that are the expected outcome of a step, not a broken solution. */
-const EXPECTED_FAILURES = new Set(["MERGE_CONFLICT", "CHECKOUT_CONFLICT"]);
+const EXPECTED_FAILURES = new Set([
+  "MERGE_CONFLICT",
+  "CHECKOUT_CONFLICT",
+  // Remote lessons: a rejected push or a refused pull is a lesson, not a broken solution.
+  "PUSH_REJECTED",
+  "DIVERGENT_BRANCHES",
+]);
 
 export interface PlayResult {
   /** Progress before any step: content must never start with objectives done. */
@@ -57,7 +71,16 @@ export async function play(lesson: LessonDefinition, steps: PlayStep[]): Promise
   for (const step of steps) {
     if (typeof step !== "string") {
       if ("write" in step) await env.files.writeFile(workspaceId, step.write, step.content);
-      else await env.files.removeFile(workspaceId, step.delete);
+      else if ("delete" in step) await env.files.removeFile(workspaceId, step.delete);
+      else {
+        if (!repository.editor) throw new Error(`${lesson.id}: Git is not waiting for an editor`);
+        const result = await env
+          .gitFor(workspaceId)
+          .closeEditor(step.editor(repository.editor.content));
+        if (!result.ok && !EXPECTED_FAILURES.has(result.error?.code ?? "")) {
+          throw new Error(`${lesson.id}: closing the editor failed:\n${result.output}`);
+        }
+      }
     } else {
       const result = await runCommandLine(step, { workspaceId, git: env.gitFor(workspaceId) });
       if (!result.ok && !EXPECTED_FAILURES.has(result.errorCode ?? "")) {

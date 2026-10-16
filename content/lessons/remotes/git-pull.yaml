@@ -129,6 +129,7 @@ content:
   - type: callout
     tone: note
     body: >-
-      GitDojo's sandbox has no remote, so `git pull` is not available in the terminal — but its
-      second half is. **Merging** and **Merge Conflicts** have you do, hands-on, the exact work a
-      pull does once the download is finished.
+      GitDojo has no network, so its remotes are simulated: they live inside your browser
+      workspace, and only `git fetch`, `git pull` and `git push` move commits between it and your
+      branches. **Sync with a Teammate's Push**, later in this course, has you pull for real — and
+      see the "divergent branches" refusal for yourself.

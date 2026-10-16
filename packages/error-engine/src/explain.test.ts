@@ -164,12 +164,32 @@ describe("explainCommand", () => {
     const typo = await run("git stauts");
     expect(typo?.code).toBe("UNKNOWN_GIT_COMMAND");
     expect(typo?.possibleCauses).toEqual(["Did you mean `status`?"]);
-    expect((await run("git push"))?.title).toBe("GitDojo does not support that command yet");
+    expect((await run("git clone x"))?.title).toBe("GitDojo does not support that command yet");
     expect((await run("git status --short"))?.code).toBe("UNSUPPORTED_OPTION");
     expect((await run("git commit -m"))?.code).toBe("MISSING_VALUE");
     expect((await run('git commit -m "oops'))?.code).toBe("UNCLOSED_QUOTE");
     expect(await run("git init")).toBeNull();
     expect((await run("git commit"))?.code).toBe("COMMIT_MESSAGE_REQUIRED");
+  });
+
+  it("explains tags, remotes and interactive rebases", () => {
+    const explain = (errorCode: string, output = "") =>
+      explainCommand({ command: "git x", ok: false, output, errorCode })?.code;
+    expect(explain("TAG_EXISTS", "fatal: tag 'v1' already exists")).toBe("TAG_ALREADY_EXISTS");
+    expect(explain("TAG_NOT_FOUND")).toBe("UNKNOWN_TAG");
+    expect(explain("REMOTE_NOT_FOUND")).toBe("UNKNOWN_REMOTE");
+    expect(explain("NO_UPSTREAM")).toBe("NO_UPSTREAM");
+    expect(explain("PUSH_REJECTED")).toBe("PUSH_REJECTED");
+    expect(explain("DIVERGENT_BRANCHES")).toBe("DIVERGENT_BRANCHES");
+    expect(explain("EDITOR_OPEN")).toBe("EDITOR_OPEN");
+    expect(explain("INVALID_TODO")).toBe("INVALID_REBASE_TODO");
+    const rejected = explainCommand({
+      command: "git push",
+      ok: false,
+      output: "",
+      errorCode: "PUSH_REJECTED",
+    });
+    expect(rejected?.learnMore?.lesson).toBe("sync-with-remote");
   });
 
   it("has an explanation for every educational code", () => {

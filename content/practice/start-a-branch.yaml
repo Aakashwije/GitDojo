@@ -1,0 +1,52 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: start-a-branch
+title: Start a Feature Branch
+skill: branches
+difficulty: beginner
+order: 2
+
+scenario: |
+  You are about to build a dark theme. `theme.css` is written but not committed, and `main`
+  should stay exactly as it is until the theme is reviewed.
+
+mission: >
+  Commit `theme.css` as `Add dark theme` on a new branch called `feature/dark-theme`, so that
+  `main` does not have it.
+
+concepts:
+  - branches
+  - commits
+
+requires:
+  - switch
+  - add
+  - commit
+
+related:
+  course: branching
+  lesson: commit-on-branch
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        index.html: |
+          <h1>Photo gallery</h1>
+  files:
+    theme.css: |
+      body {
+        background: #111;
+        color: #eee;
+      }
+checks:
+  - type: commit_on_branch
+    branch: feature/dark-theme
+    message: Add dark theme
+    notOn: main
+  - type: commit_changes
+    branch: feature/dark-theme
+    message: Add dark theme
+    files:
+      - theme.css

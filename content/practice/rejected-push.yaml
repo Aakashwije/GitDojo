@@ -1,0 +1,63 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: rejected-push
+title: Publish After a Rejected Push
+skill: remotes
+difficulty: advanced
+order: 3
+
+scenario: |
+  You committed `Add humidity` on `main` and tried to publish it, but `origin` refused: a
+  teammate had already pushed `Add wind speed` to the same branch. The `origin` here is
+  GitDojo's simulated remote.
+
+mission: >
+  Get both commits onto `origin`'s `main`, with your `main` and `origin`'s at the same commit,
+  and no merge commit: history should stay a straight line.
+
+concepts:
+  - push
+  - pull
+  - rebase
+  - remotes
+
+requires:
+  - fetch
+  - pull
+  - push
+
+related:
+  course: remotes
+  lesson: sync-with-remote
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        README.md: |
+          # Weather
+  remote:
+    commits:
+      - message: Add wind speed
+        files:
+          wind.js: |
+            export const wind = (kmh) => `${kmh} km/h`;
+  files:
+    humidity.js: |
+      export const humidity = (percent) => `${percent}%`;
+  commands:
+    - git add humidity.js
+    - git commit -m "Add humidity"
+checks:
+  - type: remote_branch_points_to_commit
+    branch: main
+    sameAs: main
+  # A straight line: your commit replayed on top of the teammate's, no merge commit.
+  - type: branch_history
+    branch: main
+    complete: true
+    messages:
+      - Add humidity
+      - Add wind speed
+      - Initial commit

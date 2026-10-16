@@ -39,6 +39,10 @@ describe("RepositoryStateReader", () => {
       merge: null,
       stashes: [],
       reflog: [],
+      tags: [],
+      remotes: [],
+      remoteBranches: [],
+      editor: null,
     });
   });
 
@@ -57,6 +61,10 @@ describe("RepositoryStateReader", () => {
       merge: null,
       stashes: [],
       reflog: [],
+      tags: [],
+      remotes: [],
+      remoteBranches: [],
+      editor: null,
     });
   });
 

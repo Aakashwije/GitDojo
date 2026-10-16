@@ -9,6 +9,8 @@ import { useLessonStore } from "@/features/lesson";
 import { recordCommand } from "@/features/progress";
 import { useRepositoryStore } from "@/features/repository";
 import { createBrowserLessonEnvironment } from "../services/browser-environment";
+import { settleEditor } from "../services/git-editor";
+import { useGitEditorStore } from "../state/use-git-editor-store";
 import { LearningSession, type SessionSnapshot } from "../services/learning-session";
 
 export type SessionStatus = "loading" | "ready" | "error";
@@ -103,10 +105,18 @@ export function useLearningSession(
       return { ok: false, output: "The workspace is still loading.", errorCode: "INTERNAL" };
     useLessonStore.getState().recordCommand();
     try {
-      const { result, snapshot } = await session.execute(input);
-      publish(snapshot);
+      const started = await session.execute(input);
+      publish(started.snapshot);
+      recordCommand(started.result);
+      // `git rebase -i` waits for the editor: the command finishes when the learner closes it.
+      const { result, snapshot } = await settleEditor(
+        session,
+        started,
+        (state) => state.repository,
+        (editor) => useGitEditorStore.getState().open(editor),
+        publish,
+      );
       explainOutcome(input, result, snapshot.repository);
-      recordCommand(result);
       return result;
     } catch (error) {
       console.error("[gitdojo] command failed", error);

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-export type WorkspaceTab = "Lesson" | "Editor" | "Terminal" | "Graph" | "Files";
+export type WorkspaceTab = "Lesson" | "Task" | "Editor" | "Terminal" | "Graph" | "Files";
 
 /** Phones show one workspace panel at a time; switch to it before interacting. */
 export async function show(page: Page, tab: WorkspaceTab, isMobile: boolean): Promise<void> {

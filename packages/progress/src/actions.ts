@@ -1,4 +1,5 @@
 import {
+  COMPLETION_FIELDS,
   completionXp,
   contentKey,
   emptyProgress,
@@ -16,7 +17,10 @@ import {
  * never overwrite progress another tab saved in the meantime.
  */
 export type ProgressAction =
-  /** Every objective of a lesson or challenge passed (or a concept lesson was marked read). */
+  /**
+   * Every objective of a lesson or challenge passed (or a concept lesson was marked read), or a
+   * practice task's end state was reached.
+   */
   | { type: "complete"; content: ContentRef }
   /** A submitted line ran a supported Git command; `ok` is the command's own outcome. */
   | { type: "command"; command: string; ok: boolean }
@@ -42,6 +46,7 @@ export type ProgressAction =
       type: "account-lessons";
       lessons: Record<string, CompletionRecord>;
       challenges?: Record<string, CompletionRecord>;
+      practice?: Record<string, CompletionRecord>;
     }
   /**
    * The rest of the account's progress, as the server merged it across devices. Counters are
@@ -72,13 +77,17 @@ function touch(progress: LocalProgress, now: number): LocalProgress {
 }
 
 function complete(progress: LocalProgress, content: ContentRef, now: number): LocalProgress {
-  const field = content.kind === "lesson" ? "completedLessons" : "completedChallenges";
+  const field = COMPLETION_FIELDS[content.kind];
   // Replays, "Practice again" and repeated completions keep the first record and its XP.
   if (progress[field][content.id]) return progress;
   const record: CompletionRecord = {
     completedAt: now,
     xp: completionXp(content),
-    ...(content.kind === "lesson" ? { type: content.type } : { type: "challenge" as const }),
+    ...(content.kind === "lesson"
+      ? { type: content.type }
+      : content.kind === "challenge"
+        ? { type: "challenge" as const }
+        : {}),
     ...(content.kind === "lesson" && content.courseId ? { courseId: content.courseId } : {}),
   };
   return touch(
@@ -200,8 +209,15 @@ export function applyProgressAction(
         completedChallenges[id] = record;
         changed = true;
       }
+      const completedPractice = { ...progress.completedPractice };
+      for (const [id, record] of Object.entries(action.practice ?? {})) {
+        const current = completedPractice[id];
+        if (current?.completedAt === record.completedAt && current.xp === record.xp) continue;
+        completedPractice[id] = record;
+        changed = true;
+      }
       if (!changed) return progress;
-      const next = { ...progress, completedLessons, completedChallenges };
+      const next = { ...progress, completedLessons, completedChallenges, completedPractice };
       return touch({ ...next, xp: totalXp(next) }, now);
     }
 

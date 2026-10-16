@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   getProgress,
   recordChallengeCompletion,
+  recordPracticeCompletion,
   recordLessonCompletion,
   syncProgress,
 } from "./api";
@@ -51,7 +52,8 @@ function testDatabaseUrl(value: string): string {
 
 const resetTables = (sql: postgres.Sql) =>
   sql`DROP TABLE IF EXISTS command_stats, device_activity, revealed_hints, last_lessons,
-      seen_releases, challenge_completions, lesson_completions, users, gitdojo_schema_migrations`;
+      seen_releases, practice_completions, challenge_completions, lesson_completions, users,
+      gitdojo_schema_migrations`;
 
 describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
   let sql: postgres.Sql;
@@ -213,6 +215,23 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         await sql`SELECT xp FROM challenge_completions JOIN users ON users.id = user_id WHERE subject = ${learner.subject}`;
       expect(rows).toHaveLength(1);
       expect(rows[0]?.xp).toBe(100);
+    });
+
+    it("persists solved practice tasks once, with no XP column to add to", async () => {
+      const learner = identity("practice-learner");
+      const replies = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          recordPracticeCompletion(postLesson({ taskId: "tag-a-release" }), deps(learner)),
+        ),
+      );
+      expect(replies.filter((reply) => reply.status === 201)).toHaveLength(1);
+      expect(await body(await getProgress(deps(learner)))).toMatchObject({
+        completedPractice: [{ taskId: "tag-a-release", title: "Tag a Release" }],
+        totalXp: 0,
+      });
+      const rows =
+        await sql`SELECT task_id FROM practice_completions JOIN users ON users.id = user_id WHERE subject = ${learner.subject}`;
+      expect(rows).toHaveLength(1);
     });
 
     it("records and returns an account's lessons, keeping the first completion", async () => {

@@ -8,7 +8,11 @@ import { useEditorStore, type WorkspaceFileActions } from "@/features/editor";
 import { explainOutcome, useExplanationStore } from "@/features/errors";
 import { recordCommand, recordProgress } from "@/features/progress";
 import { useRepositoryStore } from "@/features/repository";
-import { createBrowserLessonEnvironment } from "@/features/workspace";
+import {
+  createBrowserLessonEnvironment,
+  settleEditor,
+  useGitEditorStore,
+} from "@/features/workspace";
 import {
   NEW_REPOSITORY_SETUP,
   PlaygroundSession,
@@ -83,10 +87,15 @@ export function usePlaygroundSession(
       try {
         await hydratePlaygroundStore();
         const fallback = scenariosRef.current.find((s) => s.id === DEFAULT_SCENARIO);
-        const snapshot = await session.start(
+        let snapshot = await session.start(
           fallback?.setup ?? NEW_REPOSITORY_SETUP,
           fallback?.id ?? "new-repository",
         );
+        // Saved while Git waited for the editor: like an editor that quit, that aborts the
+        // rebase, leaving the repository as it was before it.
+        if (snapshot.repository.editor) {
+          snapshot = { ...(await session.abortEditor()).snapshot, restored: snapshot.restored };
+        }
         if (lifecycle.cancelled) return;
         if (!snapshot.restored) usePlaygroundStore.getState().setScenario(fallback?.id ?? null);
         publish(snapshot);
@@ -115,10 +124,18 @@ export function usePlaygroundSession(
       return { ok: false, output: "The playground is still loading.", errorCode: "INTERNAL" };
     }
     try {
-      const { result, snapshot } = await session.execute(input);
-      publish(snapshot);
+      const started = await session.execute(input);
+      publish(started.snapshot);
+      recordCommand(started.result);
+      // `git rebase -i` waits for the editor: the command finishes when the learner closes it.
+      const { result, snapshot } = await settleEditor(
+        session,
+        started,
+        (state) => state.repository,
+        (editor) => useGitEditorStore.getState().open(editor),
+        publish,
+      );
       explainOutcome(input, result, snapshot.repository);
-      recordCommand(result);
       return result;
     } catch (error) {
       console.error("[gitdojo] command failed", error);

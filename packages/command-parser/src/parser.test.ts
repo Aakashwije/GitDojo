@@ -143,8 +143,8 @@ describe("parseCommand", () => {
     });
 
     it("explains that real but unsupported git commands are coming", () => {
-      expect(errorOf("git push origin main").message).toBe(
-        "git: 'push' is not available in GitDojo yet.",
+      expect(errorOf("git clone https://example.com/repo.git").message).toBe(
+        "git: 'clone' is not available in GitDojo yet.",
       );
     });
 
@@ -167,7 +167,7 @@ describe("parseCommand", () => {
       expect(errorOf("git branch a b c")).toEqual({
         code: "UNEXPECTED_ARGUMENT",
         message:
-          "error: unexpected argument 'c'\nusage: git branch [-d | -D] [<name> [<start-point>]]",
+          "error: unexpected argument 'c'\nusage: git branch [-r | -a] [-v] [-d | -D] [<name> [<start-point>]]",
       });
       expect(errorOf("git switch a b").code).toBe("UNEXPECTED_ARGUMENT");
     });

@@ -2,8 +2,11 @@ import "server-only";
 
 import {
   loadAllChallenges,
+  loadAllPracticeTasks,
   loadChallenge as loadChallengeFromSource,
+  loadPracticeTask as loadPracticeTaskFromSource,
   toChallengeSummary,
+  toPracticeSummary,
 } from "@gitdojo/challenge-engine";
 import { loadAllScenarios } from "@gitdojo/lesson-engine";
 import { createDirectoryLessonSource } from "@gitdojo/lesson-engine/node";
@@ -11,6 +14,8 @@ import {
   type ChallengeDefinition,
   type ChallengeSummary,
   type PlaygroundScenario,
+  type PracticeTaskDefinition,
+  type PracticeTaskSummary,
 } from "@gitdojo/shared-types";
 import path from "node:path";
 
@@ -38,4 +43,20 @@ export async function loadChallengeSummaries(): Promise<ChallengeSummary[]> {
   return (await loadChallenges()).map((challenge, index) =>
     toChallengeSummary(challenge, index + 1),
   );
+}
+
+const practice = createDirectoryLessonSource(path.join(CONTENT_DIR, "practice"));
+
+/** Every Practice mode task, beginner first. */
+export function loadPracticeTasks(): Promise<PracticeTaskDefinition[]> {
+  return loadAllPracticeTasks(practice);
+}
+
+export function loadPracticeTask(id: string): Promise<PracticeTaskDefinition> {
+  return loadPracticeTaskFromSource(id, practice);
+}
+
+/** Summaries for the Practice browser, with availability. */
+export async function loadPracticeSummaries(): Promise<PracticeTaskSummary[]> {
+  return (await loadPracticeTasks()).map((task) => toPracticeSummary(task));
 }

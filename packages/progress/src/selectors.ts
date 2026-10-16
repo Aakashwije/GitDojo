@@ -10,6 +10,10 @@ export function completedChallengeIds(progress: LocalProgress): Set<string> {
   return new Set(Object.keys(progress.completedChallenges));
 }
 
+export function solvedPracticeIds(progress: LocalProgress): Set<string> {
+  return new Set(Object.keys(progress.completedPractice));
+}
+
 export interface CourseProgress {
   completedCount: number;
   total: number;
@@ -138,7 +142,8 @@ export function totalHintsUsed(progress: LocalProgress): number {
 }
 
 export interface ActivityItem {
-  kind: "lesson" | "challenge";
+  /** Practice tasks never earn XP, so their `xp` is always 0. */
+  kind: "lesson" | "challenge" | "practice";
   id: string;
   /** The current title, or the id when the content no longer exists. */
   title: string;
@@ -153,7 +158,7 @@ export interface ActivityItem {
   migrated: boolean;
 }
 
-/** Completed lessons and challenges, most recent first. */
+/** Completed lessons, challenges and practice tasks, most recent first. */
 export function recentActivity(
   progress: LocalProgress,
   catalog: ProgressCatalog,
@@ -190,6 +195,18 @@ export function recentActivity(
       xp: record.xp,
       available: challenge !== undefined,
       migrated: record.migrated === true,
+    });
+  }
+  for (const [id, record] of Object.entries(progress.completedPractice)) {
+    const task = catalog.practice.find((candidate) => candidate.id === id);
+    items.push({
+      kind: "practice",
+      id,
+      title: task?.title ?? id,
+      completedAt: record.completedAt,
+      xp: 0,
+      available: task !== undefined,
+      migrated: false,
     });
   }
   return items

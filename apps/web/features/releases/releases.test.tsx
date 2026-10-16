@@ -32,7 +32,13 @@ const RELEASE: ReleaseInfo = {
   ],
 };
 
-const CATALOG: ProgressCatalog = { courses: [], lessons: [], challenges: [] };
+const CATALOG: ProgressCatalog = {
+  courses: [],
+  lessons: [],
+  challenges: [],
+  practice: [],
+  concepts: {},
+};
 
 /** One page load: progress from `storage`, as whoever `resolveAccount` says. */
 async function load(

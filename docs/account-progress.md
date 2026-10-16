@@ -6,10 +6,11 @@ GitDojo works exactly as before. Deployment (Vercel, Neon, releases): [deploymen
 
 **What exists**
 
-- `users`, `lesson_completions`, `challenge_completions`, `command_stats`, `device_activity`,
-  `revealed_hints`, `last_lessons` and `seen_releases` tables, with versioned migrations and `pnpm db:migrate`.
-- `GET /api/progress`, `POST /api/progress/lessons`, `POST /api/progress/challenges` and
-  `POST /api/progress/sync` for the signed-in learner only.
+- `users`, `lesson_completions`, `challenge_completions`, `practice_completions`,
+  `command_stats`, `device_activity`, `revealed_hints`, `last_lessons` and `seen_releases` tables,
+  with versioned migrations and `pnpm db:migrate`.
+- `GET /api/progress`, `POST /api/progress/lessons`, `POST /api/progress/challenges`,
+  `POST /api/progress/practice` and `POST /api/progress/sync` for the signed-in learner only.
 - In the browser, every field of the progress model ([What syncs](#what-syncs)) is merged with
   the account and reaches the learner's other devices.
 - `GET /api/health` reports whether the database is reachable and migrated.
@@ -28,6 +29,7 @@ can never lose an update or count one twice.
 | Progress                         | Merge rule                                                                                        |
 | -------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Completed lessons and challenges | Unique per content item. The first completion wins and keeps its time and XP; XP is awarded once  |
+| Solved practice tasks            | Unique per task. The first solve wins and keeps its time; there is no XP to award                 |
 | Git command usage                | One row per (account, device, command). The account total is the **sum** over devices             |
 | Playground sessions              | One count per (account, device); the account total is the sum                                     |
 | Revealed hints                   | A **set** per content item: a hint revealed on any device stays recorded on all of them           |
@@ -146,7 +148,13 @@ browser ── cookie ──▶ proxy.ts (SDK middleware: verifies the session c
 | --------------- | --------------------------------------- | ------------------------------------------------------------------------------------- |
 | `seen_releases` | `user_id`, `release_version`, `seen_at` | `PRIMARY KEY (user_id, release_version)`; the version must be a tag such as `v0.1.12` |
 
-All five cascade from `users`, so deleting a learner removes their activity too.
+`apps/web/db/migrations/0005_practice_completions.sql` adds solved Practice mode tasks:
+
+| Table                  | Columns                              | Rules                                                                                    |
+| ---------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `practice_completions` | `user_id`, `task_id`, `completed_at` | `PRIMARY KEY (user_id, task_id)`; check on the id format. No `xp` column: never worth XP |
+
+All of these cascade from `users`, so deleting a learner removes their activity too.
 
 - A counter row is upserted with `GREATEST`, so an upload that arrives out of order after a newer
   one leaves the newer totals alone, and the same upload twice changes nothing.
@@ -219,8 +227,8 @@ createdb gitdojo
    for PostgreSQL, Neon or Supabase. Enable TLS and backups.
 2. **Roles.** Run migrations as a role that owns the schema. Run the app as a role that has only
    `SELECT, INSERT, UPDATE, DELETE` on `users`, `lesson_completions`, `challenge_completions`,
-   `command_stats`, `device_activity`, `revealed_hints`, `last_lessons` and `seen_releases` (and
-   `CONNECT` and `USAGE`).
+   `practice_completions`, `command_stats`, `device_activity`, `revealed_hints`, `last_lessons`
+   and `seen_releases` (and `CONNECT` and `USAGE`).
 3. **Set `DATABASE_URL`** as a server-side secret in your hosting platform. It's read at runtime,
    so a build doesn't need it. Never use a `NEXT_PUBLIC_` name. Require TLS in the URL:
    `postgres://user:password@host:5432/gitdojo?sslmode=verify-full` (or `sslmode=require` if your
@@ -461,10 +469,36 @@ Run `pnpm db:migrate` against each deployment database before deploying this ver
 the account simply has no seen releases and the banner shows once more. Browsers upgrade their
 stored record from schema 2 to 3 on the next load. A tab still running the previous version then
 refuses to overwrite the newer record and says so, rather than dropping the field; reloading it
-fixes that. The server accepts schema 1, 2 and 3 uploads, so an old tab's sync still works.
+fixes that. The server accepts schema 1 to 4 uploads, so an old tab's sync still works.
 
 ## Standalone challenge sync
 
 `POST /api/progress/challenges` accepts only `{ "challengeId": "first-commit" }`. The server checks the challenge catalog and assigns 100 XP once per account and challenge. `GET /api/progress` returns `completedChallenges` alongside `completedLessons`, with `totalXp` summed across both. Lesson and challenge IDs have separate namespaces.
 
 Run `pnpm db:migrate` against each deployment database before deploying this version. Existing challenge completions in the signed-in account’s browser cache upload automatically on the next visit. Progress in another database or an anonymous browser cache is not imported.
+
+## Practice sync
+
+`POST /api/progress/practice` accepts only `{ "taskId": "tag-a-release" }`. The server checks the
+practice catalog (`ProgressCatalog.practice`) and records the first solve once per account and
+task (`201`, then `200` with `alreadyCompleted`); an unknown task is `422 unknown_practice_task`
+and a malformed id `400 invalid_task_id`. Practice is never worth XP: the table has no `xp`
+column, `totalXp` is unchanged, and the reply carries no XP:
+
+```json
+201 Created
+{
+  "practice": { "taskId": "tag-a-release", "title": "Tag a Release", "completedAt": "2026-10-16T09:00:00.000Z" },
+  "alreadyCompleted": false,
+  "totalXp": 150
+}
+```
+
+`GET /api/progress` (and the sync reply) return `completedPractice` next to `completedLessons`
+and `completedChallenges`; practice ids are a namespace of their own. Like challenges, solves in a
+signed-in learner's browser cache that the account does not have yet are uploaded on the next
+visit; anonymous progress is never uploaded.
+
+Run `pnpm db:migrate` before deploying this version; it adds `0005_practice_completions`.
+Browsers upgrade their stored record from schema 3 to 4 (no practice solved yet) on the next load,
+and the sync endpoint accepts schema 4 uploads, whose activity payload is unchanged.

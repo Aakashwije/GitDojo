@@ -179,6 +179,29 @@ async function play(lesson: LessonDefinition, steps: PlayStep[]): Promise<Lesson
   return progress;
 }
 
+/**
+ * What a learner saves in the `git rebase -i` editor: each `pick <id> <subject>` line gets the
+ * action named for its subject (default `pick`); a `null` action deletes the line. Commit ids
+ * differ on every run, so solutions edit the todo list Git actually wrote.
+ */
+function rewriteTodo(actions: Record<string, string | null>): PlayStep {
+  return {
+    editor: (todo) =>
+      todo
+        .split("\n")
+        .flatMap((line) => {
+          const match = /^pick (\S+) (.*)$/.exec(line);
+          if (!match) return [line];
+          const [, oid = "", subject = ""] = match;
+          const action = Object.hasOwn(actions, subject) ? actions[subject] : "pick";
+          return action === null ? [] : [`${action ?? "pick"} ${oid} ${subject}`];
+        })
+        .join("\n"),
+  };
+}
+
+const saveMessage = (message: string): PlayStep => ({ editor: () => `${message}\n` });
+
 /** One straightforward solution per hands-on lesson. Every such lesson must have one. */
 const AUTH_RESOLVED = [
   'export const provider = "password";',
@@ -285,6 +308,34 @@ const SOLUTIONS: Record<string, PlayStep[]> = {
   "git-cherry-pick": ["git log --oneline feature/charts", "git cherry-pick feature/charts~1"],
   "git-reflog": ["git reflog", "git reset --hard HEAD@{1}"],
   "git-rebase": ["git rebase main"],
+  "git-rebase-interactive": [
+    "git log --oneline",
+    "git rebase -i main",
+    rewriteTodo({ "Fix typo in search box": "fixup", "Add debug logging": "drop", wip: "reword" }),
+    saveMessage("Highlight search matches"),
+  ],
+  "git-tag": [
+    "git tag v0.9 HEAD~1",
+    'git tag -a v1.0 -m "Version 1.0"',
+    "git tag -n",
+    "git tag -d temp-release",
+  ],
+  "push-a-branch": [
+    "git remote -v",
+    "git push -u origin feature/alerts",
+    "git branch -vv",
+    "git add alerts.css",
+    'git commit -m "Style weather alerts"',
+    "git push",
+  ],
+  "sync-with-remote": [
+    // Rejected: origin has Sam's commit. Expected, and nothing changes.
+    "git push",
+    "git fetch",
+    "git status",
+    "git pull --rebase",
+    "git push",
+  ],
   gitignore: [
     { write: ".gitignore", content: "node_modules/\n*.log\n.env\n" },
     "git add .gitignore",
@@ -389,6 +440,57 @@ describe("curriculum walkthroughs", async () => {
       "git cherry-pick HEAD@{2}",
     ]);
     expect(otherOrder.completed).toBe(true);
+  });
+
+  it("accepts other ways to rewrite history, and refuses losing the fix", async () => {
+    // Squashing and rewriting the combined message works as well as a fixup; so do two rebases.
+    const squashed = await play(byId("git-rebase-interactive"), [
+      "git rebase -i main",
+      rewriteTodo({ "Fix typo in search box": "squash", "Add debug logging": null }),
+      saveMessage("Add search box"),
+      "git rebase -i main",
+      rewriteTodo({ wip: "r" }),
+      saveMessage("Highlight search matches"),
+    ]);
+    expect(squashed.completed).toBe(true);
+    // Dropping the typo fix loses its change: the lesson notices.
+    const dropped = await play(byId("git-rebase-interactive"), [
+      "git rebase -i main",
+      rewriteTodo({ "Fix typo in search box": "drop", "Add debug logging": "drop", wip: "reword" }),
+      saveMessage("Highlight search matches"),
+    ]);
+    expect(dropped.currentObjectiveId).toBe("fix-kept");
+    // Aborting from the editor leaves everything as it was.
+    const aborted = await play(byId("git-rebase-interactive"), [
+      "git rebase -i main",
+      "git rebase --abort",
+    ]);
+    expect(aborted.currentObjectiveId).toBe("typo-folded");
+  });
+
+  it("accepts merging a teammate's work and refuses an unfinished sync", async () => {
+    const merged = await play(byId("sync-with-remote"), [
+      "git pull",
+      "git pull --no-rebase",
+      "git push",
+    ]);
+    expect(merged.completed).toBe(true);
+    const fetchedOnly = await play(byId("sync-with-remote"), ["git fetch", "git push"]);
+    expect(fetchedOnly.currentObjectiveId).toBe("integrated");
+    const pushedPlain = await play(byId("push-a-branch"), ["git push origin feature/alerts"]);
+    expect(pushedPlain.currentObjectiveId).toBe("upstream");
+    const longFlag = await play(byId("push-a-branch"), [
+      "git push --set-upstream origin feature/alerts",
+      "git add .",
+      'git commit -m "Style weather alerts"',
+      "git push origin feature/alerts",
+    ]);
+    expect(longFlag.completed).toBe(true);
+  });
+
+  it("does not accept the release tagged without an annotation", async () => {
+    const progress = await play(byId("git-tag"), ["git tag v0.9 HEAD~1", "git tag v1.0"]);
+    expect(progress.currentObjectiveId).toBe("release");
   });
 
   it("rejects undoing shared history with a reset, or merging instead of rebasing", async () => {
@@ -751,6 +853,42 @@ const STUCK: Record<string, { stuck: PlayStep[]; resolved: PlayStep[] | "reset" 
     resolved: ["git reset --hard HEAD"],
   },
   "git-rebase/merged-instead": { stuck: ["git merge main"], resolved: ["git reset --hard HEAD~1"] },
+  "git-rebase-interactive/fix-dropped": {
+    stuck: ["git rebase -i main", rewriteTodo({ "Fix typo in search box": "drop" })],
+    resolved: "reset",
+  },
+  "git-rebase-interactive/debug-still-there": {
+    stuck: ["git rebase -i main", rewriteTodo({ "Fix typo in search box": "fixup" })],
+    resolved: ["git rebase -i main", rewriteTodo({ "Add debug logging": "drop" })],
+  },
+  "git-tag/preview-on-release": {
+    stuck: ["git tag v0.9"],
+    resolved: ["git tag -d v0.9", "git tag v0.9 HEAD~1"],
+  },
+  "git-tag/release-lightweight": {
+    stuck: ["git tag v0.9 HEAD~1", "git tag v1.0"],
+    resolved: ["git tag -d v1.0", 'git tag -a v1.0 -m "Version 1.0"'],
+  },
+  "push-a-branch/pushed-without-upstream": {
+    stuck: ["git push origin feature/alerts"],
+    resolved: ["git push -u origin feature/alerts"],
+  },
+  "push-a-branch/styled-not-pushed": {
+    stuck: [
+      "git push -u origin feature/alerts",
+      "git add alerts.css",
+      'git commit -m "Style weather alerts"',
+    ],
+    resolved: ["git push"],
+  },
+  "sync-with-remote/fetched-not-integrated": {
+    stuck: ["git fetch"],
+    resolved: ["git rebase origin/main"],
+  },
+  "sync-with-remote/integrated-not-pushed": {
+    stuck: ["git pull --rebase"],
+    resolved: ["git push"],
+  },
   "git-rebase/on-main": { stuck: ["git switch main"], resolved: ["git switch feature/search"] },
   "recovery-challenge/export-popped-not-committed": {
     stuck: ["git reset --hard HEAD@{1}", "git stash pop"],

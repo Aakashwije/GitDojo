@@ -1,6 +1,7 @@
 import {
   ANONYMOUS,
   applyProgressAction,
+  COMPLETION_FIELDS,
   completionXp,
   contentKey,
   createMemoryStorage,
@@ -25,6 +26,7 @@ import {
   uploadLessonCompletion,
   type AccountActivity,
   type AccountLessons,
+  type CompletionUploadKind,
 } from "../services/account-progress";
 import { createBrowserProgressRepository } from "../services/browser-progress";
 
@@ -126,8 +128,7 @@ const SAVE_ERROR =
 function award(progress: LocalProgress | null, action: ProgressAction): void {
   if (action.type !== "complete" || progress === null) return;
   const { content } = action;
-  const field = content.kind === "lesson" ? "completedLessons" : "completedChallenges";
-  const already = progress[field][content.id] !== undefined;
+  const already = progress[COMPLETION_FIELDS[content.kind]][content.id] !== undefined;
   useProgressStore.setState({
     lastAward: { key: contentKey(content), xp: already ? 0 : completionXp(content) },
   });
@@ -168,9 +169,7 @@ export function recordProgress(action: ProgressAction): Promise<void> {
   // Only a first completion goes to the account; replays never send (or earn) anything again.
   const upload =
     action.type === "complete" &&
-    progress[action.content.kind === "lesson" ? "completedLessons" : "completedChallenges"][
-      action.content.id
-    ] === undefined &&
+    progress[COMPLETION_FIELDS[action.content.kind]][action.content.id] === undefined &&
     useProgressStore.getState().mode !== "anonymous";
   useProgressStore.setState({ progress: applyProgressAction(progress, action, Date.now()) });
   const saved = save(action);
@@ -327,7 +326,7 @@ function retry(): void {
  */
 async function uploadLesson(
   lessonId: string,
-  kind: "lesson" | "challenge" = "lesson",
+  kind: CompletionUploadKind = "lesson",
 ): Promise<boolean> {
   uploading += 1;
   updateSaving();
@@ -339,6 +338,7 @@ async function uploadLesson(
           type: "account-lessons",
           lessons: kind === "lesson" ? { [result.lessonId]: result.record } : {},
           ...(kind === "challenge" ? { challenges: { [result.lessonId]: result.record } } : {}),
+          ...(kind === "practice" ? { practice: { [result.lessonId]: result.record } } : {}),
         });
         if (useProgressStore.getState().accountNotice !== "load-failed") {
           useProgressStore.setState({ accountNotice: null });
@@ -366,6 +366,7 @@ async function uploadPending(
   account: AccountLessons,
   catalog: ProgressCatalog,
   challenges: AccountLessons = {},
+  practice: AccountLessons = {},
 ): Promise<void> {
   const lessons = indexLessons(catalog);
   for (const id of Object.keys(progress.completedLessons)) {
@@ -375,6 +376,10 @@ async function uploadPending(
   for (const id of Object.keys(progress.completedChallenges)) {
     if (challenges[id] !== undefined || !catalog.challenges.some((c) => c.id === id)) continue;
     if (!(await uploadLesson(id, "challenge"))) return;
+  }
+  for (const id of Object.keys(progress.completedPractice)) {
+    if (practice[id] !== undefined || !catalog.practice.some((task) => task.id === id)) continue;
+    if (!(await uploadLesson(id, "practice"))) return;
   }
 }
 
@@ -412,6 +417,7 @@ export type AccountResolution =
       accountId: string;
       lessons: AccountLessons;
       challenges?: AccountLessons;
+      practice?: AccountLessons;
       /** Defaults to nothing synced yet, so a caller that only knows about completions works. */
       activity?: AccountActivity;
     }
@@ -444,6 +450,7 @@ export function resolveBrowserAccount(
         accountId: result.accountId,
         lessons: result.lessons,
         challenges: result.challenges,
+        ...(result.practice ? { practice: result.practice } : {}),
         activity: result.activity,
       };
     }
@@ -524,11 +531,17 @@ export function initProgress(
           type: "account-lessons",
           lessons: account.lessons,
           challenges: account.challenges,
+          practice: account.practice,
         })
         .catch(() =>
           applyProgressAction(
             progress,
-            { type: "account-lessons", lessons: account.lessons, challenges: account.challenges },
+            {
+              type: "account-lessons",
+              lessons: account.lessons,
+              challenges: account.challenges,
+              practice: account.practice,
+            },
             Date.now(),
           ),
         );
@@ -554,7 +567,7 @@ export function initProgress(
       syncedAt: progress.syncedAt ?? null,
     });
     if (account.kind === "account")
-      void uploadPending(progress, account.lessons, catalog, account.challenges);
+      void uploadPending(progress, account.lessons, catalog, account.challenges, account.practice);
     // This device's own activity has not reached the account yet, however old it is.
     if (account.kind !== "anonymous") void syncNow();
     const queued = pending;
@@ -632,3 +645,18 @@ export function useCompletedChallenges(): { completed: ReadonlySet<string>; hydr
   );
   return { completed, hydrated };
 }
+
+/**
+ * Practice task id → when it was first solved, empty until saved progress has loaded. Used for
+ * the "Solved" badges and to keep "Surprise me" away from a task just solved.
+ */
+export function useSolvedPractice(): {
+  solved: Readonly<Record<string, { completedAt: number }>>;
+  hydrated: boolean;
+} {
+  const practice = useProgressStore((state) => state.progress?.completedPractice);
+  const hydrated = useProgressStore((state) => state.status === "ready");
+  return { solved: practice ?? EMPTY_SOLVED, hydrated };
+}
+
+const EMPTY_SOLVED: Readonly<Record<string, { completedAt: number }>> = {};

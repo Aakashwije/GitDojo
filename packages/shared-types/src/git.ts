@@ -23,6 +23,15 @@ export type GitErrorCode =
   | "NO_STASH"
   | "NOT_ON_BRANCH"
   | "EMPTY_COMMIT"
+  | "TAG_EXISTS"
+  | "TAG_NOT_FOUND"
+  | "INVALID_TAG_NAME"
+  | "REMOTE_NOT_FOUND"
+  | "NO_UPSTREAM"
+  | "PUSH_REJECTED"
+  | "DIVERGENT_BRANCHES"
+  | "EDITOR_OPEN"
+  | "INVALID_TODO"
   | "UNKNOWN";
 
 /**

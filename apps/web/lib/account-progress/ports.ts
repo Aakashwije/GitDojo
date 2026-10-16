@@ -10,12 +10,15 @@ import { type IdentityResult, type VerifiedIdentity } from "@/lib/auth/identity"
  */
 
 /** What can be completed and recorded to an account. */
-export type CompletionKind = "lesson" | "challenge";
+export type CompletionKind = "lesson" | "challenge" | "practice";
 
-/** One lesson or challenge an account has completed, as stored. */
+/** One lesson, challenge or practice task an account has completed, as stored. */
 export interface StoredCompletion {
-  /** Absent for lessons, which were the only kind before challenges were recorded. */
-  kind?: "challenge";
+  /**
+   * Absent for lessons, which were the only kind before challenges were recorded. Practice
+   * tasks are stored with `lessonType: "challenge"` (they are unguided) and always 0 XP.
+   */
+  kind?: "challenge" | "practice";
   /** The lesson or challenge id. */
   lessonId: string;
   lessonType: LessonType;
@@ -27,7 +30,7 @@ export interface StoredCompletion {
 
 /** A completion to record. Everything here is computed by the server from the content catalog. */
 export interface NewCompletion {
-  kind?: "challenge";
+  kind?: "challenge" | "practice";
   lessonId: string;
   lessonType: LessonType;
   courseId: string | null;

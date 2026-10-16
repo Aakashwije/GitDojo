@@ -1,0 +1,53 @@
+# Practice task. Authoring guide: docs/practice-authoring.md
+# Describe the end state only: no steps, no hints, and no command names.
+id: resolve-a-conflict
+title: Settle a Config Conflict
+skill: conflicts
+difficulty: intermediate
+order: 2
+
+scenario: |
+  You raised the request timeout on `main`. A teammate raised the retry count on
+  `feature/retries`, editing the very same line of `config.js`. Both changes are right.
+
+mission: >
+  Merge `feature/retries` into `main` so that `config.js` keeps both changes, a timeout of
+  `30` and `3` retries, with the merge finished and nothing left uncommitted.
+
+concepts:
+  - merge-conflicts
+  - merging
+
+requires:
+  - merge
+  - add
+  - commit
+
+related:
+  course: merge-conflicts
+  lesson: resolve-first-conflict
+
+setup:
+  initializeGit: true
+  commits:
+    - message: Initial commit
+      files:
+        config.js: |
+          export const config = { timeout: 10, retries: 1 };
+    - message: Allow more retries
+      branch: feature/retries
+      files:
+        config.js: |
+          export const config = { timeout: 10, retries: 3 };
+    - message: Raise the timeout
+      files:
+        config.js: |
+          export const config = { timeout: 30, retries: 1 };
+checks:
+  - type: merge_completed
+    branch: feature/retries
+  - type: file_content
+    file: config.js
+    content: |
+      export const config = { timeout: 30, retries: 3 };
+  - type: clean_worktree

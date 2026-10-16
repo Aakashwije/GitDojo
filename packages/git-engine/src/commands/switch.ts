@@ -26,6 +26,7 @@ import {
   readTreeFiles,
   updatesFromTree,
 } from "../engine/working-tree";
+import { readRemoteTrackingBranches, resolveCommitRef, writeUpstreamConfig } from "../engine/refs";
 import { newBranchNameError } from "./branch";
 
 export const MISSING_BRANCH_ARGUMENT = "fatal: missing branch or commit argument";
@@ -134,6 +135,14 @@ async function createAndSwitch(
     return failure(gitError("INVALID_REVISION", `fatal: invalid reference: ${startPoint}`));
   }
 
+  // Like Git's default `branch.autoSetupMerge`, a branch started from `origin/x` tracks it.
+  const tracking =
+    startPoint !== undefined &&
+    (await resolveRefOrNull(ctx, `refs/heads/${startPoint}`)) === null &&
+    (await resolveCommitRef(ctx, `refs/tags/${startPoint}`)) === null
+      ? (await readRemoteTrackingBranches(ctx)).find((ref) => ref.name === startPoint)
+      : undefined;
+
   let updatedPaths: string[] = [];
   if (start !== head) {
     const checkout = await checkoutCommit(ctx, head, start);
@@ -157,6 +166,7 @@ async function createAndSwitch(
       message: `checkout: moving from ${position(branch, head)} to ${name}`,
     });
   }
+  if (tracking) await writeUpstreamConfig(ctx, name, tracking.remote, tracking.branch);
   // A new branch at the detached commit keeps that commit; one elsewhere may leave work behind.
   const leaving =
     branch === null && head !== null && head !== start
@@ -171,13 +181,36 @@ async function createAndSwitch(
       updatedPaths,
       orphaned: leaving.orphaned,
     },
-    [...leaving.lines, `Switched to a new branch '${name}'`],
+    [
+      ...leaving.lines,
+      ...(tracking ? [`branch '${name}' set up to track '${tracking.name}'.`] : []),
+      `Switched to a new branch '${name}'`,
+    ],
   );
 }
 
 async function switchToExisting(ctx: GitContext, name: string): Promise<GitSwitchResult> {
   const target = await resolveRefOrNull(ctx, `refs/heads/${name}`);
   if (target === null) {
+    // No such branch, but exactly one remote has one: Git creates a local branch tracking it.
+    const remote = (await readRemoteTrackingBranches(ctx)).filter((ref) => ref.branch === name);
+    if (remote.length === 1 && remote[0]) return createAndSwitch(ctx, name, remote[0].name);
+    if ((await resolveCommitRef(ctx, `refs/tags/${name}`)) !== null) {
+      return failure(
+        gitError(
+          "BRANCH_NOT_FOUND",
+          `fatal: a branch is expected, got tag '${name}'\nhint: If you want to detach HEAD at the commit, try again with the --detach option.`,
+        ),
+      );
+    }
+    if ((await resolveCommitRef(ctx, `refs/remotes/${name}`)) !== null) {
+      return failure(
+        gitError(
+          "BRANCH_NOT_FOUND",
+          `fatal: a branch is expected, got remote branch '${name}'\nhint: If you want to detach HEAD at the commit, try again with the --detach option.`,
+        ),
+      );
+    }
     // `git switch` only takes branches; a commit needs `--detach`.
     if ((await resolveRevision(ctx, name)) !== null) {
       return failure(

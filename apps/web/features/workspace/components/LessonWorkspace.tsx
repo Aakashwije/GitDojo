@@ -14,6 +14,7 @@ import { RepositoryGraphPanel } from "@/features/repository";
 import { createTerminalExecutor, terminalBanner, type TerminalHandle } from "@/features/terminal";
 import { useLearningSession } from "../hooks/use-learning-session";
 import { LESSON_TABS, MobileTabs, type WorkspaceTab } from "./MobileTabs";
+import { GitEditorDialog } from "./GitEditorDialog";
 import { WorkspaceError } from "./WorkspaceError";
 import { WorkspaceFilePanels } from "./WorkspaceFilePanels";
 import { WorkbenchPanel } from "./WorkbenchPanel";
@@ -167,6 +168,7 @@ export function LessonWorkspace({ lesson, course, challenge }: LessonWorkspacePr
       )}
 
       <ConflictEditorDialog readFile={readFile} saveFile={saveFile} />
+      <GitEditorDialog />
       <MobileTabs active={tab} onChange={setTab} tabs={LESSON_TABS} />
       <LessonCompleteDialog
         lesson={lesson}

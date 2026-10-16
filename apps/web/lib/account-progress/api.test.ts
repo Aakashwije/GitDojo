@@ -79,6 +79,7 @@ describe("GET /api/progress", () => {
       account: { id: expect.any(String) as unknown },
       completedLessons: [],
       completedChallenges: [],
+      completedPractice: [],
       activity: {
         commandStats: {},
         playgroundSessions: 0,

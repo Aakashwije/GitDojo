@@ -40,6 +40,8 @@ const CATALOG: ProgressCatalog = {
   ],
   lessons: [],
   challenges: [],
+  practice: [],
+  concepts: {},
 };
 
 const WHAT_IS_GIT = {
@@ -304,6 +306,11 @@ describe("resolveBrowserAccount", () => {
         completedLessons: [
           { lessonId: "git-init", type: "interactive", xp: 50, completedAt: FIRST, course: null },
         ],
+        // Practice is never worth XP, even if a reply claimed otherwise.
+        completedPractice: [
+          { taskId: "tag-a-release", completedAt: FIRST, xp: 999 },
+          { taskId: "../bad", completedAt: FIRST },
+        ],
         totalXp: 50,
       }),
     );
@@ -311,6 +318,7 @@ describe("resolveBrowserAccount", () => {
       kind: "account",
       accountId: "account-ada",
       challenges: {},
+      practice: { "tag-a-release": { completedAt: Date.parse(FIRST), xp: 0 } },
       lessons: { "git-init": { completedAt: Date.parse(FIRST), xp: 50, type: "interactive" } },
       // No other device has reported anything yet.
       activity: {

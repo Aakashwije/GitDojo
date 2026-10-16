@@ -4,6 +4,9 @@ Challenges are real-world Git problems: a scenario, a mission and a repository t
 with **no step-by-step instructions**. They live at `/challenges`, grouped by category, and each is
 a single YAML file in `content/challenges/<id>.yaml`.
 
+Shorter, single-skill tasks with no hints at all belong in Practice mode instead; see
+[practice-authoring.md](./practice-authoring.md).
+
 Under the hood a challenge is turned into a lesson of type `challenge`
 (`toLessonDefinition` in `@gitdojo/challenge-engine`), so setup, state-based validation, sticky
 and ordered progress, the terminal, editor and graph all work exactly as they do for lessons.

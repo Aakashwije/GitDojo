@@ -65,6 +65,18 @@ const COMPLETION_KINDS: Record<
       xp: completionXp({ kind: "challenge", id: challenge.id }),
     };
   },
+  practice: (catalog, id) => {
+    const task = catalog.practice.find((item) => item.id === id);
+    if (!task) return null;
+    return {
+      kind: "practice",
+      lessonId: task.id,
+      lessonType: "challenge",
+      courseId: null,
+      // Always 0: practice is repetition, never new XP.
+      xp: completionXp({ kind: "practice", id: task.id }),
+    };
+  },
 };
 
 export const sumXp = (completions: readonly StoredCompletion[]) =>
@@ -116,7 +128,7 @@ export type RecordOutcome =
   | ({ status: "recorded"; catalog: ProgressCatalog; totalXp: number } & RecordResult);
 
 /**
- * Records that the learner completed a lesson or challenge. Idempotent: XP is only ever awarded
+ * Records that the learner completed a lesson, challenge or practice task. Idempotent: XP is only ever awarded
  * once. This is learner-reported progress: the content must exist, but its exercises are not
  * re-checked here.
  */

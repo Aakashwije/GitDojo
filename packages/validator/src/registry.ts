@@ -31,6 +31,13 @@ import {
   stashCount,
 } from "./validators/recovery";
 import { repositoryInitialized } from "./validators/repository-initialized";
+import { branchHistory } from "./validators/history";
+import {
+  branchUpstream,
+  remoteBranchPointsToCommit,
+  remoteTrackingBranchPointsToCommit,
+} from "./validators/remotes";
+import { tagExists, tagNotExists } from "./validators/tags";
 
 export const validatorRegistry: ValidatorRegistry = {
   repository_initialized: repositoryInitialized,
@@ -62,6 +69,12 @@ export const validatorRegistry: ValidatorRegistry = {
   conflict_ready_to_stage: conflictReadyToStage,
   all_conflicts_resolved: allConflictsResolved,
   merge_completed: mergeCompleted,
+  branch_history: branchHistory,
+  tag_exists: tagExists,
+  tag_not_exists: tagNotExists,
+  remote_branch_points_to_commit: remoteBranchPointsToCommit,
+  remote_tracking_branch_points_to_commit: remoteTrackingBranchPointsToCommit,
+  branch_upstream: branchUpstream,
 };
 
 export const SUPPORTED_VALIDATOR_TYPES = Object.keys(validatorRegistry) as ValidatorType[];

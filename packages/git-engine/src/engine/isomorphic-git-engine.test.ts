@@ -285,6 +285,10 @@ describe("IsomorphicGitEngine", () => {
         merge: null,
         reflog: [],
         stashes: [],
+        tags: [],
+        remotes: [],
+        remoteBranches: [],
+        editor: null,
         entries: [
           {
             path: "README.md",

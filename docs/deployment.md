@@ -149,13 +149,17 @@ CREATE ROLE gitdojo_app WITH LOGIN PASSWORD '<generate a strong password>';
 GRANT CONNECT ON DATABASE neondb TO gitdojo_app;
 GRANT USAGE ON SCHEMA public TO gitdojo_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  users, lesson_completions, challenge_completions,
+  users, lesson_completions, challenge_completions, practice_completions,
   command_stats, device_activity, revealed_hints, last_lessons, seen_releases
 TO gitdojo_app;
 GRANT SELECT ON gitdojo_schema_migrations TO gitdojo_app; -- for /api/health
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO gitdojo_app;
 ```
+
+An app role created before `0005_practice_completions` without the default privileges above
+needs `GRANT SELECT, INSERT, UPDATE, DELETE ON practice_completions TO gitdojo_app;` once that
+migration has run.
 
 Use `gitdojo_app` in `DATABASE_URL` and the owner role in `DATABASE_URL_UNPOOLED`. A suspended
 Neon compute wakes on the first request (usually under a second); the 10-second connect timeout
@@ -231,16 +235,16 @@ The existing production deployment stays live until the first promotion replaces
 node apps/web/scripts/smoke.mjs https://staging.<your-domain> --expect-accounts --expect-database
 ```
 
-| Check                                                                                         | Expectation                                         |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `/`, `/learn`, a lesson, `/challenges`, `/playground`, `/dashboard`, `/whats-new`, `/sign-in` | 200                                                 |
-| A `/_next/static/…js` chunk from the landing page                                             | 200, JavaScript                                     |
-| `/monaco/vs/loader.js`                                                                        | 200 (editor assets were copied)                     |
-| `/api/health`                                                                                 | 200; `database: "ok"` (reachable and migrated)      |
-| `/api/auth/session`                                                                           | 200, `no-store`, `signed-out` (accounts configured) |
-| `GET /api/progress` without a session                                                         | 401, `private, no-store`                            |
-| `POST /api/progress/lessons` from another origin                                              | 403 `cross_origin`                                  |
-| `POST /api/progress/sync` from another origin                                                 | 403 `cross_origin`                                  |
+| Check                                                                                                      | Expectation                                         |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `/`, `/learn`, a lesson, `/challenges`, `/practice`, `/playground`, `/dashboard`, `/whats-new`, `/sign-in` | 200                                                 |
+| A `/_next/static/…js` chunk from the landing page                                                          | 200, JavaScript                                     |
+| `/monaco/vs/loader.js`                                                                                     | 200 (editor assets were copied)                     |
+| `/api/health`                                                                                              | 200; `database: "ok"` (reachable and migrated)      |
+| `/api/auth/session`                                                                                        | 200, `no-store`, `signed-out` (accounts configured) |
+| `GET /api/progress` without a session                                                                      | 401, `private, no-store`                            |
+| `POST /api/progress/lessons` from another origin                                                           | 403 `cross_origin`                                  |
+| `POST /api/progress/sync` from another origin                                                              | 403 `cross_origin`                                  |
 
 Manually, after the first release and after changes to accounts or progress, on staging:
 

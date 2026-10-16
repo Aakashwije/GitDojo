@@ -1,3 +1,4 @@
+import { PROGRESS_SCHEMA_VERSION } from "@gitdojo/progress";
 import { describe, expect, it, vi } from "vitest";
 import { parseDeviceActivity, SUPPORTED_SYNC_VERSIONS, SYNC_LIMITS } from "./activity";
 import { getProgress, syncProgress } from "./api";
@@ -66,6 +67,11 @@ describe("parseDeviceActivity", () => {
     const ahead = parseDeviceActivity(payload({ schemaVersion: 99 }), NOW);
     expect(ahead).toMatchObject({ ok: false, code: "unsupported_schema_version" });
     expect(SUPPORTED_SYNC_VERSIONS).toContain(1);
+    // The browser sends its own schema version; the server must accept the current one.
+    expect(SUPPORTED_SYNC_VERSIONS).toContain(PROGRESS_SCHEMA_VERSION);
+    expect(parseDeviceActivity(payload({ schemaVersion: PROGRESS_SCHEMA_VERSION }), NOW).ok).toBe(
+      true,
+    );
     for (const version of [undefined, "2", 0, 1.5]) {
       expect(parseDeviceActivity(payload({ schemaVersion: version }), NOW).ok).toBe(false);
     }

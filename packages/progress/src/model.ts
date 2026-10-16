@@ -10,8 +10,10 @@ import { type LessonType } from "@gitdojo/shared-types";
  * - 3: adds {@link LocalProgress.seenReleases}. A version 2 record upgrades with none seen. The
  *   bump matters for tabs still running the previous version: they refuse a newer record rather
  *   than rewriting it without the field, so a dismissed announcement cannot come back.
+ * - 4: adds {@link LocalProgress.completedPractice}. A version 3 record upgrades with no practice
+ *   solved. As with 3, older tabs then refuse the record instead of dropping the field.
  */
-export const PROGRESS_SCHEMA_VERSION = 3;
+export const PROGRESS_SCHEMA_VERSION = 4;
 
 /**
  * Whose progress a record holds. Only anonymous progress exists today; signed-in accounts
@@ -77,6 +79,11 @@ export interface LocalProgress {
   completedLessons: Record<string, CompletionRecord>;
   /** Standalone challenge id → completion. Challenge ids are a separate namespace. */
   completedChallenges: Record<string, CompletionRecord>;
+  /**
+   * Practice task id → its first solve. Practice is a namespace of its own and earns no XP: it is
+   * repetition, not new content, so it never inflates XP or course completion.
+   */
+  completedPractice: Record<string, CompletionRecord>;
   /** Sum of every completion's `xp`; recomputed from the records whenever data is loaded. */
   xp: number;
   /** Git subcommand (`commit`, `cherry-pick`) → uses and successes, **on this device**. */
@@ -116,10 +123,18 @@ export const XP_REWARDS: Readonly<Record<LessonType, number>> = {
   challenge: 100,
 };
 
-/** What finishing a piece of content is worth. */
+/** What finishing a piece of content is worth. Practice tasks earn none. */
 export function completionXp(content: ContentRef): number {
+  if (content.kind === "practice") return 0;
   return XP_REWARDS[content.kind === "challenge" ? "challenge" : content.type];
 }
+
+/** Where each kind of completion is kept in {@link LocalProgress}. */
+export const COMPLETION_FIELDS = {
+  lesson: "completedLessons",
+  challenge: "completedChallenges",
+  practice: "completedPractice",
+} as const satisfies Record<ContentRef["kind"], keyof LocalProgress>;
 
 /**
  * A completable piece of content. A course's challenge lesson is a `lesson` (of type
@@ -128,7 +143,9 @@ export function completionXp(content: ContentRef): number {
  */
 export type ContentRef =
   | { kind: "lesson"; id: string; type: LessonType; courseId?: string }
-  | { kind: "challenge"; id: string };
+  | { kind: "challenge"; id: string }
+  /** A Practice mode task (`/practice/<id>`): a namespace of its own, never worth XP. */
+  | { kind: "practice"; id: string };
 
 /** A published GitDojo release tag, such as `v0.1.12`. */
 export const RELEASE_VERSION = /^v\d{1,4}\.\d{1,4}\.\d{1,6}$/;
@@ -137,7 +154,7 @@ export function isReleaseVersion(value: unknown): value is string {
   return typeof value === "string" && RELEASE_VERSION.test(value);
 }
 
-/** Lessons and challenges may share ids (`first-commit`), so keys carry the kind. */
+/** Lessons, challenges and practice tasks may share ids (`first-commit`), so keys carry the kind. */
 export function contentKey(content: Pick<ContentRef, "kind" | "id">): string {
   return `${content.kind}:${content.id}`;
 }
@@ -158,6 +175,7 @@ export function emptyProgress(
     deviceId,
     completedLessons: {},
     completedChallenges: {},
+    completedPractice: {},
     xp: 0,
     commandStats: {},
     revealedHints: {},
@@ -204,6 +222,7 @@ export function withRemoteCounters(progress: LocalProgress): LocalProgress {
   };
 }
 
+/** Lessons and challenges only: practice never earns XP. */
 export function totalXp(
   progress: Pick<LocalProgress, "completedLessons" | "completedChallenges">,
 ): number {

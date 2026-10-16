@@ -127,6 +127,8 @@ content:
   - type: callout
     tone: note
     body: >-
-      GitDojo's sandbox runs entirely in your browser, with no network and no server, so
-      `git push` is not available in the terminal. Everything the remote does when it accepts a
-      push, though, is just the fast-forward you have already practised in **Merging**.
+      GitDojo runs entirely in your browser, with no network and no server, so the remote you push
+      to is simulated inside your workspace. It accepts and rejects pushes by Git's own rule: a
+      push may only fast-forward the remote branch. **Push a Branch to origin**, next in this
+      course, has you try it. `git push --delete`, `git push --tags` and force pushes are not
+      available in GitDojo's terminal.

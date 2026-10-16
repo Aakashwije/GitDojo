@@ -1,7 +1,8 @@
 # Local progress
 
 GitDojo remembers what a learner has done without an account: completed lessons and challenges,
-XP, Git command usage, hints revealed, the last lesson visited and playground sessions. It all
+solved practice tasks, XP, Git command usage, hints revealed, the last lesson visited and
+playground sessions. It all
 lives in the browser, in IndexedDB, and is shown on the dashboard at `/dashboard`.
 
 ```text
@@ -29,15 +30,16 @@ The persistence code is framework-free and has no React imports.
 
 ## Model
 
-`LocalProgress` (schema version 3), as stored and exported:
+`LocalProgress` (schema version 4), as stored and exported:
 
 | Field                                            | Meaning                                                                                                                   |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `schemaVersion`                                  | `3`. Bumped when the stored shape changes; older records are upgraded when read                                           |
+| `schemaVersion`                                  | `4`. Bumped when the stored shape changes; older records are upgraded when read                                           |
 | `owner`                                          | `{ kind: "anonymous" }` today; signed-in accounts will get separate records                                               |
 | `deviceId`                                       | Random per browser, so a future sync can merge per-device counters without double counting                                |
 | `completedLessons`                               | Lesson id → `{ completedAt, xp, type, courseId?, migrated? }`                                                             |
 | `completedChallenges`                            | Standalone challenge id → the same record                                                                                 |
+| `completedPractice`                              | Practice task id → `{ completedAt, xp: 0 }`: the first solve. Practice never earns XP (added in schema 4)                 |
 | `xp`                                             | Sum of the records' `xp`; recomputed from them whenever data is read, so it cannot drift                                  |
 | `commandStats`                                   | Git subcommand → `{ uses, successes, lastUsedAt }`, **on this device**                                                    |
 | `revealedHints`                                  | `lesson:<id>` / `challenge:<id>` → hints revealed there, as `<objective id>#<index>`                                      |
@@ -78,12 +80,17 @@ uses it, and without an account it changes nothing. See
 | Concept lesson                                         | 25  |
 | Interactive (hands-on) lesson                          | 50  |
 | Challenge lesson (in a course) or standalone challenge | 100 |
+| Practice task (`/practice`)                            | 0   |
 
 - XP is awarded **once per content item**, on its first completion. "Practice again", replays
   and revisits keep the original record; the completion dialog then says "Already completed: no
   new XP".
 - XP follows from the content's `type`; lesson and challenge YAML no longer carry an `xp` field.
 - Hints never cost XP.
+- **Practice is never worth XP.** Practice tasks repeat skills rather than add content, so they
+  are kept in their own namespace (`completedPractice`, content key `practice:<id>`) and are not
+  counted in XP, "Lessons completed", "Challenges completed" or course progress. The dashboard
+  shows them on their own, labelled "Practice tasks solved · no XP".
 - A course's challenge lesson (e.g. `first-repository-challenge`) is a **lesson**. Only the
   pages under `/challenges` record **challenges**. Lessons and challenges are separate namespaces
   (the demo lesson and a standalone challenge are both `first-commit`), so the same work is never
@@ -99,6 +106,31 @@ uses it, and without an account it changes nothing. See
 | Hint revealed      | A hint becoming visible for the first time for that content item, identified by objective and position. Re-rendering, reloading or replaying and revealing the same hint again does not count.                                                                                                                                  |
 | Lesson visit       | Opening a lesson page that belongs to a course sets `lastLesson`.                                                                                                                                                                                                                                                               |
 | Playground session | The playground workspace loading successfully after the playground page is opened. Loading scenarios, resetting, starting a new repository or retrying within that visit do not count again; reopening the page does.                                                                                                           |
+
+## Skills and recommendations
+
+The dashboard's **Skills practiced** and **Recommended next** sections are derived, never
+stored, by pure functions in `@gitdojo/progress` (`skillProgress`, `recommendNextSteps`), so they
+behave the same for anonymous and account progress and change only when completions do.
+
+- **Taxonomy.** `SKILLS` (`src/skills.ts`) lists sixteen skills in rough learning order, each with
+  the content `concepts` labels that count towards it (`git-add`, `staging` and `working-tree`
+  are all "Staging"). Labels are normalized (case, spaces, underscores) before lookup. Skills come
+  from explicit `concepts` metadata, never from titles; a test fails if any concept in content
+  has no skill. Practice tasks also name their main skill.
+- **Counting.** The catalog sends each item's concepts (`ProgressCatalog.concepts`, keyed by
+  content key). A skill's hands-on count is the number of distinct completed interactive or
+  challenge lessons, challenges and practice tasks tagged with it; challenges and practice are
+  also "unguided". Concept lessons count as read only. Content that no longer exists is not
+  counted.
+- **Status.** `untouched`, `studied` (concept lessons only), `practiced` (one or more hands-on),
+  `mastered` (`MASTERY_RULE`: three hands-on completions, at least one unguided). A single
+  completion is never mastery. The dashboard explains the rule next to the list.
+- **Recommendations.** At most three, deterministic: the lesson to resume or the next lesson of a
+  started course (or the first lesson for a new learner); then a first hands-on lesson, else a
+  practice task, for each skill not practiced yet; then practice tasks for skills practiced but
+  not mastered. Completed content is never recommended; each has a short reason and a route that
+  exists. With nothing left, the dashboard offers practising again.
 
 ## Storage
 
@@ -147,8 +179,8 @@ version 1 had no challenges). On the first load:
   `gitdojo-progress-YYYY-MM-DD.json`:
   `{ "format": "gitdojo-progress", "exportVersion": 1, "exportedAt": "…", "progress": { … } }`.
   Import is not implemented.
-- **Reset** (dashboard → "Reset learning progress", then confirm in a dialog) clears completions,
-  XP, command statistics, hints, the last lesson and the playground session count. It keeps the
+- **Reset** (dashboard → "Reset learning progress", then confirm in a dialog) clears completions
+  (lessons, challenges and practice), XP, command statistics, hints, the last lesson and the playground session count. It keeps the
   device id and the migration markers, removes any leftover legacy entry, and does **not** touch
   the playground repository, lesson workspaces or playground settings.
 
