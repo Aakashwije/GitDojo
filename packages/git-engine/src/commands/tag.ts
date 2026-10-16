@@ -26,10 +26,34 @@ export function isValidTagName(name: string): boolean {
   return isValidBranchName(name);
 }
 
-/** `*` and `?` globs, as `git tag -l 'v1.*'` matches them. */
-function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped.replaceAll("*", ".*").replaceAll("?", ".")}$`);
+/**
+ * `*` and `?` globs, as `git tag -l 'v1.*'` matches them. Hand-written rather than compiled to a
+ * regular expression: a pattern such as `*a*a*a*b` becomes a backtracking `.*a.*a.*a.*b`, which
+ * is polynomial in the name's length. This greedy matcher backtracks only to the last `*`.
+ */
+export function matchesGlob(pattern: string, name: string): boolean {
+  let p = 0;
+  let n = 0;
+  let star = -1;
+  let resume = 0;
+  while (n < name.length) {
+    if (p < pattern.length && (pattern[p] === "?" || pattern[p] === name[n])) {
+      p += 1;
+      n += 1;
+    } else if (p < pattern.length && pattern[p] === "*") {
+      star = p;
+      resume = n;
+      p += 1;
+    } else if (star !== -1) {
+      p = star + 1;
+      resume += 1;
+      n = resume;
+    } else {
+      return false;
+    }
+  }
+  while (pattern[p] === "*") p += 1;
+  return p === pattern.length;
 }
 
 /** `git tag`, `git tag -l [<pattern>]` and `git tag -n`. */
@@ -38,8 +62,9 @@ export async function runListTags(
   { pattern, annotations = false }: GitTagListOptions = {},
 ): Promise<GitTagResult> {
   if (!(await isRepository(ctx))) return notARepository();
-  const matcher = pattern === undefined ? null : globToRegExp(pattern);
-  const tags = (await readTags(ctx)).filter((tag) => matcher?.test(tag.name) ?? true);
+  const tags = (await readTags(ctx)).filter(
+    (tag) => pattern === undefined || matchesGlob(pattern, tag.name),
+  );
   if (!annotations) return success(tags.map((tag) => tag.name).join("\n"), { tags });
   // `-n` shows the first line of each annotation; lightweight tags show their commit's subject.
   const width = Math.max(15, ...tags.map((tag) => tag.name.length));

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { matchesGlob } from "../commands/tag";
 import { createTestWorkspace, type TestWorkspace } from "../test-utils/create-test-workspace";
 
 async function commit(ws: TestWorkspace, message: string, files: Record<string, string>) {
@@ -125,5 +126,25 @@ describe("git tag", () => {
     const snapshot = await ws.git.snapshot();
     expect(snapshot.commits.map((commit) => commit.oid)).not.toContain(b);
     expect(snapshot.allCommits.map((commit) => commit.oid)).toContain(b);
+  });
+});
+
+describe("matchesGlob", () => {
+  it("matches * and ? like git tag -l", () => {
+    expect(matchesGlob("v1.*", "v1.0")).toBe(true);
+    expect(matchesGlob("v1.*", "v10")).toBe(false);
+    expect(matchesGlob("v?.0", "v2.0")).toBe(true);
+    expect(matchesGlob("*", "")).toBe(true);
+    expect(matchesGlob("*-rc*", "v2.0-rc1")).toBe(true);
+    expect(matchesGlob("v1.0", "v1.0.1")).toBe(false);
+    // Regex characters are literal.
+    expect(matchesGlob("v1.0", "v1x0")).toBe(false);
+    expect(matchesGlob("(a)+", "(a)+")).toBe(true);
+  });
+
+  it("stays fast on patterns a regular expression would backtrack on", () => {
+    const started = performance.now();
+    expect(matchesGlob(`${"*a".repeat(50)}*b`, "a".repeat(5_000))).toBe(false);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
