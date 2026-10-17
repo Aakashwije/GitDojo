@@ -10,6 +10,8 @@ export {
   recordProgress,
   recordReleaseSeen,
   resetProgressStoreForTests,
+  syncCompletionsNow,
+  syncNow,
   useCompletedChallenges,
   useCompletedLessons,
   useProgressStore,

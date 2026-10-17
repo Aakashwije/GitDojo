@@ -41,6 +41,7 @@ import { courseHref, CourseProgressBar, lessonHref } from "@/features/course";
 import { challengeHref } from "@/features/challenges";
 import { formatRelativeTime, formatTimestamp } from "@/lib/time";
 import { ProgressManagement, useProgressStore } from "@/features/progress";
+import { CertificateAwards } from "@/features/certificates";
 
 /** True for a learner who has not done anything yet. */
 function isNewLearner(progress: LocalProgress): boolean {
@@ -303,6 +304,7 @@ function DashboardContent({
         </div>
       </div>
 
+      <CertificateAwards progress={progress} />
       <ProgressManagement />
     </div>
   );

@@ -43,6 +43,9 @@ function scopeFor(request: NextRequest): RateLimitScope | null {
   }
   if (pathname === "/api/auth/session") return "session";
   if (pathname === "/api/progress" || pathname.startsWith("/api/progress/")) return "progress";
+  if (pathname === "/api/certificates" || pathname.startsWith("/api/certificates/"))
+    return "progress";
+  if (pathname.startsWith("/api/credentials/")) return "progress";
   return null;
 }
 
