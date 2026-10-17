@@ -109,9 +109,10 @@ uses it, and without an account it changes nothing. See
 
 ## Skills and recommendations
 
-The dashboard's **Skills practiced** and **Recommended next** sections are derived, never
-stored, by pure functions in `@gitdojo/progress` (`skillProgress`, `recommendNextSteps`), so they
-behave the same for anonymous and account progress and change only when completions do.
+The dashboard's **Skill map** and **Recommended next** sections are derived, never stored, by
+pure functions in `@gitdojo/progress` (`skillProgress`, `skillNextActions`,
+`recommendNextSteps`), so they behave the same for anonymous and account progress and change only
+when completions do.
 
 - **Taxonomy.** `SKILLS` (`src/skills.ts`) lists sixteen skills in rough learning order, each with
   the content `concepts` labels that count towards it (`git-add`, `staging` and `working-tree`
@@ -131,6 +132,34 @@ behave the same for anonymous and account progress and change only when completi
   practice task, for each skill not practiced yet; then practice tasks for skills practiced but
   not mastered. Completed content is never recommended; each has a short reason and a route that
   exists. With nothing left, the dashboard offers practising again.
+- **Next action per skill** (`skillNextActions`). One item for each skill card, never completed
+  content: a first hands-on lesson (else a Practice task, else a challenge) for a skill not
+  practiced yet; for a practiced skill, the unguided work `MASTERY_RULE` still needs (a Practice
+  task, a challenge or a course challenge lesson), then more hands-on items; for a mastered skill,
+  a Practice task to keep it sharp. `null` when nothing is left.
+
+## Dashboard views
+
+Every dashboard view is derived from the stored record and the catalog; none adds storage.
+
+- **Your Git journey** (`learningJourney`): every course in catalog order, with the totals of
+  `courseProgress` and the target of `continueLearning`. A course is `completed` (every lesson
+  done), `current` (where "Continue learning" points), `available` (started, or before the current
+  course, but not finished) or `upcoming` (not started, after the current course). Once every
+  course is done there is no current course and the action points to challenges.
+- **Learning activity** (`dailyActivity`): first completions of lessons, challenges and Practice
+  tasks per day over the last 30 days, by the device's local calendar day. Only first completions
+  are dated, so repeating a task, running commands and visiting lessons do not appear; there is
+  no streak, because the stored dates cannot support one correctly across time zones and devices.
+  Completions migrated from the old format carry the migration time rather than when the work was
+  done, so they are left out and counted as undated. For an account, a completion's date is the
+  server's, set when it first reaches the account: work done offline is dated on the day it syncs.
+- **Most used commands** (`commandSummary`): the counters described above, including other
+  devices' for an account. Bars only illustrate the numbers shown beside them.
+- **Completion certificates**: requirement counts and the next requirement come from this
+  browser's completions and the award's fixed lists (`awardProgress`, in
+  `features/certificates`). They are a guide; the server still checks the account's own
+  completion rows on issue (see [certificates.md](./certificates.md)).
 
 ## Storage
 

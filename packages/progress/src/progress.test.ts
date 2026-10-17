@@ -9,10 +9,12 @@ import {
   courseProgress,
   createIndexedDbStorage,
   createMemoryStorage,
+  dailyActivity,
   emptyProgress,
   exportFileName,
   exportProgress,
   hintsUsed,
+  learningJourney,
   LEGACY_MIGRATION,
   LEGACY_STORAGE_KEY,
   migrateLegacyProgress,
@@ -34,6 +36,7 @@ import {
   pickSurpriseTask,
   recommendNextSteps,
   skillForConcept,
+  skillNextActions,
   skillProgress,
   SKILLS,
   skillsForConcepts,
@@ -1336,5 +1339,143 @@ describe("buildProgressReport", () => {
     ]) {
       expect(text).not.toContain(secret);
     }
+  });
+});
+
+describe("learningJourney", () => {
+  const statuses = (progress: LocalProgress) =>
+    learningJourney(progress, COURSES).milestones.map((item) => item.status);
+
+  it("starts a new learner at the first course, the rest upcoming", () => {
+    const journey = learningJourney(emptyProgress(T0), COURSES);
+    expect(journey).toMatchObject({ completed: 0, total: 4, percent: 0 });
+    expect(journey.target?.lesson.id).toBe("what-is-git");
+    expect(statuses(emptyProgress(T0))).toEqual(["current", "upcoming"]);
+  });
+
+  it("follows continue learning, and keeps a skipped course available", () => {
+    const progress = reduce([
+      { type: "visit-lesson", courseId: "branching", lessonId: "git-branch" },
+      lesson("what-is-git", "concept", "git-basics"),
+    ]);
+    const journey = learningJourney(progress, COURSES);
+    expect(journey.target?.course.id).toBe("branching");
+    expect(statuses(progress)).toEqual(["available", "current"]);
+    expect(journey).toMatchObject({ completed: 1, total: 4, percent: 25 });
+  });
+
+  it("marks finished courses completed and has no target once everything is done", () => {
+    const progress = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      lesson("git-init", "interactive", "git-basics"),
+      lesson("first-repository-challenge", "challenge", "git-basics"),
+      lesson("git-branch", "interactive", "branching"),
+    ]);
+    const journey = learningJourney(progress, COURSES);
+    expect(journey.target).toBeNull();
+    expect(journey.percent).toBe(100);
+    expect(statuses(progress)).toEqual(["completed", "completed"]);
+  });
+
+  it("counts only lessons the courses still contain", () => {
+    const progress = reduce([
+      lesson("removed-lesson", "concept"),
+      lesson("first-commit", "interactive"),
+    ]);
+    expect(learningJourney(progress, COURSES).completed).toBe(0);
+  });
+});
+
+describe("dailyActivity", () => {
+  const NOW = new Date(2026, 9, 17, 9, 0).getTime();
+  const at = (day: number, hour = 12) => new Date(2026, 9, day, hour).getTime();
+  const complete = (progress: LocalProgress, action: ProgressAction, when: number) =>
+    applyProgressAction(progress, action, when);
+
+  it("counts first completions per local day, oldest first, ending today", () => {
+    let progress = emptyProgress(at(1));
+    progress = complete(progress, lesson("git-init", "interactive", "git-basics"), at(17, 0));
+    progress = complete(progress, challenge("lost-commit"), at(17, 8));
+    progress = complete(
+      progress,
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+      at(15, 23),
+    );
+    progress = complete(
+      progress,
+      lesson("what-is-git", "concept", "git-basics"),
+      new Date(2026, 8, 17).getTime(),
+    ); // Before the range.
+    const activity = dailyActivity(progress, { now: NOW });
+    expect(activity.days).toHaveLength(30);
+    expect(activity.days.at(-1)).toMatchObject({
+      date: "2026-10-17",
+      lessons: 1,
+      challenges: 1,
+      total: 2,
+    });
+    expect(activity.days.at(-3)).toMatchObject({ date: "2026-10-15", practice: 1, total: 1 });
+    expect(activity.days[0]?.date).toBe("2026-09-18");
+    expect(activity).toMatchObject({ activeDays: 2, total: 3, datedCompletions: 4, undated: 0 });
+  });
+
+  it("never counts repeats, and leaves migrated completions out instead of guessing a date", () => {
+    let progress = complete(emptyProgress(at(1)), lesson("git-init", "interactive"), at(16));
+    progress = complete(progress, lesson("git-init", "interactive"), at(17));
+    progress = {
+      ...progress,
+      completedChallenges: { "lost-commit": { completedAt: at(17), xp: 100, migrated: true } },
+    };
+    const activity = dailyActivity(progress, { now: NOW });
+    expect(activity).toMatchObject({ activeDays: 1, total: 1, datedCompletions: 1, undated: 1 });
+    expect(activity.days.at(-2)?.total).toBe(1);
+  });
+
+  it("has nothing to show for a new learner", () => {
+    expect(dailyActivity(emptyProgress(NOW), { now: NOW, days: 7 })).toMatchObject({
+      activeDays: 0,
+      total: 0,
+      datedCompletions: 0,
+    });
+  });
+});
+
+describe("skillNextActions", () => {
+  const actionFor = (progress: LocalProgress, skill: string) =>
+    skillNextActions(progress, CATALOG).get(skill);
+
+  it("starts an unpractised skill with its first hands-on lesson", () => {
+    expect(actionFor(emptyProgress(T0), "branches")).toEqual({
+      kind: "lesson",
+      title: "git branch",
+      href: "/learn/branching/git-branch",
+      reason: "Start hands-on",
+    });
+    // No lesson teaches recovery hands-on, so its Practice task is next.
+    expect(actionFor(emptyProgress(T0), "recovery")?.href).toBe("/practice/rescue-a-reset");
+  });
+
+  it("asks a practiced skill for the unguided work mastery needs", () => {
+    const progress = reduce([lesson("git-branch", "interactive", "branching")]);
+    expect(actionFor(progress, "branches")).toMatchObject({
+      kind: "practice",
+      href: "/practice/start-a-branch",
+      reason: "Solve it without step-by-step help",
+    });
+    const repositories = reduce([lesson("git-init", "interactive", "git-basics")]);
+    expect(actionFor(repositories, "repositories")).toMatchObject({
+      kind: "lesson",
+      href: "/learn/git-basics/first-repository-challenge",
+    });
+  });
+
+  it("never suggests completed work, and has nothing left when it is all done", () => {
+    const progress = reduce([
+      lesson("git-branch", "interactive", "branching"),
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+    ]);
+    expect(actionFor(progress, "branches")).toBeNull();
+    const recovery = reduce([challenge("lost-commit")]);
+    expect(actionFor(recovery, "recovery")?.href).toBe("/practice/rescue-a-reset");
   });
 });

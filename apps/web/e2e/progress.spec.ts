@@ -79,6 +79,15 @@ test("shows a helpful empty state to a new learner", async ({ page }) => {
     "href",
     "/learn/git-basics/what-is-git",
   );
+  await expect(page.getByTestId("journey-summary")).toContainText("0 of");
+  await expect(page.locator('[data-testid="journey-milestone"]').first()).toHaveAttribute(
+    "data-status",
+    "current",
+  );
+  await expect(page.getByTestId("activity-empty").getByRole("link")).toHaveAttribute(
+    "href",
+    "/learn/git-basics/what-is-git",
+  );
 });
 
 test("completes the Git Basics course and the dashboard adds it up", async ({ page, isMobile }) => {
@@ -116,6 +125,16 @@ test("completes the Git Basics course and the dashboard adds it up", async ({ pa
   await expect(stat(page, "commands")).toHaveText(String(commands));
   await expect(page.locator('[data-course="git-basics"]').getByTestId("course-percent")).toHaveText(
     "100%",
+  );
+  // The journey shows the course as done and the next one as current.
+  await expect(page.locator('[data-course="git-basics"]')).toHaveAttribute(
+    "data-status",
+    "completed",
+  );
+  await expect(page.locator('[data-course="branching"]')).toHaveAttribute("data-status", "current");
+  // Every lesson was finished today.
+  await expect(page.getByTestId("activity-summary")).toContainText(
+    "Active on 1 of the last 30 days · 10 completions",
   );
   await expect(page.getByTestId("continue-learning")).toHaveAttribute(
     "href",

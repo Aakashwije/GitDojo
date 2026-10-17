@@ -2,7 +2,7 @@ import { type CourseLessonSummary, type CourseOutline } from "@gitdojo/shared-ty
 import { type ProgressCatalog } from "./catalog";
 import { contentKey, type LocalProgress } from "./model";
 import { nextLessonToStudy } from "./selectors";
-import { skillProgress, skillsForConcepts, type SkillProgress } from "./skills";
+import { MASTERY_RULE, skillProgress, skillsForConcepts, type SkillProgress } from "./skills";
 
 export interface Recommendation {
   /** Stable across renders: the content key it points at. */
@@ -162,4 +162,108 @@ export function recommendNextSteps(
     });
   }
   return picks;
+}
+
+/** The most useful next item for one skill, given where the learner is with it. */
+export interface SkillAction {
+  kind: "lesson" | "challenge" | "practice";
+  title: string;
+  /** A route that exists: `/learn/<course>/<lesson>`, `/challenges/<id>` or `/practice/<task>`. */
+  href: string;
+  /** Why this item, in a few words. */
+  reason: string;
+}
+
+function lessonAction(
+  found: { course: CourseOutline; lesson: CourseLessonSummary } | null,
+  reason: string,
+): SkillAction | null {
+  return found
+    ? {
+        kind: "lesson",
+        title: found.lesson.title,
+        href: lessonHref(found.course, found.lesson),
+        reason,
+      }
+    : null;
+}
+
+function practiceAction(
+  task: { id: string; title: string } | null,
+  reason: string,
+): SkillAction | null {
+  return task
+    ? { kind: "practice", title: task.title, href: `/practice/${task.id}`, reason }
+    : null;
+}
+
+/** An unsolved challenge, or course challenge lesson, teaching `skill`: both count as unguided. */
+function unguidedFor(
+  skill: string,
+  catalog: ProgressCatalog,
+  progress: LocalProgress,
+): SkillAction | null {
+  const challenge = catalog.challenges.find(
+    (candidate) =>
+      progress.completedChallenges[candidate.id] === undefined &&
+      skillsForConcepts(
+        catalog.concepts[contentKey({ kind: "challenge", id: candidate.id })] ?? [],
+      ).includes(skill),
+  );
+  if (challenge) {
+    return {
+      kind: "challenge",
+      title: challenge.title,
+      href: `/challenges/${challenge.id}`,
+      reason: "Solve it without step-by-step help",
+    };
+  }
+  for (const course of catalog.courses) {
+    for (const lesson of course.lessons) {
+      if (lesson.type !== "challenge" || progress.completedLessons[lesson.id]) continue;
+      const concepts = catalog.concepts[contentKey({ kind: "lesson", id: lesson.id })] ?? [];
+      if (skillsForConcepts(concepts).includes(skill)) {
+        return lessonAction({ course, lesson }, "Solve it without step-by-step help");
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * For every skill, the one item that moves it on, or `null` when nothing is left to suggest:
+ * a first hands-on lesson for a skill not practiced yet; for a practiced skill, the unguided work
+ * {@link MASTERY_RULE} still asks for, then more hands-on items; for a mastered one, a Practice
+ * task to keep it sharp. Completed content is never suggested.
+ */
+export function skillNextActions(
+  progress: LocalProgress,
+  catalog: ProgressCatalog,
+  skills: readonly SkillProgress[] = skillProgress(progress, catalog),
+): Map<string, SkillAction | null> {
+  const completed = new Set(Object.keys(progress.completedLessons));
+  const solved = new Set(Object.keys(progress.completedPractice));
+  return new Map(
+    skills.map((entry) => {
+      const id = entry.skill.id;
+      const lesson = () => lessonAction(firstLessonFor(id, catalog, completed), "Next lesson");
+      const practice = (reason: string) => practiceAction(practiceFor(id, catalog, solved), reason);
+      let action: SkillAction | null;
+      if (entry.status === "untouched" || entry.status === "studied") {
+        action =
+          lessonAction(firstLessonFor(id, catalog, completed), "Start hands-on") ??
+          practice("Start hands-on") ??
+          unguidedFor(id, catalog, progress);
+      } else if (entry.status === "practiced") {
+        action =
+          entry.unguided < MASTERY_RULE.unguided
+            ? (practice("Solve it without step-by-step help") ?? unguidedFor(id, catalog, progress))
+            : null;
+        action ??= lesson() ?? practice("Practice it again") ?? unguidedFor(id, catalog, progress);
+      } else {
+        action = practice("Keep it sharp");
+      }
+      return [id, action] as const;
+    }),
+  );
 }

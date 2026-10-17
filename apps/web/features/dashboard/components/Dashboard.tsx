@@ -6,9 +6,9 @@ import {
   completedLessonIds,
   continueLearning,
   courseProgress,
-  MASTERY_RULE,
   recentActivity,
   recommendNextSteps,
+  skillNextActions,
   skillProgress,
   solvedPracticeIds,
   withRemoteCounters,
@@ -19,29 +19,30 @@ import {
   type SkillProgress,
   type SkillStatus,
 } from "@gitdojo/progress";
-import { Badge, Button, cn } from "@gitdojo/ui";
+import { cn } from "@gitdojo/ui";
 import {
-  ArrowRight,
   BookOpen,
   Boxes,
   Compass,
   Flag,
-  GraduationCap,
   History,
-  Medal,
   SquareTerminal,
   Star,
   Target,
-  Trophy,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode } from "react";
-import { courseHref, CourseProgressBar, lessonHref } from "@/features/course";
+import { useState } from "react";
+import { lessonHref } from "@/features/course";
 import { challengeHref } from "@/features/challenges";
 import { formatRelativeTime, formatTimestamp } from "@/lib/time";
 import { ProgressManagement, useProgressStore } from "@/features/progress";
 import { CertificateAwards } from "@/features/certificates";
+import { ActivityCalendar } from "./ActivityCalendar";
+import { CommandUsage } from "./CommandUsage";
+import { LearningJourney } from "./LearningJourney";
+import { SectionHeading } from "./SectionHeading";
+import { SkillMap } from "./SkillMap";
 
 /** True for a learner who has not done anything yet. */
 function isNewLearner(progress: LocalProgress): boolean {
@@ -98,6 +99,7 @@ function DashboardContent({
   progress: LocalProgress;
   catalog: ProgressCatalog;
 }) {
+  const mode = useProgressStore((state) => state.mode);
   // Counters are stored per device; the learner's totals include their other devices'.
   const progress = withRemoteCounters(own);
   const lessons = completedLessonIds(progress);
@@ -113,47 +115,17 @@ function DashboardContent({
   const activity = recentActivity(progress, catalog, 6);
   const fresh = isNewLearner(progress);
   const skills = skillProgress(progress, catalog);
-  // The continue card already shows where to carry on; the list adds what comes after it.
+  const skillActions = skillNextActions(progress, catalog, skills);
+  // The journey already shows where to carry on; the list adds what comes after it.
   const continueHref = target ? lessonHref(target.course.slug, target.lesson.slug) : null;
   const nextSteps = recommendNextSteps(progress, catalog, { limit: 4 })
     .filter((step) => step.href !== continueHref)
     .slice(0, 3);
+  const announcement = useProgressAnnouncement(skills, catalog, lessons);
 
   return (
     <div data-testid="dashboard" className="mt-10 space-y-10">
-      {fresh ? (
-        <section
-          aria-labelledby="welcome-heading"
-          data-testid="dashboard-empty"
-          className="rounded-xl border border-border bg-panel p-6 sm:p-8"
-        >
-          <GraduationCap className="size-8 text-accent" aria-hidden="true" />
-          <h2 id="welcome-heading" className="mt-4 text-h3 font-semibold text-fg">
-            Welcome to GitDojo
-          </h2>
-          <p className="mt-2 max-w-xl text-body text-fg-secondary">
-            Nothing here yet. Complete lessons and challenges to earn XP, and your progress shows up
-            here.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            {target ? (
-              <Button asChild variant="primary">
-                <Link
-                  href={lessonHref(target.course.slug, target.lesson.slug)}
-                  data-testid="continue-learning"
-                >
-                  Start {target.course.title} <ArrowRight />
-                </Link>
-              </Button>
-            ) : null}
-            <Button asChild variant="secondary">
-              <Link href="/playground">Open the playground</Link>
-            </Button>
-          </div>
-        </section>
-      ) : (
-        <ContinueCard progress={progress} catalog={catalog} />
-      )}
+      <LearningJourney progress={progress} catalog={catalog} fresh={fresh} />
 
       <section aria-labelledby="totals-heading">
         <h2 id="totals-heading" className="sr-only">
@@ -202,181 +174,98 @@ function DashboardContent({
 
       <NextSteps steps={nextSteps} />
 
-      <SkillsSection skills={skills} />
+      <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
+        <ActivityCalendar
+          progress={progress}
+          account={mode === "account"}
+          start={
+            target
+              ? {
+                  href: continueHref ?? "/learn",
+                  label: `${target.reason === "start" ? "Start" : "Continue"} with ${target.lesson.title}`,
+                }
+              : null
+          }
+        />
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <section aria-labelledby="courses-heading">
-          <SectionHeading id="courses-heading" icon={GraduationCap}>
-            Course progress
+        <section aria-labelledby="activity-heading">
+          <SectionHeading id="activity-heading" icon={History}>
+            Recent activity
           </SectionHeading>
-          <ul className="mt-4 space-y-3" data-testid="course-progress">
-            {catalog.courses.map((course) => {
-              const value = courseProgress(course, lessons);
-              return (
-                <li
-                  key={course.id}
-                  data-course={course.id}
-                  className="rounded-lg border border-border-subtle bg-panel p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <Link
-                      href={courseHref(course.slug)}
-                      className="text-small font-medium text-fg hover:underline"
-                    >
-                      {course.title}
-                    </Link>
-                    {value.total > 0 && value.completedCount === value.total ? (
-                      <span className="flex items-center gap-1 text-caption text-success">
-                        <Trophy className="size-3.5" aria-hidden="true" /> Complete
-                      </span>
-                    ) : null}
-                  </div>
-                  <CourseProgressBar
-                    progress={value}
-                    label={`${course.title} progress`}
-                    className="mt-3"
-                  />
-                </li>
-              );
-            })}
-          </ul>
+          {activity.length === 0 ? (
+            <p className="mt-4 text-small text-fg-muted">
+              Completed lessons, challenges and practice tasks will appear here.
+            </p>
+          ) : (
+            <ol className="mt-4 space-y-2" data-testid="recent-activity">
+              {activity.map((item) => (
+                <ActivityRow key={`${item.kind}:${item.id}`} item={item} />
+              ))}
+            </ol>
+          )}
         </section>
 
-        <div className="space-y-6">
-          <section aria-labelledby="activity-heading">
-            <SectionHeading id="activity-heading" icon={History}>
-              Recent activity
-            </SectionHeading>
-            {activity.length === 0 ? (
-              <p className="mt-4 text-small text-fg-muted">
-                Completed lessons, challenges and practice tasks will appear here.
-              </p>
-            ) : (
-              <ol className="mt-4 space-y-2" data-testid="recent-activity">
-                {activity.map((item) => (
-                  <ActivityRow key={`${item.kind}:${item.id}`} item={item} />
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <section aria-labelledby="commands-heading">
-            <SectionHeading id="commands-heading" icon={SquareTerminal}>
-              Most used commands
-            </SectionHeading>
-            {commands.commands.length === 0 ? (
-              <p className="mt-4 text-small text-fg-muted">
-                Git commands you run in lessons, challenges and the playground are counted here.
-              </p>
-            ) : (
-              <table className="mt-4 w-full text-small" data-testid="command-usage">
-                <thead>
-                  <tr className="text-left text-caption text-fg-muted">
-                    <th scope="col" className="pb-2 font-medium">
-                      Command
-                    </th>
-                    <th scope="col" className="pb-2 text-right font-medium">
-                      Uses
-                    </th>
-                    <th scope="col" className="pb-2 text-right font-medium">
-                      Succeeded
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commands.commands.slice(0, 6).map((command) => (
-                    <tr key={command.command} className="border-t border-border-subtle">
-                      <th scope="row" className="py-1.5 text-left font-mono font-normal text-fg">
-                        git {command.command}
-                      </th>
-                      <td className="py-1.5 text-right font-mono text-fg-secondary">
-                        {command.uses}
-                      </td>
-                      <td className="py-1.5 text-right font-mono text-fg-secondary">
-                        {command.successes}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        </div>
+        <CommandUsage summary={commands} />
       </div>
 
-      <CertificateAwards progress={progress} />
+      <SkillMap skills={skills} actions={skillActions} />
+
+      <CertificateAwards progress={progress} catalog={catalog} />
       <ProgressManagement />
+      <p role="status" className="sr-only" data-testid="dashboard-announcement">
+        {announcement}
+      </p>
     </div>
   );
 }
 
-function ContinueCard({
-  progress,
-  catalog,
-}: {
-  progress: LocalProgress;
-  catalog: ProgressCatalog;
-}) {
-  const target = continueLearning(progress, catalog.courses);
-  const last = progress.lastLesson;
+/**
+ * A short message when a skill is newly practiced or mastered, or a course completed, while the
+ * dashboard is open (another tab, or a sync). One polite region, empty until something changes.
+ */
+function useProgressAnnouncement(
+  skills: SkillProgress[],
+  catalog: ProgressCatalog,
+  lessons: ReadonlySet<string>,
+): string {
+  const statuses = new Map(skills.map((entry) => [entry.skill.id, entry.status]));
+  const finished = catalog.courses
+    .filter((course) => {
+      const value = courseProgress(course, lessons);
+      return value.total > 0 && value.completedCount === value.total;
+    })
+    .map((course) => course.id);
+  const snapshot = `${[...statuses].join()}|${finished.join()}`;
+  const [seen, setSeen] = useState({ snapshot, statuses, finished, message: "" });
+  if (seen.snapshot === snapshot) return seen.message;
 
-  return (
-    <section
-      aria-labelledby="continue-heading"
-      className="flex flex-wrap items-center justify-between gap-6 rounded-xl border border-accent-border bg-panel p-6"
-    >
-      <div className="min-w-0">
-        <h2
-          id="continue-heading"
-          className="text-micro font-semibold tracking-wider text-fg-muted uppercase"
-        >
-          Continue learning
-        </h2>
-        {target ? (
-          <>
-            <p className="mt-2 text-h3 font-semibold text-fg" data-testid="continue-title">
-              {target.lesson.title}
-            </p>
-            <p className="mt-1 text-small text-fg-secondary">
-              {target.course.title} · Lesson {target.lesson.number} of{" "}
-              {target.course.lessons.length}
-              {target.reason === "resume" && last ? (
-                <>
-                  {" "}
-                  · visited{" "}
-                  <time dateTime={new Date(last.visitedAt).toISOString()}>
-                    {formatRelativeTime(last.visitedAt / 1000)}
-                  </time>
-                </>
-              ) : null}
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-2 text-h3 font-semibold text-fg">Every course complete</p>
-            <p className="mt-1 text-small text-fg-secondary">
-              Put it all together with real-world challenges.
-            </p>
-          </>
-        )}
-      </div>
-      <Button asChild variant="primary" size="lg">
-        {target ? (
-          <Link
-            href={lessonHref(target.course.slug, target.lesson.slug)}
-            data-testid="continue-learning"
-          >
-            {target.reason === "resume" ? "Continue" : "Next lesson"} <ArrowRight />
-          </Link>
-        ) : (
-          <Link href="/challenges" data-testid="continue-learning">
-            Browse challenges <ArrowRight />
-          </Link>
-        )}
-      </Button>
-    </section>
-  );
+  const RANK: Record<SkillStatus, number> = { untouched: 0, studied: 1, practiced: 2, mastered: 3 };
+  const news = [
+    ...catalog.courses
+      .filter((course) => finished.includes(course.id) && !seen.finished.includes(course.id))
+      .map((course) => `${course.title} complete.`),
+    ...skills
+      .filter((entry) => {
+        const before = seen.statuses.get(entry.skill.id) ?? "untouched";
+        return (
+          (entry.status === "practiced" || entry.status === "mastered") &&
+          RANK[entry.status] > RANK[before]
+        );
+      })
+      .map((entry) => `${entry.skill.label}: now ${STATUS_WORDS[entry.status]}.`),
+  ];
+  // Cleared when nothing new happened, so an old message is never left behind to be re-read.
+  const message = news.join(" ");
+  setSeen({ snapshot, statuses, finished, message });
+  return message;
 }
+
+const STATUS_WORDS: Record<SkillStatus, string> = {
+  untouched: "not started",
+  studied: "read about",
+  practiced: "practiced",
+  mastered: "mastered",
+};
 
 function Stat({
   icon: Icon,
@@ -402,23 +291,6 @@ function Stat({
       </dd>
       {detail ? <dd className="mt-1 text-caption text-fg-muted">{detail}</dd> : null}
     </div>
-  );
-}
-
-function SectionHeading({
-  id,
-  icon: Icon,
-  children,
-}: {
-  id: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <h2 id={id} className="flex items-center gap-2 text-body font-semibold text-fg">
-      <Icon className="size-4 text-fg-muted" aria-hidden="true" />
-      {children}
-    </h2>
   );
 }
 
@@ -503,7 +375,7 @@ function NextSteps({ steps }: { steps: Recommendation[] }) {
                 href={step.href}
                 data-testid="next-step"
                 data-kind={step.kind}
-                className="flex h-full flex-col rounded-lg border border-border-subtle bg-panel p-4 transition-colors hover:border-border-strong"
+                className="flex h-full flex-col rounded-lg border border-border-subtle bg-panel p-4 transition-[border-color,transform] duration-150 ease-out hover:border-border-strong motion-safe:hover:-translate-y-0.5"
               >
                 <span className="text-caption text-fg-muted">{step.reason}</span>
                 <span className="mt-1 text-small font-semibold text-fg">{step.title}</span>
@@ -515,74 +387,6 @@ function NextSteps({ steps }: { steps: Recommendation[] }) {
           ))}
         </ul>
       )}
-    </section>
-  );
-}
-
-const STATUS_LABELS: Record<SkillStatus, string> = {
-  untouched: "Not started",
-  studied: "Read about",
-  practiced: "Practiced",
-  mastered: "Mastered",
-};
-
-const STATUS_TONES: Record<SkillStatus, "neutral" | "accent" | "success"> = {
-  untouched: "neutral",
-  studied: "neutral",
-  practiced: "accent",
-  mastered: "success",
-};
-
-function SkillsSection({ skills }: { skills: SkillProgress[] }) {
-  const practiced = skills.filter(
-    (entry) => entry.status === "practiced" || entry.status === "mastered",
-  );
-  return (
-    <section aria-labelledby="skills-heading" data-testid="skills">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionHeading id="skills-heading" icon={Medal}>
-          Skills practiced
-        </SectionHeading>
-        <p className="text-small text-fg-muted" data-testid="skills-summary">
-          <span className="font-mono text-fg-secondary">
-            {practiced.length} / {skills.length}
-          </span>{" "}
-          practiced
-        </p>
-      </div>
-      <p className="mt-2 max-w-3xl text-caption text-fg-muted" data-testid="skills-explanation">
-        A skill counts as <strong className="font-semibold">practiced</strong> once you finish a
-        hands-on lesson, challenge or practice task tagged with it; reading a concept lesson only
-        counts as read. <strong className="font-semibold">Mastered</strong> takes{" "}
-        {MASTERY_RULE.handsOn} hands-on completions, at least {MASTERY_RULE.unguided} of them a
-        challenge or practice task done without step-by-step help. Counted from your completions
-        only, the same with or without an account.
-      </p>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {skills.map((entry) => (
-          <li
-            key={entry.skill.id}
-            data-testid="skill"
-            data-skill={entry.skill.id}
-            data-status={entry.status}
-            className="rounded-lg border border-border-subtle bg-panel px-3 py-2.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span
-                className="truncate text-small font-medium text-fg"
-                title={entry.skill.description}
-              >
-                {entry.skill.label}
-              </span>
-              <Badge tone={STATUS_TONES[entry.status]}>{STATUS_LABELS[entry.status]}</Badge>
-            </div>
-            <p className="mt-1 text-caption text-fg-muted">
-              {entry.handsOn} of {entry.available} hands-on done
-              {entry.unguided > 0 ? ` · ${String(entry.unguided)} unguided` : ""}
-            </p>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
