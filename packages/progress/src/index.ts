@@ -88,3 +88,16 @@ export {
 } from "./skills";
 export { recommendNextSteps, type Recommendation } from "./recommendations";
 export { pickSurpriseTask, type SurpriseCandidate, type SurpriseOptions } from "./practice";
+export {
+  buildProgressReport,
+  DEFAULT_LEARNER_NAME,
+  MAX_LEARNER_NAME_LENGTH,
+  normalizeLearnerName,
+  type ProgressReport,
+  type ReportActivity,
+  type ReportCourse,
+  type ReportNextStep,
+  type ReportOptions,
+  type ReportSkill,
+  type ReportStat,
+} from "./report";

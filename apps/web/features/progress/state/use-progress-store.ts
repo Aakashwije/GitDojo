@@ -5,7 +5,6 @@ import {
   completionXp,
   contentKey,
   createMemoryStorage,
-  exportProgress,
   indexLessons,
   ProgressRepository,
   type ContentRef,
@@ -13,7 +12,6 @@ import {
   type Persistence,
   type ProgressAction,
   type ProgressCatalog,
-  type ProgressExport,
   type ProgressOwner,
 } from "@gitdojo/progress";
 import { useMemo } from "react";
@@ -583,12 +581,6 @@ export async function resetProgress(): Promise<void> {
   if (!repository || progress === null) return;
   useProgressStore.setState({ lastAward: null });
   await recordProgress({ type: "reset" });
-}
-
-/** The versioned JSON snapshot offered for download. */
-export function exportCurrentProgress(now: number = Date.now()): ProgressExport | null {
-  const { progress } = useProgressStore.getState();
-  return progress ? exportProgress(progress, now) : null;
 }
 
 /** Forgets the repository, for tests. */

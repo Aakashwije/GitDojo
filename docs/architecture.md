@@ -340,6 +340,7 @@ Each third-party SDK is imported in one place, so replacing or upgrading it touc
 | `@xyflow/react`               | `features/repository/`                                                     |
 | `@xterm/*`                    | `features/terminal/`                                                       |
 | `monaco-editor`               | `features/editor/`                                                         |
+| `jspdf`                       | `features/progress/services/progress-report-pdf.ts`                        |
 
 ### Module boundaries
 
@@ -405,7 +406,8 @@ completion is never stored: it is derived from completed lessons and the course'
 list. The dashboard (`/dashboard`) shows totals (practice on its own, with no XP), recommended
 next steps, the skills practiced and mastered (derived from content `concepts`; see
 [progress.md](./progress.md#skills-and-recommendations)), course progress, recent activity and
-command usage, and lets the learner export or reset their progress.
+command usage, and lets the learner download a PDF progress report (made in the browser) or reset
+their progress.
 
 ## Accounts
 

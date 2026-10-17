@@ -73,7 +73,8 @@ Your progress is saved in the browser, no account needed. The **dashboard** (`/d
 where to continue, recommended next steps, the skills you have practiced (and which you have
 mastered: three hands-on completions, one of them unguided), lessons, challenges and practice
 tasks completed, XP, the Git commands you have used, course progress and recent activity, and
-lets you export your progress as JSON or reset it.
+lets you download a branded **PDF progress report** (made in your browser; nothing is uploaded)
+or reset your progress.
 
 Accounts are optional. When a site configures [WSO2 Identity Platform](docs/authentication.md),
 learners can **sign up and sign in** on its secure hosted pages (GitDojo never handles

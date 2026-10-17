@@ -27,8 +27,10 @@ import {
   type LegacyStorage,
   type LocalProgress,
   type ProgressAction,
+  buildProgressReport,
   isSkillId,
   normalizeConcept,
+  normalizeLearnerName,
   pickSurpriseTask,
   recommendNextSteps,
   skillForConcept,
@@ -1230,5 +1232,109 @@ describe("pickSurpriseTask", () => {
       pickSurpriseTask([{ id: "x", missingCommands: ["teleport"] }], { solved: {}, seed: 0 }),
     ).toBeNull();
     expect(pickSurpriseTask([], { solved: {}, seed: 0 })).toBeNull();
+  });
+});
+
+describe("buildProgressReport", () => {
+  const AT = Date.UTC(2026, 9, 17);
+
+  it("describes empty progress plainly, with no sections to fill", () => {
+    const report = buildProgressReport(emptyProgress(T0), CATALOG, { exportedAt: AT });
+    expect(report.learnerName).toBe("GitDojo Learner");
+    expect(report.exportedAt).toBe(AT);
+    expect(report.summary).toMatch(/^No lessons, challenges or practice tasks are completed yet/);
+    expect(report.stats.map((stat) => [stat.label, stat.value])).toEqual([
+      ["Total XP", 0],
+      ["Lessons completed", 0],
+      ["Challenges completed", 0],
+      ["Practice tasks solved", 0],
+    ]);
+    // Courses keep their real totals even with nothing done.
+    expect(report.courses).toEqual([
+      { title: "Git Basics", completed: 0, total: 3, percent: 0 },
+      { title: "Branching", completed: 0, total: 1, percent: 0 },
+    ]);
+    expect(report.skills).toBeNull();
+    expect(report.activity).toEqual([]);
+    expect(report.commands).toEqual([]);
+  });
+
+  it("uses an optional name, trimmed and capped, and the default for a blank one", () => {
+    const at = { exportedAt: AT };
+    expect(
+      buildProgressReport(emptyProgress(T0), CATALOG, { ...at, learnerName: "  Ada   Lovelace " })
+        .learnerName,
+    ).toBe("Ada Lovelace");
+    expect(
+      buildProgressReport(emptyProgress(T0), CATALOG, { ...at, learnerName: "   " }).learnerName,
+    ).toBe("GitDojo Learner");
+    expect(normalizeLearnerName("x".repeat(200))).toHaveLength(60);
+  });
+
+  it("counts courses, skills, activity and commands from real progress only", () => {
+    const progress = reduce([
+      lesson("what-is-git", "concept", "git-basics"),
+      lesson("git-init", "interactive", "git-basics"),
+      challenge("lost-commit"),
+      { type: "complete", content: { kind: "practice", id: "start-a-branch" } },
+      { type: "command", command: "commit", ok: true },
+      { type: "command", command: "commit", ok: false },
+    ]);
+    const report = buildProgressReport(progress, CATALOG, {
+      exportedAt: AT,
+      origin: "https://gitdojo.example",
+    });
+    expect(report.summary).toBe(
+      "Completed 2 lessons, 1 challenge and 1 practice task. 4 skills practiced hands-on so far.",
+    );
+    expect(report.stats.find((s) => s.label === "Total XP")?.value).toBe(175);
+    expect(report.stats.find((s) => s.label === "Git commands run")).toEqual({
+      label: "Git commands run",
+      value: 2,
+      detail: "1 succeeded",
+    });
+    expect(report.courses[0]).toEqual({ title: "Git Basics", completed: 2, total: 3, percent: 67 });
+    expect(report.skills?.practiced.map((s) => [s.label, s.status])).toEqual([
+      // The practice task is tagged with both branches and commits.
+      ["Repositories", "practiced"],
+      ["Commits", "practiced"],
+      ["Branches", "practiced"],
+      ["Recovering lost work", "practiced"],
+    ]);
+    expect(report.skills?.masteryRule).toContain("Mastered: 3 or more");
+    expect(report.activity.map((a) => [a.kind, a.reward])).toEqual([
+      ["Practice", "No XP"],
+      ["Challenge", "+100 XP"],
+      ["Lesson", "+50 XP"],
+      ["Lesson", "+25 XP"],
+    ]);
+    expect(report.commands).toEqual([{ command: "commit", uses: 2, successes: 1 }]);
+    expect(report.nextSteps[0]?.url).toMatch(/^https:\/\/gitdojo\.example\/(learn|practice)\//);
+  });
+
+  it("never carries account, device, hint or sync data", () => {
+    const progress: LocalProgress = {
+      ...reduce([
+        lesson("git-init", "interactive", "git-basics"),
+        {
+          type: "hint",
+          content: { kind: "lesson", id: "git-init" },
+          objectiveId: "secret-objective",
+          index: 0,
+        },
+      ]),
+      owner: { kind: "account", accountId: "account-ada@example.com" },
+      deviceId: "device-1234",
+    };
+    const text = JSON.stringify(buildProgressReport(progress, CATALOG, { exportedAt: AT }));
+    for (const secret of [
+      "account-ada",
+      "@example.com",
+      "device-1234",
+      "secret-objective",
+      "revealedHints",
+    ]) {
+      expect(text).not.toContain(secret);
+    }
   });
 });

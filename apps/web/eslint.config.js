@@ -69,6 +69,11 @@ const FACADES = [
     owners: ["features/editor"],
     message: "Monaco is wrapped by the editor feature.",
   },
+  {
+    modules: ["jspdf"],
+    owners: ["features/progress/services/progress-report-pdf"],
+    message: "jsPDF is wrapped by the progress report service (features/progress/services).",
+  },
 ];
 
 const PUBLIC_API = {
@@ -96,6 +101,10 @@ const SCOPES = {
       [`features/${feature}/services`, [`features/${feature}/services/**/*.{ts,tsx}`]],
     ]),
   ),
+  // After the feature scopes, so this one file can own jsPDF.
+  "features/progress/services/progress-report-pdf": [
+    "features/progress/services/progress-report-pdf.ts",
+  ],
 };
 
 const owns = (scope, owner) => {
