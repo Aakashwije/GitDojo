@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: createSecurityHeaders(process.env.NODE_ENV === "development"),
       },
+      {
+        // Credential pages are for people holding a link: never indexed, including the
+        // not-found state. The pages also say so in their robots metadata.
+        source: "/verify/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      },
     ];
   },
   // Routes that read lesson YAML at request time (the progress API validates lesson ids against

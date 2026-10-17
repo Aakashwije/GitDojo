@@ -243,6 +243,83 @@ describe("CertificateAwards", () => {
     );
   });
 
+  it("copies the exact verification link and announces it", async () => {
+    const url = "https://gitdojo.example.org/verify/3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            certificates: [
+              {
+                id: "3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c",
+                awardKey: "git-foundations",
+                criteriaVersion: 1,
+                recipientName: "Ada",
+                issuedAt: "2026-09-01T10:00:00.000Z",
+                revoked: false,
+                publicNameConsent: false,
+                verificationUrl: url,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    useProgressStore.setState({ mode: "account" });
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(<CertificateAwards progress={progressWith(allFoundations, true)} catalog={CATALOG} />);
+    const foundations = card("git-foundations");
+    expect(await foundations.findByRole("link", { name: "Verify" })).toHaveAttribute(
+      "href",
+      "/verify/3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c",
+    );
+    await user.click(foundations.getByRole("button", { name: "Copy verification link" }));
+    expect(writeText).toHaveBeenCalledWith(url);
+    expect(await navigator.clipboard.readText()).toBe(url);
+    expect(foundations.getByRole("button", { name: "Link copied" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Verification link copied.");
+
+    // A blocked clipboard shows the link to copy by hand, and says so.
+    writeText.mockRejectedValueOnce(new Error("NotAllowedError"));
+    await user.click(foundations.getByRole("button", { name: "Link copied" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
+    expect(foundations.getByText(url)).toBeInTheDocument();
+  });
+
+  it("makes a revoked certificate's status unmistakable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            certificates: [
+              {
+                id: "cert-9",
+                awardKey: "git-foundations",
+                criteriaVersion: 1,
+                recipientName: "Ada",
+                issuedAt: "2026-09-01T10:00:00.000Z",
+                revoked: true,
+                publicNameConsent: false,
+                verificationUrl: null,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    useProgressStore.setState({ mode: "account" });
+    render(<CertificateAwards progress={progressWith(allFoundations, true)} catalog={CATALOG} />);
+    const foundations = card("git-foundations");
+    expect(await foundations.findByTestId("certificate-revoked")).toHaveTextContent(
+      "It is no longer valid",
+    );
+    expect(foundations.getByText("Revoked")).toBeInTheDocument();
+    expect(foundations.queryByText("Earned")).toBeNull();
+  });
+
   it("says when the account can't be reached", () => {
     useProgressStore.setState({ mode: "account-unavailable" });
     render(<CertificateAwards progress={progressWith([])} catalog={CATALOG} />);

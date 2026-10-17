@@ -3,7 +3,7 @@ import { getVerifiedIdentity } from "@/lib/auth/identity";
 import { isSameOriginRequest } from "@/lib/http/same-origin";
 import { AWARDS, awardKeys, criteriaNarrative, isAwardKey } from "@/lib/certificates/awards";
 import { issueCertificate, ownCertificates } from "@/lib/certificates/store";
-import { prepareCredentialIssuer } from "@/lib/certificates/credential";
+import { prepareCredentialIssuer, verificationUrl } from "@/lib/certificates/credential";
 
 export const runtime = "nodejs";
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -32,6 +32,15 @@ async function limitedJson(request: Request): Promise<unknown> {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 }
 
+/** `null` when the site origin is not configured: the list still loads, without share links. */
+function shareableUrl(id: string): string | null {
+  try {
+    return verificationUrl(id);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   await connection();
   const auth = await getVerifiedIdentity();
@@ -50,6 +59,7 @@ export async function GET() {
           issuedAt: item.issuedAt,
           revoked: item.revokedAt !== null,
           publicNameConsent: item.publicNameConsent,
+          verificationUrl: shareableUrl(item.id),
         })),
       },
       { headers: PRIVATE },

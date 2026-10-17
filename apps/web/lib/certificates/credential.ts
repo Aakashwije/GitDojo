@@ -4,6 +4,7 @@ import { createPublicKey } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { CompactSign, importPKCS8 } from "jose";
 import { getDatabase } from "@/lib/db/client";
+import { verificationPath } from "./ids";
 import { revokedIndexes, type Certificate } from "./store";
 
 const LIST_SIZE = 131072;
@@ -21,6 +22,14 @@ export function credentialOrigin(): string {
     throw new Error("Certificate site URL must be an origin");
   }
   return url.origin;
+}
+
+/**
+ * The exact public verification URL for a certificate, on the configured site origin. The PDF
+ * prints it, its QR code encodes it, the badge cites it and the dashboard copies it.
+ */
+export function verificationUrl(id: string): string {
+  return `${credentialOrigin()}${verificationPath(id)}`;
 }
 
 function signingConfig(): { keyId: string; pem: string } {
@@ -139,7 +148,7 @@ export function badgePayload(certificate: Certificate) {
     },
     evidence: [
       {
-        id: `${origin}/verify/${certificate.id}`,
+        id: verificationUrl(certificate.id),
         type: ["Evidence"],
         name:
           certificate.credentialKind === "assessed"
