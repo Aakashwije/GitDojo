@@ -13,6 +13,7 @@ import next from "@gitdojo/config/eslint/next";
 const LAYERS = [
   ["auth", "theme"],
   ["progress", "repository", "terminal"],
+  ["certificates"],
   ["course", "challenges", "editor", "conflicts", "releases"],
   ["lesson", "errors"],
   ["workspace", "dashboard"],
@@ -71,8 +72,8 @@ const FACADES = [
   },
   {
     modules: ["jspdf"],
-    owners: ["features/progress/services/progress-report-pdf"],
-    message: "jsPDF is wrapped by the progress report service (features/progress/services).",
+    owners: ["features/progress/services/progress-report-pdf", "lib/certificates/pdf"],
+    message: "jsPDF is wrapped by the progress report or certificate PDF service.",
   },
 ];
 
@@ -94,6 +95,7 @@ const SCOPES = {
   "lib/db": ["lib/db/**/*.ts"],
   "lib/auth": ["lib/auth/**/*.ts"],
   "lib/account-progress/postgres-store": ["lib/account-progress/postgres-store.ts"],
+  "lib/certificates/pdf": ["lib/certificates/pdf.ts"],
   ...Object.fromEntries(
     FEATURES.flatMap((feature) => [
       [`features/${feature}`, [`features/${feature}/**/*.{ts,tsx}`]],
