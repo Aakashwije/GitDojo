@@ -1,8 +1,8 @@
-/** A credential id: the random UUID the database assigns (`gen_random_uuid()`), any case. */
-const CREDENTIAL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from "@/lib/ids";
 
+/** A credential id: the random UUID the database assigns. */
 export function isCredentialId(value: string): boolean {
-  return CREDENTIAL_ID.test(value);
+  return isUuid(value);
 }
 
 /** The public verification page, the same path the PDF, its QR code and the badge link to. */

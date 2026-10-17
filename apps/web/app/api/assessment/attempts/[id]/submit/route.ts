@@ -3,11 +3,11 @@ import { type AssessmentEvidence } from "@gitdojo/shared-types";
 import { getVerifiedIdentity } from "@/lib/auth/identity";
 import { limitedJson } from "@/lib/http/limited-json";
 import { isSameOriginRequest } from "@/lib/http/same-origin";
+import { isUuid } from "@/lib/ids";
 import { submitAttempt } from "@/lib/assessment/store";
 
 export const runtime = "nodejs";
 const PRIVATE = { "Cache-Control": "private, no-store" };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await connection();
@@ -17,8 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (auth.status !== "verified")
     return Response.json({ error: auth.status }, { status: 401, headers: PRIVATE });
   const { id } = await params;
-  if (!UUID.test(id))
-    return Response.json({ error: "not_found" }, { status: 404, headers: PRIVATE });
+  if (!isUuid(id)) return Response.json({ error: "not_found" }, { status: 404, headers: PRIVATE });
   let body: unknown;
   try {
     body = await limitedJson(request, 3 * 1024 * 1024);
