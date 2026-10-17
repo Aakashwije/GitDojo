@@ -1,4 +1,5 @@
 import {
+  type AssessmentEvidence,
   type BranchState,
   type GitAuthor,
   type GitCommandResult,
@@ -608,6 +609,8 @@ export interface GitEngine {
   listBranches(): Promise<BranchState[]>;
   /** Reads repository state without mutating it. Rejects only on unexpected internal failures. */
   snapshot(): Promise<GitRepositorySnapshot>;
+  /** Canonical Git objects used by the server-only capstone grader. */
+  exportAssessmentEvidence(attemptId: string): Promise<AssessmentEvidence>;
 }
 
 export type GitEngineFactory = (workspaceId: string) => GitEngine;

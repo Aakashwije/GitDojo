@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { formatGitDate } from "../commands/log";
 import { createTestWorkspace } from "../test-utils/create-test-workspace";
 import { DEFAULT_AUTHOR } from "./git-engine";
@@ -6,6 +7,30 @@ import { DEFAULT_AUTHOR } from "./git-engine";
 const README = "# GitDojo\n";
 
 describe("IsomorphicGitEngine", () => {
+  describe("assessment evidence", () => {
+    it("exports canonical objects bound to an attempt without a client grade", async () => {
+      const { git } = await createTestWorkspace({ "README.md": README });
+      await git.init();
+      await git.add(["README.md"]);
+      const committed = await git.commit({ message: "Initial commit" });
+      const evidence = await git.exportAssessmentEvidence("attempt-1");
+      expect(evidence).toMatchObject({
+        format: "gitdojo-assessment-evidence",
+        attemptId: "attempt-1",
+        head: committed.data?.oid,
+      });
+      expect(evidence).not.toHaveProperty("passed");
+      for (const object of evidence.objects) {
+        const bytes = Buffer.from(object.content, "base64");
+        const oid = createHash("sha1")
+          .update(`${object.type} ${String(bytes.length)}\0`)
+          .update(bytes)
+          .digest("hex");
+        expect(oid).toBe(object.oid);
+      }
+    });
+  });
+
   describe("init", () => {
     it("initializes a repository on the main branch", async () => {
       const { git } = await createTestWorkspace({ "README.md": README });

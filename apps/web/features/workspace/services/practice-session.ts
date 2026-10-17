@@ -1,5 +1,6 @@
 import { resetLesson, setupLesson, type LessonEnvironment } from "@gitdojo/lesson-engine";
 import {
+  type AssessmentEvidence,
   type LessonDefinition,
   type LessonValidationResult,
   type RepositoryState,
@@ -57,6 +58,12 @@ export class PracticeSession extends WorkspaceSession<PracticeSnapshot> {
   reset(): Promise<PracticeSnapshot> {
     return this.enqueue(async () =>
       this.evaluate(await resetLesson(this.task, this.workspaceId, this.env)),
+    );
+  }
+
+  exportEvidence(attemptId: string): Promise<AssessmentEvidence> {
+    return this.enqueue(() =>
+      this.env.gitFor(this.workspaceId).exportAssessmentEvidence(attemptId),
     );
   }
 

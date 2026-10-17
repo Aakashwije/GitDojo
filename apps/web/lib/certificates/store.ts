@@ -1,35 +1,50 @@
 import "server-only";
 
+import type { AssessmentGrade, CAPSTONE_KEY } from "@gitdojo/shared-types";
 import { getDatabase } from "@/lib/db/client";
 import type { VerifiedIdentity } from "@/lib/auth/identity";
 import { upsertUser } from "@/lib/account-progress/postgres-store";
 import { AWARDS, criteriaNarrative, type AwardKey } from "./awards";
 
+export interface AssessedEvidence {
+  kind: "assessed";
+  title: string;
+  description: string;
+  criteria: string;
+  attemptId: string;
+  grade: AssessmentGrade;
+}
+
+export interface CompletionEvidence {
+  kind: "completion";
+  title: string;
+  description: string;
+  template: string;
+  criteria: string;
+  lessons: string[];
+  practice: string[];
+}
+
 export interface Certificate {
   id: string;
   statusIndex: number;
   userId: string;
-  awardKey: AwardKey;
+  awardKey: AwardKey | typeof CAPSTONE_KEY;
+  credentialKind: "completion" | "assessed";
   criteriaVersion: number;
   recipientName: string;
   publicNameConsent: boolean;
   issuedAt: Date;
   revokedAt: Date | null;
-  evidence: {
-    title: string;
-    description: string;
-    template: string;
-    criteria: string;
-    lessons: string[];
-    practice: string[];
-  };
+  evidence: CompletionEvidence | AssessedEvidence;
 }
 
 interface Row {
   id: string;
   status_index: string;
   user_id: string;
-  award_key: AwardKey;
+  award_key: AwardKey | typeof CAPSTONE_KEY;
+  credential_kind: "completion" | "assessed";
   criteria_version: number;
   recipient_name: string;
   public_name_consent: boolean;
@@ -39,17 +54,22 @@ interface Row {
 }
 
 function certificate(row: Row): Certificate {
+  const evidence =
+    row.credential_kind === "completion"
+      ? ({ ...row.evidence, kind: "completion" } as CompletionEvidence)
+      : row.evidence;
   return {
     id: row.id,
     statusIndex: Number(row.status_index),
     userId: row.user_id,
     awardKey: row.award_key,
+    credentialKind: row.credential_kind,
     criteriaVersion: row.criteria_version,
     recipientName: row.recipient_name,
     publicNameConsent: row.public_name_consent,
     issuedAt: row.issued_at,
     revokedAt: row.revoked_at,
-    evidence: row.evidence,
+    evidence,
   };
 }
 
@@ -64,6 +84,7 @@ export async function ownCertificates(identity: VerifiedIdentity): Promise<Certi
   const rows = await getDatabase()<Row[]>`
     SELECT c.* FROM certificates c JOIN users u ON u.id = c.user_id
     WHERE u.issuer = ${identity.issuer} AND u.subject = ${identity.subject}
+      AND c.credential_kind = 'completion'
     ORDER BY c.issued_at DESC
   `;
   return rows.map(certificate);
@@ -115,6 +136,7 @@ export async function issueCertificate(
     if (missing.length > 0) return { certificate: null, eligible: false, missing };
 
     const evidence = {
+      kind: "completion" as const,
       title: award.title,
       description: award.description,
       template: award.template,
