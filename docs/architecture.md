@@ -1,8 +1,10 @@
 # Architecture
 
-GitDojo runs entirely in the browser. There is no server-side shell, no `child_process`, and no
-container: every command a learner types is parsed by GitDojo's own parser and executed by
+GitDojo executes every learner command in the browser. There is no server-side shell,
+`child_process`, or container: every command a learner types is parsed by GitDojo's own parser and executed by
 [isomorphic-git](https://isomorphic-git.org) against a virtual filesystem stored in IndexedDB.
+The optional assessed capstone exports canonical Git objects for independent server grading; see
+[assessment.md](./assessment.md). Account progress and credential records also use the server.
 
 ## The core loop
 

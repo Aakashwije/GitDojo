@@ -48,6 +48,8 @@ export async function certificatePdf(
 ): Promise<Uint8Array> {
   const award = certificate.evidence;
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress });
+  if (award.kind !== "completion") throw new Error("Assessed credentials do not use PDF templates");
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
   const image = await readFile(path.join(process.cwd(), "public", "certificates", award.template));

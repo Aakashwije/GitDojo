@@ -39,6 +39,7 @@ import { runDetach, runSwitch } from "../commands/switch";
 import { type GitDojoFs } from "../filesystem/types";
 import { workspaceRoot } from "../filesystem/paths";
 import { type GitContext } from "./context";
+import { assessmentEvidence } from "./assessment-evidence";
 import { editorOpenMessage, readEditorRecord } from "./editor-state";
 import { failure, gitError, unexpected } from "./errors";
 import {
@@ -296,6 +297,10 @@ export class IsomorphicGitEngine implements GitEngine {
 
   snapshot(): Promise<GitRepositorySnapshot> {
     return readSnapshot(this.ctx);
+  }
+
+  exportAssessmentEvidence(attemptId: string) {
+    return assessmentEvidence(this.ctx, attemptId);
   }
 }
 

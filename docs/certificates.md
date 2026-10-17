@@ -17,7 +17,7 @@ snapshot even if current award definitions later change.
    Store the PEM in your deployment secrets as `GITDOJO_CREDENTIAL_PRIVATE_KEY`. Literal `\n`
    separators are accepted. Never commit the private key. Set a unique, stable
    `GITDOJO_CREDENTIAL_KEY_ID`, such as `rsa-2026-01`.
-3. Apply migration `0006_certificates` with `pnpm --filter @gitdojo/web db:migrate` before
+3. Apply migrations through `0007_assessed_capstone` with `pnpm --filter @gitdojo/web db:migrate` before
    deploying the new app. The release health check expects this migration.
 4. Keep `DATABASE_URL` configured. Issuance is unavailable without the account database,
    identity provider, site origin, or signing key.
@@ -75,8 +75,9 @@ status list. Revocation is permanent.
 
 **Claim boundary:** existing lesson and Practice completion endpoints accept learner-reported
 progress and validate the content ID. They do not independently replay exercise outcomes. The
-certificate therefore states _completion_, not assessed skill or proficiency. Add server-side
-exercise evidence before changing that claim.
+three certificates therefore state _completion_, not assessed skill or proficiency. The separate
+Git Practical Skills credential is issued only from the server-graded, versioned capstone evidence
+described in [assessment.md](./assessment.md); it does not upgrade or relabel completion records.
 
 After deployment, issue a credential in a dedicated test account and check its JWT signature
 against the public JWK URL in the `kid` header. Check that its `iss`, `sub`, `jti`, and `nbf` claims

@@ -14,7 +14,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!isCredentialId(id)) return Response.json({ error: "not_found" }, { status: 404 });
   try {
     const certificate = await ownCertificate(auth.identity, id);
-    if (!certificate) return Response.json({ error: "not_found" }, { status: 404 });
+    if (!certificate || certificate.credentialKind !== "completion")
+      return Response.json({ error: "not_found" }, { status: 404 });
     const bytes = await certificatePdf(certificate);
     return new Response(Buffer.from(bytes), {
       headers: {
