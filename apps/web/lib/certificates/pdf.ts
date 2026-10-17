@@ -27,9 +27,14 @@ export async function certificatePdf(certificate: Certificate): Promise<Uint8Arr
     align: "center",
   });
   doc.setFontSize(9);
-  doc.text("Completion records are learner-reported; exercise outcomes are not independently checked.", width / 2, 453, {
-    align: "center",
-  });
+  doc.text(
+    "Completion records are learner-reported; exercise outcomes are not independently checked.",
+    width / 2,
+    453,
+    {
+      align: "center",
+    },
+  );
 
   // The template leaves this line blank for the learner's name.
   doc.setFont("times", "bold");

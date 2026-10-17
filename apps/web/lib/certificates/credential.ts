@@ -46,8 +46,12 @@ async function signingKey() {
   const [stored] = await sql<{ public_jwk: typeof publicJwk }[]>`
     SELECT public_jwk FROM certificate_signing_keys WHERE key_id = ${keyId}
   `;
-  if (!stored || stored.public_jwk.n !== publicJwk.n || stored.public_jwk.e !== publicJwk.e ||
-      stored.public_jwk.kty !== publicJwk.kty) {
+  if (
+    !stored ||
+    stored.public_jwk.n !== publicJwk.n ||
+    stored.public_jwk.e !== publicJwk.e ||
+    stored.public_jwk.kty !== publicJwk.kty
+  ) {
     throw new Error("Credential key ID already belongs to another public key");
   }
   return { keyId, key: await importPKCS8(pem, "RS256") };
@@ -66,7 +70,12 @@ export async function publicCredentialKey(keyId: string) {
   return row?.public_jwk ?? null;
 }
 
-async function signedJwt(payload: object, subject: string, id: string, issuedAt: Date): Promise<string> {
+async function signedJwt(
+  payload: object,
+  subject: string,
+  id: string,
+  issuedAt: Date,
+): Promise<string> {
   const origin = credentialOrigin();
   const { keyId, key } = await signingKey();
   const claims = {
@@ -77,7 +86,11 @@ async function signedJwt(payload: object, subject: string, id: string, issuedAt:
     nbf: Math.floor(issuedAt.getTime() / 1000),
   };
   return new CompactSign(new TextEncoder().encode(JSON.stringify(claims)))
-    .setProtectedHeader({ alg: "RS256", kid: `${origin}/api/credentials/keys/${keyId}`, typ: "JWT" })
+    .setProtectedHeader({
+      alg: "RS256",
+      kid: `${origin}/api/credentials/keys/${keyId}`,
+      typ: "JWT",
+    })
     .sign(key);
 }
 
@@ -93,7 +106,10 @@ export function badgePayload(certificate: Certificate) {
     id,
     type: ["VerifiableCredential", "OpenBadgeCredential"],
     issuer: {
-      id: `${origin}/api/credentials/issuer`, type: ["Profile"], name: "GitDojo", url: origin,
+      id: `${origin}/api/credentials/issuer`,
+      type: ["Profile"],
+      name: "GitDojo",
+      url: origin,
       image: { id: `${origin}/brand/gitdojo-mark.png`, type: "Image" },
     },
     validFrom: certificate.issuedAt.toISOString(),
@@ -118,12 +134,15 @@ export function badgePayload(certificate: Certificate) {
       statusListIndex: String(index),
       statusListCredential: listUrl,
     },
-    evidence: [{
-      id: `${origin}/verify/${certificate.id}`,
-      type: ["Evidence"],
-      name: "GitDojo account completion record",
-      description: "Server-stored learner-reported completions for the named lessons and practice tasks.",
-    }],
+    evidence: [
+      {
+        id: `${origin}/verify/${certificate.id}`,
+        type: ["Evidence"],
+        name: "GitDojo account completion record",
+        description:
+          "Server-stored learner-reported completions for the named lessons and practice tasks.",
+      },
+    ],
   };
 }
 
@@ -138,7 +157,7 @@ export async function signedStatusList(batch: number): Promise<string> {
   const bytes = Buffer.alloc(LIST_SIZE / 8);
   for (const index of await revokedIndexes(batch)) {
     const offset = Math.floor(index / 8);
-    bytes[offset] = (bytes[offset] ?? 0) | (1 << (7 - index % 8));
+    bytes[offset] = (bytes[offset] ?? 0) | (1 << (7 - (index % 8)));
   }
   const now = new Date();
   const subject = `${id}#list`;
@@ -149,8 +168,11 @@ export async function signedStatusList(batch: number): Promise<string> {
     issuer: `${origin}/api/credentials/issuer`,
     validFrom: now.toISOString(),
     credentialSubject: {
-      id: subject, type: "BitstringStatusList", statusPurpose: "revocation",
-      encodedList: gzipSync(bytes).toString("base64url"), ttl: 60000,
+      id: subject,
+      type: "BitstringStatusList",
+      statusPurpose: "revocation",
+      encodedList: gzipSync(bytes).toString("base64url"),
+      ttl: 60000,
     },
   };
   return signedJwt(payload, subject, id, now);

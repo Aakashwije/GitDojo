@@ -386,7 +386,8 @@ export async function syncCompletionsNow(): Promise<void> {
   const state = useProgressStore.getState();
   const progress = state.progress;
   const catalog = state.catalog;
-  if (state.mode !== "account" || !progress || !catalog || progress.owner.kind !== "account") return;
+  if (state.mode !== "account" || !progress || !catalog || progress.owner.kind !== "account")
+    return;
   const account = await fetchAccountProgress(accountFetch, progress.deviceId);
   if (account.status !== "ok" || account.accountId !== progress.owner.accountId) return;
   await uploadPending(progress, account.lessons, catalog, account.challenges, account.practice);

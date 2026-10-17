@@ -42,7 +42,7 @@ status list. Revocation is permanent.
 
 **Claim boundary:** existing lesson and Practice completion endpoints accept learner-reported
 progress and validate the content ID. They do not independently replay exercise outcomes. The
-certificate therefore states *completion*, not assessed skill or proficiency. Add server-side
+certificate therefore states _completion_, not assessed skill or proficiency. Add server-side
 exercise evidence before changing that claim.
 
 After deployment, issue a credential in a dedicated test account and check its JWT signature

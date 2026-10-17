@@ -51,7 +51,8 @@ function testDatabaseUrl(value: string): string {
 }
 
 const resetTables = (sql: postgres.Sql) =>
-  sql`DROP TABLE IF EXISTS command_stats, device_activity, revealed_hints, last_lessons,
+  sql`DROP TABLE IF EXISTS certificate_signing_keys, certificates,
+      command_stats, device_activity, revealed_hints, last_lessons,
       seen_releases, practice_completions, challenge_completions, lesson_completions, users,
       gitdojo_schema_migrations`;
 

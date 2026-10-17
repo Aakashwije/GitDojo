@@ -40,10 +40,16 @@ interface Row {
 
 function certificate(row: Row): Certificate {
   return {
-    id: row.id, statusIndex: Number(row.status_index), userId: row.user_id,
-    awardKey: row.award_key, criteriaVersion: row.criteria_version,
-    recipientName: row.recipient_name, publicNameConsent: row.public_name_consent,
-    issuedAt: row.issued_at, revokedAt: row.revoked_at, evidence: row.evidence,
+    id: row.id,
+    statusIndex: Number(row.status_index),
+    userId: row.user_id,
+    awardKey: row.award_key,
+    criteriaVersion: row.criteria_version,
+    recipientName: row.recipient_name,
+    publicNameConsent: row.public_name_consent,
+    issuedAt: row.issued_at,
+    revokedAt: row.revoked_at,
+    evidence: row.evidence,
   };
 }
 
@@ -63,7 +69,10 @@ export async function ownCertificates(identity: VerifiedIdentity): Promise<Certi
   return rows.map(certificate);
 }
 
-export async function ownCertificate(identity: VerifiedIdentity, id: string): Promise<Certificate | null> {
+export async function ownCertificate(
+  identity: VerifiedIdentity,
+  id: string,
+): Promise<Certificate | null> {
   const [row] = await getDatabase()<Row[]>`
     SELECT c.* FROM certificates c JOIN users u ON u.id = c.user_id
     WHERE c.id = ${id} AND u.issuer = ${identity.issuer} AND u.subject = ${identity.subject}
@@ -124,7 +133,9 @@ export async function issueCertificate(
       ON CONFLICT (user_id, award_key, criteria_version) DO NOTHING
       RETURNING *
     `;
-    const [row] = inserted ? [inserted] : await tx<Row[]>`
+    const [row] = inserted
+      ? [inserted]
+      : await tx<Row[]>`
       SELECT * FROM certificates
       WHERE user_id = ${userId} AND award_key = ${key}
         AND criteria_version = ${award.criteriaVersion}
