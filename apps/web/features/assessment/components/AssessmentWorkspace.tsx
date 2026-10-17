@@ -53,6 +53,17 @@ function lessonFor(attempt: Attempt): LessonDefinition {
   };
 }
 
+/** What a failed submission means for the learner, and what to do next. */
+export function submitFailure(status: number): string {
+  if (status === 401) return "Your session has ended. Sign in again, then submit.";
+  if (status === 404) return "This attempt could not be found. Start a fresh attempt.";
+  if (status === 400 || status === 413)
+    return "This attempt's history could not be read. Start a fresh attempt.";
+  if (status === 503)
+    return "Grading is unavailable right now. Your work is still here, so try again in a moment.";
+  return "The server could not grade this attempt. Please try again.";
+}
+
 function ActiveAssessment({
   attempt,
   onFreshAttempt,
@@ -80,7 +91,7 @@ function ActiveAssessment({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ evidence, publicNameConsent: false }),
       });
-      if (!response.ok) throw new Error("The server could not grade this attempt.");
+      if (!response.ok) throw new Error(submitFailure(response.status));
       const body = (await response.json()) as {
         grade: AssessmentGrade;
         credentialId: string | null;
