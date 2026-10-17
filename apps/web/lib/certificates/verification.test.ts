@@ -72,12 +72,14 @@ function certificate(overrides: Partial<Certificate> = {}): Certificate {
     statusIndex: 7,
     userId: "8b0c6f8e-private-user-id",
     awardKey: "git-foundations",
+    credentialKind: "completion",
     criteriaVersion: 1,
     recipientName: "Ada Lovelace",
     publicNameConsent: false,
     issuedAt: new Date("2026-10-17T10:05:00Z"),
     revokedAt: null,
     evidence: {
+      kind: "completion",
       title: award.title,
       description: award.description,
       template: award.template,
@@ -156,6 +158,46 @@ describe("publicCertificate", () => {
     for (const secret of ["Ada Lovelace", "private-user-id", "statusIndex", "userId"]) {
       expect(json).not.toContain(secret);
     }
+  });
+});
+
+describe("assessed credentials", () => {
+  const assessed = () =>
+    certificate({
+      awardKey: "git-skills-capstone",
+      credentialKind: "assessed",
+      evidence: {
+        kind: "assessed",
+        title: "Git Skills Capstone",
+        description: "Server-graded Git history.",
+        criteria: "Pass every rubric item.",
+        attemptId: "attempt-1",
+        grade: {
+          passed: true,
+          rubricVersion: 1,
+          criteria: [{ id: "commits", passed: true, feedback: "Commits recorded." }],
+        },
+      },
+    });
+
+  it("show their server grade publicly, and never the private fields", () => {
+    const view = publicCertificate(assessed());
+    expect(view).toMatchObject({
+      kind: "assessed",
+      attemptId: "attempt-1",
+      grade: { passed: true, criteria: [{ id: "commits", passed: true }] },
+    });
+    expect(JSON.stringify(view)).not.toContain("private-user-id");
+  });
+
+  it("are looked up without lesson titles", async () => {
+    store.find.mockResolvedValue(assessed());
+    const lookup = await lookupCredential("33333333-3333-4333-8333-333333333333");
+    expect(lookup).toMatchObject({ status: "found", lessons: [], practice: [] });
+  });
+
+  it("have no PDF certificate", async () => {
+    await expect(certificatePdf(assessed())).rejects.toThrow(/do not use PDF templates/);
   });
 });
 

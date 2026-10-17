@@ -34,6 +34,8 @@ const humanize = (id: string) => id.replaceAll("-", " ");
  * lesson that was renamed shows its new title, and one that was removed still shows its id.
  */
 async function requirements(certificate: PublicCertificate) {
+  // A server-graded credential lists its rubric results instead.
+  if (certificate.kind !== "completion") return { lessons: [], practice: [] };
   let lessons = new Map<string, Requirement>();
   let practice = new Map<string, Requirement>();
   try {

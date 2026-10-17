@@ -3,11 +3,7 @@ import type { Certificate } from "./store";
 /** The text shown in place of a holder's name they chose not to make public. */
 export const NAME_WITHHELD = "Name withheld by learner";
 
-/**
- * Everything the public may see about a certificate, and nothing else: no account id, no email,
- * and the holder's name only if they agreed to show it when the certificate was issued.
- */
-export interface PublicCertificate {
+interface PublicCertificateBase {
   id: string;
   title: string;
   description: string;
@@ -19,13 +15,35 @@ export interface PublicCertificate {
   awardKey: string;
   criteriaVersion: number;
   criteria: string;
-  lessons: string[];
-  practice: string[];
 }
+
+/**
+ * Everything the public may see about a credential, and nothing else: no account id, no email,
+ * and the holder's name only if they agreed to show it when the credential was issued.
+ */
+export type PublicCertificate = PublicCertificateBase &
+  (
+    | {
+        /** Awarded for learner-reported lesson and Practice completions. */
+        kind: "completion";
+        lessons: string[];
+        practice: string[];
+      }
+    | {
+        /** Awarded for Git history the server graded against a rubric. */
+        kind: "assessed";
+        attemptId: string;
+        grade: {
+          passed: boolean;
+          rubricVersion: number;
+          criteria: { id: string; passed: boolean; feedback: string }[];
+        };
+      }
+  );
 
 export function publicCertificate(certificate: Certificate): PublicCertificate {
   const evidence = certificate.evidence;
-  return {
+  const base: PublicCertificateBase = {
     id: certificate.id,
     title: evidence.title,
     description: evidence.description,
@@ -35,9 +53,36 @@ export function publicCertificate(certificate: Certificate): PublicCertificate {
     awardKey: certificate.awardKey,
     criteriaVersion: certificate.criteriaVersion,
     criteria: evidence.criteria,
+  };
+  if (evidence.kind === "assessed") {
+    return {
+      ...base,
+      kind: "assessed",
+      attemptId: evidence.attemptId,
+      grade: {
+        passed: evidence.grade.passed,
+        rubricVersion: evidence.grade.rubricVersion,
+        criteria: evidence.grade.criteria.map(({ id, passed, feedback }) => ({
+          id,
+          passed,
+          feedback,
+        })),
+      },
+    };
+  }
+  return {
+    ...base,
+    kind: "completion",
     lessons: [...evidence.lessons],
     practice: [...evidence.practice],
   };
+}
+
+/** "Completion certificate" or "Server-graded skills credential". */
+export function credentialKindLabel(certificate: Pick<PublicCertificate, "kind">): string {
+  return certificate.kind === "assessed"
+    ? "Server-graded skills credential"
+    : "Completion certificate";
 }
 
 const DATE = new Intl.DateTimeFormat("en", { dateStyle: "long", timeZone: "UTC" });

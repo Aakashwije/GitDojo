@@ -2,6 +2,8 @@ import { Badge, cn } from "@gitdojo/ui";
 import {
   Award,
   BookOpen,
+  CircleCheck,
+  CircleX,
   Download,
   EyeOff,
   FileCheck,
@@ -13,6 +15,7 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import {
+  credentialKindLabel,
   formatCredentialDate,
   formatCredentialTime,
   NAME_WITHHELD,
@@ -55,7 +58,7 @@ export function CredentialRecord({
         {certificate.title}
       </h1>
       <p className="mt-2 text-body-lg text-fg-secondary">
-        Completion certificate issued by GitDojo
+        {credentialKindLabel(certificate)} issued by GitDojo
       </p>
 
       <StatusPanel certificate={certificate} checkedAt={checkedAt} />
@@ -96,7 +99,7 @@ export function CredentialRecord({
               </span>
             </Detail>
             <Detail label="Criteria version">Version {certificate.criteriaVersion}</Detail>
-            <Detail label="Type">Completion certificate</Detail>
+            <Detail label="Type">{credentialKindLabel(certificate)}</Detail>
           </dl>
         </section>
 
@@ -138,20 +141,24 @@ export function CredentialRecord({
           <Badge>Criteria v{certificate.criteriaVersion}</Badge>
         </div>
         <p className="mt-3 max-w-3xl text-body text-fg-secondary">{certificate.criteria}</p>
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
-          <RequirementList
-            id="lessons-heading"
-            icon={BookOpen}
-            title={`Lessons (${String(lessons.length)})`}
-            items={lessons}
-          />
-          <RequirementList
-            id="practice-heading"
-            icon={Target}
-            title={`Practice tasks (${String(practice.length)})`}
-            items={practice}
-          />
-        </div>
+        {certificate.kind === "assessed" ? (
+          <GradeResults grade={certificate.grade} attemptId={certificate.attemptId} />
+        ) : (
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <RequirementList
+              id="lessons-heading"
+              icon={BookOpen}
+              title={`Lessons (${String(lessons.length)})`}
+              items={lessons}
+            />
+            <RequirementList
+              id="practice-heading"
+              icon={Target}
+              title={`Practice tasks (${String(practice.length)})`}
+              items={practice}
+            />
+          </div>
+        )}
         <p className="mt-6 text-small">
           <Link
             href={`/achievements/${certificate.awardKey}/v${String(certificate.criteriaVersion)}`}
@@ -169,13 +176,24 @@ export function CredentialRecord({
         <Info className="mt-0.5 size-5 shrink-0 text-fg-muted" aria-hidden="true" />
         <div>
           <h2 id="meaning-heading" className="text-body font-semibold text-fg">
-            What a completion certificate means
+            {certificate.kind === "assessed"
+              ? "What a server-graded credential means"
+              : "What a completion certificate means"}
           </h2>
           <p className="mt-2 text-small text-fg-secondary">
-            It records that the holder&apos;s GitDojo account completed the lessons and Practice
-            tasks above. Completions are learner-reported and exercise outcomes are not
-            independently graded, so it is not proof of assessed Git proficiency. The holder&apos;s
-            name comes from their account profile and is not an identity check.
+            {certificate.kind === "assessed" ? (
+              <>
+                GitDojo checked the Git objects the holder submitted and graded the resulting
+                history on its server against the rubric above. It covers that rubric only.
+              </>
+            ) : (
+              <>
+                It records that the holder&apos;s GitDojo account completed the lessons and Practice
+                tasks above. Completions are learner-reported and exercise outcomes are not
+                independently graded, so it is not proof of assessed Git proficiency.
+              </>
+            )}{" "}
+            The holder&apos;s name comes from their account profile and is not an identity check.
           </p>
         </div>
       </section>
@@ -192,6 +210,7 @@ function StatusPanel({
 }) {
   const revokedAt = certificate.revokedAt;
   const Icon = revokedAt ? ShieldX : ShieldCheck;
+  const noun = certificate.kind === "assessed" ? "credential" : "certificate";
   return (
     <section
       aria-labelledby="status-heading"
@@ -222,11 +241,12 @@ function StatusPanel({
         <p className="mt-1 text-body text-fg">
           {revokedAt ? (
             <>
-              GitDojo revoked this certificate on {formatCredentialDate(revokedAt)} (UTC). It is no
-              longer valid, including any PDF or Open Badge shared before then.
+              GitDojo revoked this {noun} on {formatCredentialDate(revokedAt)} (UTC). It is no
+              longer valid, including any {certificate.kind === "assessed" ? "" : "PDF or "}Open
+              Badge shared before then.
             </>
           ) : (
-            <>This certificate is in GitDojo&apos;s issuance records and has not been revoked.</>
+            <>This {noun} is in GitDojo&apos;s issuance records and has not been revoked.</>
           )}
         </p>
         <p className="mt-1 text-caption text-fg-muted">
@@ -290,6 +310,48 @@ function RequirementList({
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+function GradeResults({
+  grade,
+  attemptId,
+}: {
+  grade: Extract<PublicCertificate, { kind: "assessed" }>["grade"];
+  attemptId: string;
+}) {
+  return (
+    <div className="mt-6">
+      <h3 id="grade-heading" className="text-small font-semibold text-fg">
+        Server grade · rubric v{grade.rubricVersion}
+      </h3>
+      <ul aria-labelledby="grade-heading" className="mt-3 space-y-2">
+        {grade.criteria.map((criterion) => {
+          const Icon = criterion.passed ? CircleCheck : CircleX;
+          return (
+            <li key={criterion.id} className="flex gap-2 text-small" data-testid="grade-criterion">
+              <Icon
+                className={cn(
+                  "mt-0.5 size-4 shrink-0",
+                  criterion.passed ? "text-success" : "text-danger",
+                )}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="font-semibold text-fg">
+                  {criterion.passed ? "Passed" : "Not passed"}:
+                </strong>{" "}
+                <span className="text-fg-secondary">{criterion.feedback}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-4 text-small text-fg-muted">
+        Evidence: canonical Git objects and commit history from isolated attempt{" "}
+        <span className="font-mono break-all">{attemptId}</span>.
+      </p>
     </div>
   );
 }

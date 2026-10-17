@@ -24,10 +24,13 @@ vi.mock("@/lib/certificates/verification", () => ({
 const ID = "3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c";
 const params = (id = ID) => ({ params: Promise.resolve({ id }) });
 
-function found(overrides: Partial<PublicCertificate> = {}): CredentialLookup {
+function found(
+  overrides: Partial<Extract<PublicCertificate, { kind: "completion" }>> = {},
+): CredentialLookup {
   return {
     status: "found",
     certificate: {
+      kind: "completion",
       id: ID,
       title: "Git Foundations",
       description: "GitDojo completion certificate for foundational Git lessons and practice.",
@@ -98,6 +101,52 @@ describe("/verify/[id]", () => {
     expect(status).toHaveTextContent("including any PDF or Open Badge shared before then");
     expect(screen.queryByText("Valid")).toBeNull();
     expect(screen.queryByRole("link", { name: /signed Open Badge/ })).toBeNull();
+  });
+
+  it("shows a server-graded credential's rubric results instead of lessons", async () => {
+    lookup.current = {
+      status: "found",
+      certificate: {
+        kind: "assessed",
+        id: ID,
+        title: "Git Skills Capstone",
+        description: "Server-graded Git history.",
+        holderName: null,
+        issuedAt: new Date("2026-10-17T10:05:00Z"),
+        revokedAt: null,
+        awardKey: "git-skills-capstone",
+        criteriaVersion: 1,
+        criteria: "Pass every rubric item.",
+        attemptId: "attempt-1",
+        grade: {
+          passed: true,
+          rubricVersion: 1,
+          criteria: [
+            { id: "commits", passed: true, feedback: "Commits recorded." },
+            { id: "recovery", passed: true, feedback: "Lost work recovered." },
+          ],
+        },
+      },
+      lessons: [],
+      practice: [],
+      checkedAt: new Date("2026-10-18T09:00:00Z"),
+    };
+    await show();
+    expect(
+      screen.getByText("Server-graded skills credential issued by GitDojo"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("credential-status")).toHaveTextContent(
+      "This credential is in GitDojo's issuance records",
+    );
+    const results = screen.getAllByTestId("grade-criterion");
+    expect(results).toHaveLength(2);
+    expect(results[0]).toHaveTextContent("Passed: Commits recorded.");
+    expect(screen.getByText(/isolated attempt/)).toHaveTextContent("attempt-1");
+    expect(screen.queryByText(/Lessons \(/)).toBeNull();
+    expect(screen.getByText("What a server-graded credential means")).toBeInTheDocument();
+    expect((await generateMetadata(params())).title).toBe(
+      "Git Skills Capstone skills credential (Valid)",
+    );
   });
 
   it("shows the not-found page for an unknown or malformed id", async () => {
