@@ -21,7 +21,9 @@ snapshot even if current award definitions later change.
 4. Keep `DATABASE_URL` configured. Issuance is unavailable without the account database,
    identity provider, site origin, or signing key.
 
-The dashboard shows each award's progress. A signed-in learner requests issuance after finishing
+The dashboard shows each award's progress: requirements done and left, and the next lesson or
+Practice task to finish, counted from the browser's progress as a guide. Before issuing, it asks
+whether the learner's name may appear publicly (private by default). A signed-in learner requests issuance after finishing
 all named lessons and Practice tasks. The server reads account completion rows and inserts a
 single certificate per learner, award, and criteria version. The recipient name comes from the
 signed-in account profile; GitDojo does not verify legal identity. The name is snapshotted on

@@ -403,11 +403,12 @@ What a learner has done is kept by `@gitdojo/progress` in its own IndexedDB data
 account needed; see [progress.md](./progress.md). A hands-on lesson is recorded as finished when
 its objectives are complete; a concept lesson when the learner marks it complete. Course
 completion is never stored: it is derived from completed lessons and the course's current lesson
-list. The dashboard (`/dashboard`) shows totals (practice on its own, with no XP), recommended
-next steps, the skills practiced and mastered (derived from content `concepts`; see
-[progress.md](./progress.md#skills-and-recommendations)), course progress, recent activity and
-command usage, and lets the learner download a PDF progress report (made in the browser) or reset
-their progress.
+list. The dashboard (`/dashboard`) shows the learner's Git journey (every course as a milestone,
+with the next lesson as the main action), totals (practice on its own, with no XP), recommended
+next steps, a 30-day activity calendar, recent activity, command usage, a skill map with the next
+item for each skill (derived from content `concepts`; see
+[progress.md](./progress.md#dashboard-views)) and certificate progress, and lets the learner
+download a PDF progress report (made in the browser) or reset their progress.
 
 ## Accounts
 

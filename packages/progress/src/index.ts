@@ -86,7 +86,19 @@ export {
   type SkillProgress,
   type SkillStatus,
 } from "./skills";
-export { recommendNextSteps, type Recommendation } from "./recommendations";
+export {
+  recommendNextSteps,
+  skillNextActions,
+  type Recommendation,
+  type SkillAction,
+} from "./recommendations";
+export { dailyActivity, type ActivityDay, type DailyActivity } from "./activity";
+export {
+  learningJourney,
+  type JourneyMilestone,
+  type LearningJourney,
+  type MilestoneStatus,
+} from "./journey";
 export { pickSurpriseTask, type SurpriseCandidate, type SurpriseOptions } from "./practice";
 export {
   buildProgressReport,

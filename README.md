@@ -70,9 +70,10 @@ Then:
   it survives a refresh.
 
 Your progress is saved in the browser, no account needed. The **dashboard** (`/dashboard`) shows
-where to continue, recommended next steps, the skills you have practiced (and which you have
-mastered: three hands-on completions, one of them unguided), lessons, challenges and practice
-tasks completed, XP, the Git commands you have used, course progress and recent activity, and
+your Git journey through the courses and where to continue, recommended next steps, the days you
+learned over the last 30 days, a skill map (practiced, and mastered: three hands-on completions,
+one of them unguided, each with the next thing to try), lessons, challenges and practice tasks
+completed, XP, the Git commands you have used, recent activity and certificate progress, and
 lets you download a branded **PDF progress report** (made in your browser; nothing is uploaded)
 or reset your progress.
 
