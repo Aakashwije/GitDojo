@@ -113,7 +113,10 @@ export function badgePayload(certificate: Certificate) {
       image: { id: `${origin}/brand/gitdojo-mark.png`, type: "Image" },
     },
     validFrom: certificate.issuedAt.toISOString(),
-    name: `${award.title} Completion Certificate`,
+    name:
+      certificate.credentialKind === "assessed"
+        ? `${award.title} Assessed Credential`
+        : `${award.title} Completion Certificate`,
     description: award.description,
     credentialSubject: {
       id: `urn:uuid:${certificate.id}`,
@@ -138,9 +141,23 @@ export function badgePayload(certificate: Certificate) {
       {
         id: `${origin}/verify/${certificate.id}`,
         type: ["Evidence"],
-        name: "GitDojo account completion record",
+        name:
+          certificate.credentialKind === "assessed"
+            ? "GitDojo server-graded capstone result"
+            : "GitDojo account completion record",
         description:
-          "Server-stored learner-reported completions for the named lessons and practice tasks.",
+          certificate.credentialKind === "assessed"
+            ? "A versioned rubric result derived by GitDojo from canonical Git objects and history."
+            : "Server-stored learner-reported completions for the named lessons and practice tasks.",
+        ...(award.kind === "assessed"
+          ? {
+              rubricVersion: award.grade.rubricVersion,
+              result: award.grade.criteria.map(({ id: criterion, passed }) => ({
+                criterion,
+                passed,
+              })),
+            }
+          : {}),
       },
     ],
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { type CommandExecutionResult } from "@gitdojo/command-parser";
+import { type AssessmentEvidence } from "@gitdojo/shared-types";
 import { type LessonEnvironment } from "@gitdojo/lesson-engine";
 import { type LessonDefinition } from "@gitdojo/shared-types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,7 @@ export interface PracticeSessionControls {
   files: WorkspaceFileActions;
   reset: () => Promise<void>;
   retry: () => void;
+  exportEvidence: (attemptId: string) => Promise<AssessmentEvidence>;
 }
 
 function describe(error: unknown): string {
@@ -147,5 +149,11 @@ export function usePracticeSession(
     setAttempt((value) => value + 1);
   }, []);
 
-  return { status, errorDetails, snapshot, execute, files, reset, retry };
+  const exportEvidence = useCallback((attemptId: string) => {
+    const session = sessionRef.current;
+    if (!session) return Promise.reject(new Error("The workspace is still loading."));
+    return session.exportEvidence(attemptId);
+  }, []);
+
+  return { status, errorDetails, snapshot, execute, files, reset, retry, exportEvidence };
 }

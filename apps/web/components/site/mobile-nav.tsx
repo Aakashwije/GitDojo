@@ -35,7 +35,7 @@ export function MobileNav({ items }: { items: readonly NavItem[] }) {
   };
 
   return (
-    <div className="sm:hidden">
+    <div className="xl:hidden">
       <IconButton
         ref={button}
         aria-label={open ? "Close menu" : "Open menu"}

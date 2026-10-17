@@ -11,6 +11,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { label: "Learn", href: "/learn", external: false },
   { label: "Challenges", href: "/challenges", external: false },
   { label: "Practice", href: "/practice", external: false },
+  { label: "Assessment", href: "/assessment", external: false },
   { label: "Playground", href: "/playground", external: false },
   { label: "Dashboard", href: "/dashboard", external: false },
   { label: "Docs", href: SITE.docsUrl, external: true },
@@ -24,7 +25,7 @@ export function SiteHeader() {
           <Link href="/" aria-label="GitDojo home">
             <Logo />
           </Link>
-          <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
+          <nav aria-label="Main" className="hidden items-center gap-1 xl:flex">
             {NAV_ITEMS.map((item) =>
               item.external ? (
                 <a

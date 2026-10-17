@@ -10,6 +10,7 @@ import type { Certificate } from "./store";
 /** The background is decorative; every issued detail remains real PDF text. */
 export async function certificatePdf(certificate: Certificate): Promise<Uint8Array> {
   const award = certificate.evidence;
+  if (award.kind !== "completion") throw new Error("Assessed credentials do not use PDF templates");
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();

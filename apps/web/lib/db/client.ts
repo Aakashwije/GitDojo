@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { connectionConfig } from "./connection.mjs";
 
 export type Database = postgres.Sql;
+export type QueryableDatabase = postgres.Sql | postgres.TransactionSql;
 
 /** `DATABASE_URL` is missing: account progress is unavailable, anonymous learning is not. */
 export class DatabaseNotConfiguredError extends Error {

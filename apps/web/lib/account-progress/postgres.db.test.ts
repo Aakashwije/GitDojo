@@ -51,7 +51,7 @@ function testDatabaseUrl(value: string): string {
 }
 
 const resetTables = (sql: postgres.Sql) =>
-  sql`DROP TABLE IF EXISTS certificate_signing_keys, certificates,
+  sql`DROP TABLE IF EXISTS certificate_signing_keys, certificates, assessment_attempts,
       command_stats, device_activity, revealed_hints, last_lessons,
       seen_releases, practice_completions, challenge_completions, lesson_completions, users,
       gitdojo_schema_migrations`;
@@ -154,6 +154,34 @@ describe.skipIf(!TEST_DATABASE_URL)("PostgreSQL account progress", () => {
         SELECT count(*)::int AS count FROM lesson_completions WHERE user_id = ${userId}
       `;
       expect(row?.count).toBe(0);
+    });
+
+    it("isolates capstone attempts and prevents duplicate assessed credentials", async () => {
+      const userId = await upsertUser(sql, identity("capstone-constraints"));
+      const attempts = await sql<{ id: string }[]>`
+        INSERT INTO assessment_attempts (user_id, assessment_key, rubric_version, nonce)
+        VALUES
+          (${userId}, 'git-skills-capstone', 1, ${"a".repeat(32)}),
+          (${userId}, 'git-skills-capstone', 1, ${"b".repeat(32)})
+        RETURNING id
+      `;
+      expect(attempts[0]?.id).not.toBe(attempts[1]?.id);
+      const certificate = {
+        user_id: userId,
+        award_key: "git-skills-capstone",
+        criteria_version: 1,
+        recipient_name: "Capstone Learner",
+        evidence: {},
+        credential_kind: "assessed",
+        assessment_attempt_id: attempts[0]?.id,
+      };
+      await sql`INSERT INTO certificates ${sql(certificate)}`;
+      expect(
+        await insertError("certificates", {
+          ...certificate,
+          assessment_attempt_id: attempts[1]?.id,
+        }),
+      ).toBe("23505");
     });
   });
 
