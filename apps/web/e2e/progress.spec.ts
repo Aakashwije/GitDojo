@@ -49,16 +49,26 @@ async function openDashboard(page: Page) {
   await expect(page.getByTestId("dashboard")).toBeVisible();
 }
 
-async function exportedProgress(page: Page): Promise<Record<string, unknown>> {
-  const download = page.waitForEvent("download");
-  await page.getByTestId("export-progress").click();
-  const file = await (await download).path();
-  const data = JSON.parse(await readFile(file, "utf8")) as {
-    format: string;
-    progress: Record<string, unknown>;
-  };
-  expect(data.format).toBe("gitdojo-progress");
-  return data.progress;
+/** The anonymous progress record exactly as stored in this browser's IndexedDB. */
+async function storedProgress(page: Page): Promise<Record<string, unknown>> {
+  return page.evaluate(
+    () =>
+      new Promise<Record<string, unknown>>((resolve, reject) => {
+        const open = indexedDB.open("gitdojo-progress");
+        open.onerror = () => {
+          reject(new Error("could not open progress"));
+        };
+        open.onsuccess = () => {
+          const read = open.result.transaction("records").objectStore("records").get("anonymous");
+          read.onsuccess = () => {
+            resolve(read.result as Record<string, unknown>);
+          };
+          read.onerror = () => {
+            reject(new Error("could not read progress"));
+          };
+        };
+      }),
+  );
 }
 
 test("shows a helpful empty state to a new learner", async ({ page }) => {
@@ -175,7 +185,7 @@ test("counts each revealed hint once", async ({ page, isMobile }) => {
   await expect(panel.getByTestId("hint")).toHaveCount(1);
 
   await openDashboard(page);
-  const progress = await exportedProgress(page);
+  const progress = await storedProgress(page);
   expect(progress.revealedHints).toEqual({
     "lesson:first-commit": ["initialize#0", "initialize#1"],
   });
@@ -254,4 +264,42 @@ test("continue learning returns to the last visited lesson", async ({ page }) =>
     "href",
     "/learn/branching/understanding-head",
   );
+});
+
+test("downloads a PDF progress report made in the browser, with no data sent anywhere", async ({
+  page,
+  baseURL,
+  isMobile,
+}) => {
+  await page.goto("/learn/demo");
+  await solveLesson(page, DEMO, isMobile);
+  await openDashboard(page);
+  // There is no JSON export any more: the report is the one download.
+  await expect(page.getByTestId("export-progress")).toHaveCount(0);
+
+  const requests: { method: string; url: string }[] = [];
+  page.on("request", (request) => {
+    requests.push({ method: request.method(), url: request.url() });
+  });
+  await page.getByRole("button", { name: "Export PDF report" }).click();
+  const dialog = page.getByRole("dialog", { name: "Export your progress report" });
+  await dialog.getByLabel(/Name on the report/).fill("Ada Lovelace");
+  const download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Download PDF" }).click();
+
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^gitdojo-progress-\d{4}-\d{2}-\d{2}\.pdf$/);
+  const bytes = await readFile(await file.path());
+  expect(bytes.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  expect(bytes.length).toBeGreaterThan(2_000);
+  await expect(dialog).toBeHidden();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Progress report downloaded" }),
+  ).toHaveCount(1);
+
+  // Only this site's own files (the logo and the PDF library) were requested; nothing was sent.
+  for (const request of requests) {
+    expect(new URL(request.url).origin, request.url).toBe(new URL(baseURL ?? "").origin);
+    expect(request.method, request.url).toBe("GET");
+  }
 });

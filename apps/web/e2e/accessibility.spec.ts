@@ -128,6 +128,20 @@ for (const theme of THEMES) {
       await expect(dialog).toBeHidden();
     });
 
+    test("PDF report dialog is keyboard operable and accessible", async ({ page }) => {
+      await page.goto("/dashboard");
+      const button = page.getByRole("button", { name: "Export PDF report" });
+      await expect(button).toBeEnabled();
+      await button.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "Export your progress report" });
+      await expect(dialog).toBeVisible();
+      await expectNoViolations(page);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      await expect(button).toBeFocused();
+    });
+
     test("dashboard reset dialog is keyboard operable", async ({ page }) => {
       await page.goto("/dashboard");
       const reset = page.getByTestId("reset-progress");

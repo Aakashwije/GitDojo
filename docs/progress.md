@@ -175,10 +175,33 @@ version 1 had no challenges). On the first load:
 
 ## Export and reset
 
-- **Export** (dashboard → "Export progress") downloads
-  `gitdojo-progress-YYYY-MM-DD.json`:
-  `{ "format": "gitdojo-progress", "exportVersion": 1, "exportedAt": "…", "progress": { … } }`.
-  Import is not implemented.
+- **PDF progress report** (dashboard → Your data → "Export PDF report") downloads
+  `gitdojo-progress-YYYY-MM-DD.pdf`, named after the learner's local export day. It replaces the
+  JSON download the dashboard used to offer; `exportProgress` in `@gitdojo/progress` still
+  produces that JSON shape for code and tests, but no button offers it.
+  - **What it shows.** `buildProgressReport` (`@gitdojo/progress`) builds the report from the
+    same progress and catalog as the dashboard (counters include the account's other devices):
+    an overview with a plain summary and totals, every course with completed / total lessons and
+    a percentage, skills practiced and mastered (with the rule spelled out), recent completions,
+    the most used Git commands, and the dashboard's recommended next steps as links. Sections
+    with nothing in them are left out; course totals are always shown. Practice is labelled as
+    earning no XP.
+  - **Name.** Optional, in a small dialog; blank means "GitDojo Learner". A signed-in learner's
+    profile name is suggested only when it is a real full name: never a username or anything
+    taken from their email. The PDF uses the built-in Helvetica font, which covers Latin-1, so
+    names in other scripts are refused with an explanation (leave the field blank instead).
+  - **Privacy.** The report is made in the browser with jsPDF
+    (`features/progress/services/progress-report-pdf.ts`, loaded only when the learner exports).
+    Nothing is uploaded: the only requests are for GitDojo's own logo and the PDF library from
+    this site. The report model has no fields for email addresses, account or device ids,
+    session data, hint lists or workspace files, so none of them can appear in it.
+  - **Design.** A4, GitDojo logo (the light-background variant, scaled without stretching) and
+    tagline, light-theme brand colours, selectable text, page numbers and a running header and
+    footer. Sections that continue onto a new page are named again there. If the logo cannot be
+    loaded, a text wordmark is used instead.
+  - **States.** A busy state while the PDF is made, a single PDF however often the button is
+    pressed, and a plain error with **Try again** if it fails. Status and errors are announced
+    to screen readers.
 - **Reset** (dashboard → "Reset learning progress", then confirm in a dialog) clears completions
   (lessons, challenges and practice), XP, command statistics, hints, the last lesson and the playground session count. It keeps the
   device id and the migration markers, removes any leftover legacy entry, and does **not** touch
@@ -202,4 +225,5 @@ stored in progress records.
   signed-in learners get a separate per-account record here.
 - Completions of content that has since been removed still count towards "Lessons completed"
   and earn whatever XP they earned, but not towards any course's progress.
-- Progress is per browser profile; clearing site data removes it. Export is the only backup.
+- Progress is per browser profile; clearing site data removes it. The PDF report is a record of
+  progress, not a backup: it cannot be imported to restore progress.
